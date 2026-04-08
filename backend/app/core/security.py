@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from jose import JWTError, jwt
-from app.core.config import get_settings
 import bcrypt
+import jwt
+from jwt.exceptions import InvalidTokenError
+from app.core.config import get_settings
 
 
 def hash_password(password: str) -> str:
@@ -25,5 +26,5 @@ def decode_token(token: str) -> str | None:
     try:
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
         return payload.get("sub")
-    except JWTError:
+    except InvalidTokenError:
         return None

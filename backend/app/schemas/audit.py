@@ -152,3 +152,10 @@ class AuditRunResponse(BaseModel):
     audit: AuditRead
     scans_executed: int
     total_findings: int
+
+
+class FindingReadWithContext(FindingRead):
+    """Finding enriquecido con información del audit y scan de origen."""
+    audit_id: int
+    audit_name: str
+    scan_tool: ScanTool

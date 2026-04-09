@@ -8,6 +8,7 @@ from app.schemas.audit import (
     AuditRead,
     AuditRunResponse,
     FindingRead,
+    FindingReadWithContext,
     ReportRead,
     ScanLogRead,
     ScanRead,
@@ -15,6 +16,20 @@ from app.schemas.audit import (
 from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/audits", tags=["audits"])
+findings_router = APIRouter(prefix="/findings", tags=["audits"])
+
+
+@findings_router.get(
+    "",
+    response_model=list[FindingReadWithContext],
+    responses={
+        200: {"description": "Todos los findings del sistema con contexto de audit y herramienta."},
+        401: {"description": "Token ausente, inválido o expirado."},
+    },
+)
+def list_all_findings(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    """Devuelve todos los findings de todas las auditorías, con audit_id, audit_name y scan_tool."""
+    return AuditService(db).get_all_findings()
 
 
 def _get_or_404(service: AuditService, audit_id: int) -> AuditRead:

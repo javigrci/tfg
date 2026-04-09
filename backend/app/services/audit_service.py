@@ -76,6 +76,31 @@ class AuditService:
     def get_report(self, audit_id: int) -> Report | None:
         return self.db.scalar(select(Report).where(Report.audit_id == audit_id))
 
+    def get_all_findings(self) -> list[dict]:
+        """Devuelve todos los findings del sistema con contexto de audit y scan."""
+        statement = (
+            select(Finding, Scan, Audit)
+            .join(Scan, Finding.scan_id == Scan.id)
+            .join(Audit, Scan.audit_id == Audit.id)
+            .order_by(Finding.severity.desc())
+        )
+        rows = self.db.execute(statement).all()
+        return [
+            {
+                "id": finding.id,
+                "title": finding.title,
+                "description": finding.description,
+                "severity": finding.severity,
+                "category": finding.category,
+                "evidence": finding.evidence,
+                "recommendation": finding.recommendation,
+                "audit_id": audit.id,
+                "audit_name": audit.name,
+                "scan_tool": scan.tool,
+            }
+            for finding, scan, audit in rows
+        ]
+
 
     def create_audit(self, payload: AuditCreate, created_by: User) -> Audit:
         target = self.db.scalar(select(Target).where(Target.id == payload.target_id))

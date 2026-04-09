@@ -1,7 +1,10 @@
-export type AuditStatus = 'draft' | 'pending' | 'running' | 'completed' | 'failed'
-export type AuditType = 'penetration_test' | 'vulnerability_scan' | 'compliance' | 'static_analysis'
+export type AuditStatus   = 'draft' | 'pending' | 'running' | 'completed' | 'failed'
+export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance' | 'static_analysis'
+export type ScanStatus    = 'pending' | 'running' | 'completed' | 'failed'
+export type ScanTool      = 'bash' | 'nmap' | 'nikto' | 'wapiti' | 'nuclei'
 export type SeverityLevel = 'info' | 'low' | 'medium' | 'high' | 'critical'
-export type TargetStatus = 'unknown' | 'reachable' | 'unreachable'
+export type RiskLevel     = 'info' | 'low' | 'medium' | 'high' | 'critical'
+export type TargetStatus  = 'unknown' | 'reachable' | 'unreachable'
 
 export interface Target {
   id: number
@@ -13,14 +16,50 @@ export interface Target {
   created_at: string
 }
 
+export interface Finding {
+  id: number
+  title: string
+  description: string
+  severity: SeverityLevel
+  category: string
+  evidence: string | null
+  recommendation: string
+}
+
+export interface Scan {
+  id: number
+  tool: ScanTool
+  command: string | null
+  status: ScanStatus
+  executed_at: string | null
+  findings: Finding[]
+}
+
+export interface Report {
+  id: number
+  summary: string | null
+  risk_level: RiskLevel
+  total_findings: number
+  critical_count: number
+  high_count: number
+  medium_count: number
+  low_count: number
+  created_at: string
+}
+
 export interface Audit {
   id: number
   name: string
-  description: string
+  description: string | null
   audit_type: AuditType
   status: AuditStatus
+  selected_modules: string[]
   target: Target
+  created_by: { id: number; username: string; role: { id: number; name: string } }
+  scans: Scan[]
+  report: Report | null
   created_at: string
   started_at: string | null
   finished_at: string | null
+  updated_at: string | null
 }

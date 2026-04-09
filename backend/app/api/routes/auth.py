@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
@@ -7,7 +6,7 @@ from app.core.security import create_access_token, verify_password
 from app.db.session import get_db
 from app.models.entities import User
 from app.schemas.audit import UserRead
-from app.schemas.auth import TokenResponse
+from app.schemas.auth import LoginRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -20,21 +19,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
         422: {"description": "Body mal formado o campos requeridos ausentes."},
     },
 )
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> TokenResponse:
+def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     """
     Autentica al usuario y devuelve un token JWT.
 
-    Usa el botón **Authorize** de Swagger (o envía `username` y `password` como form-data)
-    para obtener el token. Inclúyelo en el header `Authorization: Bearer <token>` en el resto de endpoints.
+    Envía `username` y `password` en el body JSON. Copia el `access_token` de la respuesta
+    e inclúyelo en el botón **Authorize** de Swagger o en el header `Authorization: Bearer <token>`.
     """
-    user = db.scalar(select(User).where(User.username == form_data.username))
-    if user is None or not verify_password(form_data.password, user.password_hash):
+    user = db.scalar(select(User).where(User.username == body.username))
+    if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return TokenResponse(access_token=create_access_token(subject=user.username))
+    return TokenResponse(access_token=create_access_token(subject=body.username))
 
 
 @router.get(

@@ -1,10 +1,9 @@
 from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
-from app.domain.enums import AuditStatus, AuditType, RiskLevel, ScanStatus, SeverityLevel
-from app.executors.legacy import LegacyAuditExecutor
+from app.domain.enums import AuditStatus, RiskLevel, ScanStatus, ScanTool, SeverityLevel
+from app.executors.factory import get_executor, get_parser
 from app.models.entities import Audit, Event, Finding, Log, Report, Scan, Target, User
-from app.parsers.legacy_parser import LegacyResultParser
 from app.schemas.audit import AuditCreate
 
 
@@ -15,8 +14,6 @@ def _now() -> datetime:
 class AuditService:
     def __init__(self, db: Session):
         self.db = db
-        self.executor = LegacyAuditExecutor()
-        self.parser = LegacyResultParser()
 
     def list_audits(self) -> list[Audit]:
         statement = (
@@ -120,7 +117,7 @@ class AuditService:
         )
         self.db.flush()
 
-        raw_results = self.executor.execute(audit.target.address, audit.selected_modules)
+        tools: list[str] = audit.selected_modules or [ScanTool.BASH.value]
 
         audit.scans.clear()
         self.db.flush()
@@ -128,23 +125,49 @@ class AuditService:
         severity_counts = {level: 0 for level in SeverityLevel}
         total_findings = 0
 
-        for raw_result in raw_results:
-            scan = Scan(
-                audit_id=audit.id,
-                tool=raw_result["tool"],
-                command=raw_result.get("command"),
-                status=ScanStatus.COMPLETED,
-                executed_at=_now(),
-                raw_output=raw_result.get("raw_output"),
-            )
-            self.db.add(scan)
-            self.db.flush()
+        for tool_name in tools:
+            try:
+                tool = ScanTool(tool_name)
+                executor = get_executor(tool)
+                parser = get_parser(tool)
+            except ValueError as exc:
+                self.db.add(Log(audit_id=audit.id, level="WARNING", message=str(exc)))
+                continue
 
-            findings = self.parser.parse(raw_result)
-            for finding_data in findings:
-                self.db.add(Finding(scan_id=scan.id, **finding_data))
-                severity_counts[finding_data["severity"]] += 1
-            total_findings += len(findings)
+            try:
+                raw_results = executor.execute(audit.target.address, [])
+                scan_status = ScanStatus.COMPLETED
+            except Exception as exc:
+                raw_results = [
+                    {
+                        "tool": tool_name,
+                        "command": tool_name,
+                        "raw_output": str(exc),
+                    }
+                ]
+                scan_status = ScanStatus.FAILED
+                self.db.add(
+                    Log(audit_id=audit.id, level="ERROR", message=f"[{tool_name}] {exc}")
+                )
+
+            for raw_result in raw_results:
+                scan = Scan(
+                    audit_id=audit.id,
+                    tool=raw_result["tool"],
+                    command=raw_result.get("command"),
+                    status=scan_status,
+                    executed_at=_now(),
+                    raw_output=raw_result.get("raw_output"),
+                )
+                self.db.add(scan)
+                self.db.flush()
+
+                if scan_status == ScanStatus.COMPLETED:
+                    findings = parser.parse(raw_result)
+                    for finding_data in findings:
+                        self.db.add(Finding(scan_id=scan.id, **finding_data))
+                        severity_counts[finding_data["severity"]] += 1
+                    total_findings += len(findings)
 
         risk_level = RiskLevel.INFO
         for level in (SeverityLevel.CRITICAL, SeverityLevel.HIGH, SeverityLevel.MEDIUM, SeverityLevel.LOW):

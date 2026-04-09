@@ -124,7 +124,7 @@ class AuditCreate(BaseModel):
     description: Optional[str] = Field(None, description="Descripción del alcance o contexto")
     audit_type: AuditType = Field(AuditType.VULNERABILITY_SCAN, description="Tipo de auditoría a realizar")
     target_id: int = Field(..., description="ID del target sobre el que se ejecutará la auditoría")
-    modules: list[str] = Field(default_factory=list, description="Lista de módulos/herramientas a ejecutar (ej: ['nmap', 'nikto'])")
+    modules: list[ScanTool] = Field(default=[ScanTool.NMAP], description="Herramientas a ejecutar (ej: ['nmap', 'wapiti'])")
 
 
 class AuditRead(BaseModel):

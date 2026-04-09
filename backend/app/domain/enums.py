@@ -32,6 +32,8 @@ class ScanTool(str, Enum):
     BASH = "bash"
     NMAP = "nmap"
     NIKTO = "nikto"
+    WAPITI = "wapiti"
+    NUCLEI = "nuclei"
 
 
 class SeverityLevel(str, Enum):

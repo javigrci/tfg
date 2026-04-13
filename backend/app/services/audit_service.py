@@ -77,6 +77,55 @@ class AuditService:
     def get_report(self, audit_id: int) -> Report | None:
         return self.db.scalar(select(Report).where(Report.audit_id == audit_id))
 
+    def get_all_reports(self) -> list[dict]:
+        rows = self.db.execute(
+            select(Report, Audit, Target)
+            .join(Audit, Report.audit_id == Audit.id)
+            .join(Target, Audit.target_id == Target.id)
+            .order_by(Report.created_at.desc())
+        ).all()
+        return [
+            {
+                "id": report.id,
+                "audit_id": audit.id,
+                "audit_name": audit.name,
+                "target_address": target.address,
+                "risk_level": report.risk_level.value,
+                "total_findings": report.total_findings,
+                "critical_count": report.critical_count,
+                "high_count": report.high_count,
+                "medium_count": report.medium_count,
+                "low_count": report.low_count,
+                "created_at": report.created_at.isoformat() if report.created_at else None,
+            }
+            for report, audit, target in rows
+        ]
+
+    def get_operator_reports(self, user_id: int) -> list[dict]:
+        rows = self.db.execute(
+            select(Report, Audit, Target)
+            .join(Audit, Report.audit_id == Audit.id)
+            .join(Target, Audit.target_id == Target.id)
+            .where(Audit.created_by_id == user_id)
+            .order_by(Report.created_at.desc())
+        ).all()
+        return [
+            {
+                "id": report.id,
+                "audit_id": audit.id,
+                "audit_name": audit.name,
+                "target_address": target.address,
+                "risk_level": report.risk_level.value,
+                "total_findings": report.total_findings,
+                "critical_count": report.critical_count,
+                "high_count": report.high_count,
+                "medium_count": report.medium_count,
+                "low_count": report.low_count,
+                "created_at": report.created_at.isoformat() if report.created_at else None,
+            }
+            for report, audit, target in rows
+        ]
+
     def get_admin_stats(self) -> dict:
         total_audits = self.db.scalar(select(func.count(Audit.id))) or 0
         active_audits = self.db.scalar(

@@ -10,7 +10,8 @@ import AuditDetail from '@/pages/AuditDetail'
 import Targets from '@/pages/Targets'
 import FindingsAdmin from '@/pages/FindingsAdmin'
 import FindingsOperator from '@/pages/FindingsOperator'
-import Reports from '@/pages/Reports'
+import ReportsAdmin from '@/pages/ReportsAdmin'
+import ReportsOperator from '@/pages/ReportsOperator'
 
 function DashboardPage() {
   const { user } = useAuth()
@@ -22,6 +23,12 @@ function FindingsPage() {
   const { user } = useAuth()
   if (!user) return null
   return user.role.name === 'admin' ? <FindingsAdmin /> : <FindingsOperator />
+}
+
+function ReportsPage() {
+  const { user } = useAuth()
+  if (!user) return null
+  return user.role.name === 'admin' ? <ReportsAdmin /> : <ReportsOperator />
 }
 
 export default function App() {
@@ -36,7 +43,7 @@ export default function App() {
               <Route path="audits/:id" element={<AuditDetail />} />
               <Route path="targets" element={<Targets />} />
               <Route path="findings" element={<FindingsPage />} />
-              <Route path="reports" element={<Reports />} />
+              <Route path="reports" element={<ReportsPage />} />
               <Route path="dashboard" element={<DashboardPage />} />
             </Route>
           </Route>

@@ -4,7 +4,8 @@ from app.core.security import hash_password
 from app.domain.enums import UserRole
 from app.models.entities import Role, User
 
-_DEFAULT_ADMIN_PASSWORD = "admin"
+_DEFAULT_ADMIN_PASSWORD    = "admin"
+_DEFAULT_OPERATOR_PASSWORD = "operator"
 
 
 class BootstrapService:
@@ -18,14 +19,21 @@ class BootstrapService:
                 self.db.add(Role(name=role_name))
         self.db.flush()
 
-        admin_user = self.db.scalar(select(User).where(User.username == "admin"))
-        if admin_user is None:
-            admin_role = self.db.scalar(select(Role).where(Role.name == UserRole.ADMIN))
-            self.db.add(
-                User(
-                    username="admin",
-                    password_hash=hash_password(_DEFAULT_ADMIN_PASSWORD),
-                    role_id=admin_role.id,
-                )
-            )
+        admin_role    = self.db.scalar(select(Role).where(Role.name == UserRole.ADMIN))
+        operator_role = self.db.scalar(select(Role).where(Role.name == UserRole.OPERATOR))
+
+        if not self.db.scalar(select(User).where(User.username == "admin")):
+            self.db.add(User(
+                username="admin",
+                password_hash=hash_password(_DEFAULT_ADMIN_PASSWORD),
+                role_id=admin_role.id,
+            ))
+
+        if not self.db.scalar(select(User).where(User.username == "operator")):
+            self.db.add(User(
+                username="operator",
+                password_hash=hash_password(_DEFAULT_OPERATOR_PASSWORD),
+                role_id=operator_role.id,
+            ))
+
         self.db.commit()

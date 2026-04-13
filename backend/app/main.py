@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.auth import router as auth_router
 from app.api.routes.audits import router as audits_router, findings_router
+from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.health import router as health_router
 from app.api.routes.targets import router as targets_router
 from app.core.config import get_settings
@@ -53,4 +54,5 @@ app.include_router(health_router)
 app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(audits_router, prefix=settings.api_prefix)
 app.include_router(findings_router, prefix=settings.api_prefix)
+app.include_router(dashboard_router, prefix=settings.api_prefix)
 app.include_router(targets_router, prefix=settings.api_prefix)

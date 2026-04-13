@@ -1,5 +1,6 @@
-from datetime import datetime, timezone
-from sqlalchemy import select
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from app.domain.enums import AuditStatus, RiskLevel, ScanStatus, ScanTool, SeverityLevel
 from app.executors.factory import get_executor, get_parser
@@ -75,6 +76,143 @@ class AuditService:
 
     def get_report(self, audit_id: int) -> Report | None:
         return self.db.scalar(select(Report).where(Report.audit_id == audit_id))
+
+    def get_admin_stats(self) -> dict:
+        total_audits = self.db.scalar(select(func.count(Audit.id))) or 0
+        active_audits = self.db.scalar(
+            select(func.count(Audit.id)).where(
+                Audit.status.in_([AuditStatus.RUNNING, AuditStatus.PENDING])
+            )
+        ) or 0
+
+        all_findings = list(self.db.scalars(select(Finding).join(Scan)).all())
+        total_findings = len(all_findings)
+        critical_findings = sum(1 for f in all_findings if f.severity == SeverityLevel.CRITICAL)
+
+        severity_dist: dict[str, int] = defaultdict(int)
+        category_dist: dict[str, int] = defaultdict(int)
+        for f in all_findings:
+            severity_dist[f.severity.value] += 1
+            category_dist[f.category.value] += 1
+
+        eight_weeks_ago = datetime.now(tz=timezone.utc) - timedelta(weeks=8)
+        recent_scans = list(
+            self.db.scalars(
+                select(Scan)
+                .where(Scan.executed_at >= eight_weeks_ago)
+                .options(joinedload(Scan.findings))
+            ).unique().all()
+        )
+        weekly: dict[str, int] = defaultdict(int)
+        for scan in recent_scans:
+            if scan.executed_at:
+                dt = scan.executed_at
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                week_start = dt - timedelta(days=dt.weekday())
+                weekly[week_start.strftime("%Y-%m-%d")] += len(scan.findings)
+
+        recent = list(
+            self.db.scalars(
+                select(Audit)
+                .options(joinedload(Audit.target))
+                .order_by(Audit.created_at.desc())
+                .limit(5)
+            ).unique().all()
+        )
+
+        return {
+            "total_audits": total_audits,
+            "active_audits": active_audits,
+            "critical_findings": critical_findings,
+            "total_findings": total_findings,
+            "severity_distribution": {
+                s: severity_dist.get(s, 0)
+                for s in ["critical", "high", "medium", "low", "info"]
+            },
+            "findings_by_category": {
+                c: category_dist.get(c, 0)
+                for c in [
+                    "injection", "broken_auth", "xss", "broken_access",
+                    "security_misconfig", "sensitive_exposure",
+                    "outdated_components", "logging_monitoring", "other",
+                ]
+            },
+            "findings_evolution": [
+                {"week": k, "count": v} for k, v in sorted(weekly.items())
+            ],
+            "recent_audits": [
+                {
+                    "id": a.id,
+                    "name": a.name,
+                    "target_address": a.target.address if a.target else "",
+                    "status": a.status.value,
+                    "started_at": a.started_at.isoformat() if a.started_at else None,
+                    "finished_at": a.finished_at.isoformat() if a.finished_at else None,
+                }
+                for a in recent
+            ],
+        }
+
+    def get_operator_stats(self, user_id: int) -> dict:
+        active_audits = self.db.scalar(
+            select(func.count(Audit.id)).where(
+                Audit.created_by_id == user_id,
+                Audit.status.in_([AuditStatus.RUNNING, AuditStatus.PENDING]),
+            )
+        ) or 0
+
+        my_audit_ids = [
+            row[0]
+            for row in self.db.execute(
+                select(Audit.id).where(Audit.created_by_id == user_id)
+            ).all()
+        ]
+
+        my_findings = (
+            list(
+                self.db.scalars(
+                    select(Finding).join(Scan).where(Scan.audit_id.in_(my_audit_ids))
+                ).all()
+            )
+            if my_audit_ids
+            else []
+        )
+
+        severity_dist: dict[str, int] = defaultdict(int)
+        for f in my_findings:
+            severity_dist[f.severity.value] += 1
+
+        recent = list(
+            self.db.scalars(
+                select(Audit)
+                .where(Audit.created_by_id == user_id)
+                .options(joinedload(Audit.target))
+                .order_by(Audit.created_at.desc())
+                .limit(5)
+            ).unique().all()
+        )
+
+        return {
+            "active_audits": active_audits,
+            "critical_findings": severity_dist.get("critical", 0),
+            "high_findings": severity_dist.get("high", 0),
+            "severity_distribution": {
+                s: severity_dist.get(s, 0)
+                for s in ["critical", "high", "medium", "low", "info"]
+            },
+            "recent_audits": [
+                {
+                    "id": a.id,
+                    "name": a.name,
+                    "target_address": a.target.address if a.target else "",
+                    "status": a.status.value,
+                    "started_at": a.started_at.isoformat() if a.started_at else None,
+                    "finished_at": a.finished_at.isoformat() if a.finished_at else None,
+                }
+                for a in recent
+            ],
+        }
 
     def get_all_findings(self) -> list[dict]:
         """Devuelve todos los findings del sistema con contexto de audit y scan."""

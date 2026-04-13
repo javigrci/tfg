@@ -1,24 +1,33 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   ClipboardList,
   Crosshair,
   AlertTriangle,
   FileText,
-  Settings,
+  LogOut,
   Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/context/AuthContext'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/audits', label: 'Audits', icon: ClipboardList },
-  { to: '/targets', label: 'Targets', icon: Crosshair },
-  { to: '/findings', label: 'Findings', icon: AlertTriangle },
-  { to: '/reports', label: 'Reports', icon: FileText },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/audits',    label: 'Audits',    icon: ClipboardList },
+  { to: '/targets',   label: 'Targets',   icon: Crosshair },
+  { to: '/findings',  label: 'Findings',  icon: AlertTriangle },
+  { to: '/reports',   label: 'Reports',   icon: FileText },
 ]
 
 export default function Sidebar() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  function handleLogout() {
+    logout()
+    navigate('/')
+  }
+
   return (
     <aside className="flex h-screen w-56 flex-col bg-sidebar border-r border-sidebar-border">
       {/* Brand */}
@@ -37,7 +46,6 @@ export default function Sidebar() {
           <NavLink
             key={to}
             to={to}
-            end={to === '/'}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
@@ -53,22 +61,26 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Settings */}
-      <div className="border-t border-sidebar-border px-3 py-3">
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-              isActive
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-            )
-          }
+      {/* User info + Logout */}
+      <div className="border-t border-sidebar-border px-3 py-3 space-y-1">
+        {user && (
+          <div className="flex items-center gap-2.5 px-3 py-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground uppercase shrink-0">
+              {user.username.slice(0, 1)}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-sidebar-foreground truncate">{user.username}</p>
+              <p className="text-xs text-sidebar-foreground/50 capitalize">{user.role.name}</p>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
         >
-          <Settings className="h-4 w-4 shrink-0" />
-          Settings
-        </NavLink>
+          <LogOut className="h-4 w-4 shrink-0" />
+          Log out
+        </button>
       </div>
     </aside>
   )

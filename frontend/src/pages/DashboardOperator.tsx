@@ -58,7 +58,7 @@ function KpiCard({ label, value, sub, accent }: {
 export default function DashboardOperator() {
   const navigate = useNavigate()
 
-  const { data: stats, isLoading } = useQuery<OperatorStats>({
+  const { data: stats, isLoading, isError, refetch } = useQuery<OperatorStats>({
     queryKey: ['dashboard-operator'],
     queryFn: () => api.get('/dashboard/my-stats').then(r => r.data),
   })
@@ -71,7 +71,14 @@ export default function DashboardOperator() {
     )
   }
 
-  if (!stats) return null
+  if (isError || !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+        <p className="text-sm">Failed to load dashboard data.</p>
+        <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
+      </div>
+    )
+  }
 
   const sevData = Object.entries(stats.severity_distribution)
     .filter(([, v]) => v > 0)

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Wifi, Trash2, X, Loader2, AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 import api from '@/lib/api'
 import type { Target } from '@/types'
 
@@ -64,7 +65,9 @@ export default function Targets() {
       setShowModal(false)
       setForm({ name: '', address: '', environment: 'lab', details: DEFAULT_DETAILS })
       setFormError('')
+      toast.success('Target created successfully')
     },
+    onError: () => toast.error('Failed to create target'),
   })
 
   const deleteMutation = useMutation({
@@ -85,7 +88,14 @@ export default function Targets() {
 
   const checkMutation = useMutation({
     mutationFn: (id: number) => api.post(`/targets/${id}/check`).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['targets'] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['targets'] })
+      const status = data?.status ?? 'unknown'
+      if (status === 'reachable') toast.success('Target is reachable')
+      else if (status === 'unreachable') toast.warning('Target is unreachable')
+      else toast.info('Connectivity check complete')
+    },
+    onError: () => toast.error('Connectivity check failed'),
     onSettled: () => setCheckingId(null),
   })
 

@@ -181,7 +181,7 @@ function ReportCard({ report }: { report: ReportEntry }) {
 export default function ReportsOperator() {
   const [riskFilter, setRiskFilter] = useState<RiskLevel | 'all'>('all')
 
-  const { data: reports = [], isLoading } = useQuery<ReportEntry[]>({
+  const { data: reports = [], isLoading, isError, refetch } = useQuery<ReportEntry[]>({
     queryKey: ['reports-operator'],
     queryFn: () => api.get('/reports/my').then(r => r.data),
   })
@@ -232,6 +232,11 @@ export default function ReportsOperator() {
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading reports…
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+          <p className="text-sm">Failed to load reports.</p>
+          <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-20 text-center text-sm text-muted-foreground">

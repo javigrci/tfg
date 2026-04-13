@@ -71,7 +71,7 @@ function EmptyChart({ height = 200 }: { height?: number }) {
 }
 
 export default function DashboardAdmin() {
-  const { data: stats, isLoading } = useQuery<AdminStats>({
+  const { data: stats, isLoading, isError, refetch } = useQuery<AdminStats>({
     queryKey: ['dashboard-admin'],
     queryFn: () => api.get('/dashboard/stats').then(r => r.data),
   })
@@ -84,7 +84,14 @@ export default function DashboardAdmin() {
     )
   }
 
-  if (!stats) return null
+  if (isError || !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+        <p className="text-sm">Failed to load dashboard data.</p>
+        <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
+      </div>
+    )
+  }
 
   const sevData = Object.entries(stats.severity_distribution)
     .filter(([, v]) => v > 0)

@@ -5,6 +5,7 @@ import {
   ArrowLeft, Play, Loader2, Shield, Terminal,
   ChevronDown, ChevronRight, AlertTriangle, Info,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import api from '@/lib/api'
 import type { Audit, Finding, SeverityLevel, RiskLevel } from '@/types'
 
@@ -123,7 +124,9 @@ export default function AuditDetail() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['audit', id] })
       qc.invalidateQueries({ queryKey: ['audits'] })
+      toast.success('Audit completed successfully')
     },
+    onError: () => toast.error('Audit execution failed'),
   })
 
   if (isLoading) {

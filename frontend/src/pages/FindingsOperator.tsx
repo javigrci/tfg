@@ -178,7 +178,7 @@ export default function FindingsOperator() {
   const navigate = useNavigate()
   const [sevFilter, setSevFilter] = useState<SeverityLevel | 'all'>('all')
 
-  const { data: findings = [], isLoading } = useQuery<FindingWithContext[]>({
+  const { data: findings = [], isLoading, isError, refetch } = useQuery<FindingWithContext[]>({
     queryKey: ['findings'],
     queryFn: () => api.get('/findings').then(r => r.data),
   })
@@ -230,6 +230,11 @@ export default function FindingsOperator() {
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
           Loading findings…
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+          <p className="text-sm">Failed to load findings.</p>
+          <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
         </div>
       ) : grouped.length === 0 ? (
         <div className="py-20 text-center text-sm text-muted-foreground">

@@ -63,7 +63,7 @@ function Count({ value, color }: { value: number; color: string }) {
 export default function ReportsAdmin() {
   const navigate = useNavigate()
 
-  const { data: reports = [], isLoading } = useQuery<ReportEntry[]>({
+  const { data: reports = [], isLoading, isError, refetch } = useQuery<ReportEntry[]>({
     queryKey: ['reports-admin'],
     queryFn: () => api.get('/reports').then(r => r.data),
   })
@@ -72,6 +72,15 @@ export default function ReportsAdmin() {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+        <p className="text-sm">Failed to load reports.</p>
+        <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
       </div>
     )
   }

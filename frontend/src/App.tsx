@@ -39,6 +39,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Login />} />
+          {/* Rutas accesibles para cualquier rol autenticado */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="audits" element={<Audits />} />
@@ -47,6 +48,13 @@ export default function App() {
               <Route path="findings" element={<FindingsPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="dashboard" element={<DashboardPage />} />
+            </Route>
+          </Route>
+
+          {/* Rutas exclusivas de admin */}
+          <Route element={<ProtectedRoute requiredRole="admin" />}>
+            <Route element={<AppLayout />}>
+              {/* <Route path="users" element={<UsersAdmin />} /> */}
             </Route>
           </Route>
         </Routes>

@@ -7,16 +7,18 @@ import {
   FileText,
   LogOut,
   Shield,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/audits',    label: 'Audits',    icon: ClipboardList },
-  { to: '/targets',   label: 'Targets',   icon: Crosshair },
-  { to: '/findings',  label: 'Findings',  icon: AlertTriangle },
-  { to: '/reports',   label: 'Reports',   icon: FileText },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
+  { to: '/audits',    label: 'Audits',    icon: ClipboardList,   adminOnly: false },
+  { to: '/targets',   label: 'Targets',   icon: Crosshair,       adminOnly: false },
+  { to: '/findings',  label: 'Findings',  icon: AlertTriangle,   adminOnly: false },
+  { to: '/reports',   label: 'Reports',   icon: FileText,        adminOnly: false },
+  { to: '/users',     label: 'Users',     icon: Users,           adminOnly: true  },
 ]
 
 export default function Sidebar() {
@@ -27,6 +29,8 @@ export default function Sidebar() {
     logout()
     navigate('/')
   }
+
+  const isAdmin = user?.role.name === 'admin'
 
   return (
     <aside className="flex h-screen w-56 flex-col bg-sidebar border-r border-sidebar-border">
@@ -42,7 +46,9 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-0.5 px-3 py-2">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {navItems
+          .filter(({ adminOnly }) => !adminOnly || isAdmin)
+          .map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

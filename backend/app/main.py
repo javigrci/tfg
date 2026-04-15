@@ -7,6 +7,7 @@ from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.health import router as health_router
 from app.api.routes.reports import router as reports_router
 from app.api.routes.targets import router as targets_router
+from app.api.routes.users import router as users_router
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
@@ -58,3 +59,4 @@ app.include_router(findings_router, prefix=settings.api_prefix)
 app.include_router(dashboard_router, prefix=settings.api_prefix)
 app.include_router(reports_router, prefix=settings.api_prefix)
 app.include_router(targets_router, prefix=settings.api_prefix)
+app.include_router(users_router, prefix=settings.api_prefix)

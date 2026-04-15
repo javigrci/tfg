@@ -1,3 +1,12 @@
+export type UserRole      = 'admin' | 'operator'
+
+export interface AppUser {
+  id: number
+  username: string
+  role: { id: number; name: UserRole }
+  created_at: string
+}
+
 export type AuditStatus   = 'draft' | 'pending' | 'running' | 'completed' | 'failed'
 export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance' | 'static_analysis'
 export type ScanStatus    = 'pending' | 'running' | 'completed' | 'failed'

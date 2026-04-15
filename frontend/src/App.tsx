@@ -13,6 +13,7 @@ import FindingsAdmin from '@/pages/FindingsAdmin'
 import FindingsOperator from '@/pages/FindingsOperator'
 import ReportsAdmin from '@/pages/ReportsAdmin'
 import ReportsOperator from '@/pages/ReportsOperator'
+import UsersAdmin from '@/pages/UsersAdmin'
 
 function DashboardPage() {
   const { user } = useAuth()
@@ -54,7 +55,7 @@ export default function App() {
           {/* Rutas exclusivas de admin */}
           <Route element={<ProtectedRoute requiredRole="admin" />}>
             <Route element={<AppLayout />}>
-              {/* <Route path="users" element={<UsersAdmin />} /> */}
+              <Route path="users" element={<UsersAdmin />} />
             </Route>
           </Route>
         </Routes>

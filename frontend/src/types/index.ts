@@ -7,6 +7,7 @@ export interface AppUser {
   created_at: string
 }
 
+export type FindingStatus = 'open' | 'in_progress' | 'resolved' | 'false_positive'
 export type AuditStatus   = 'draft' | 'pending' | 'running' | 'completed' | 'failed'
 export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance' | 'static_analysis'
 export type ScanStatus    = 'pending' | 'running' | 'completed' | 'failed'
@@ -33,6 +34,10 @@ export interface Finding {
   category: string
   evidence: string | null
   recommendation: string
+  status: FindingStatus
+  notes: string | null
+  fingerprint: string | null
+  resolved_at: string | null
 }
 
 export interface Scan {

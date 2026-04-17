@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import api from '@/lib/api'
-import type { SeverityLevel } from '@/types'
+import type { SeverityLevel, FindingStatus } from '@/types'
 
 interface FindingWithContext {
   id: number
@@ -13,6 +13,9 @@ interface FindingWithContext {
   category: string
   evidence: string | null
   recommendation: string
+  status: FindingStatus
+  notes: string | null
+  fingerprint: string | null
   audit_id: number
   audit_name: string
   scan_tool: string
@@ -26,6 +29,22 @@ interface AuditGroup {
 }
 
 const SEVERITIES: SeverityLevel[] = ['critical', 'high', 'medium', 'low', 'info']
+
+const FINDING_STATUS_STYLES: Record<FindingStatus, string> = {
+  open:           'bg-slate-500/10 text-slate-400 border border-slate-500/20',
+  in_progress:    'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+  resolved:       'bg-green-500/10 text-green-400 border border-green-500/20',
+  false_positive: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
+}
+
+const FINDING_STATUS_LABELS: Record<FindingStatus, string> = {
+  open:           'Open',
+  in_progress:    'In Progress',
+  resolved:       'Resolved',
+  false_positive: 'False Positive',
+}
+
+const FINDING_STATUSES: FindingStatus[] = ['open', 'in_progress', 'resolved', 'false_positive']
 
 const SEV_STYLES: Record<SeverityLevel, string> = {
   critical: 'bg-red-500/10 text-red-400 border border-red-500/20',
@@ -60,6 +79,14 @@ function SeverityBadge({ severity }: { severity: SeverityLevel }) {
   )
 }
 
+function StatusBadge({ status }: { status: FindingStatus }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${FINDING_STATUS_STYLES[status]}`}>
+      {FINDING_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
 function groupByAudit(findings: FindingWithContext[]): AuditGroup[] {
   const map = new Map<number, AuditGroup>()
 
@@ -87,17 +114,21 @@ function groupByAudit(findings: FindingWithContext[]): AuditGroup[] {
 function AuditCard({
   group,
   sevFilter,
+  statusFilter,
   onNavigate,
 }: {
   group: AuditGroup
   sevFilter: SeverityLevel | 'all'
+  statusFilter: FindingStatus | 'all'
   onNavigate: (id: number) => void
 }) {
   const [open, setOpen] = useState(false)
 
-  const visibleFindings = sevFilter === 'all'
-    ? group.findings
-    : group.findings.filter(f => f.severity === sevFilter)
+  const visibleFindings = group.findings.filter(f => {
+    if (sevFilter !== 'all' && f.severity !== sevFilter) return false
+    if (statusFilter !== 'all' && f.status !== statusFilter) return false
+    return true
+  })
 
   if (visibleFindings.length === 0) return null
 
@@ -147,6 +178,7 @@ function AuditCard({
                 <th className="px-5 py-3 text-left">Severity</th>
                 <th className="px-5 py-3 text-left">Category</th>
                 <th className="px-5 py-3 text-left">Tool</th>
+                <th className="px-5 py-3 text-left">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -164,6 +196,9 @@ function AuditCard({
                       {f.scan_tool}
                     </span>
                   </td>
+                  <td className="px-5 py-3">
+                    <StatusBadge status={f.status} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -177,6 +212,7 @@ function AuditCard({
 export default function FindingsOperator() {
   const navigate = useNavigate()
   const [sevFilter, setSevFilter] = useState<SeverityLevel | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<FindingStatus | 'all'>('all')
 
   const { data: findings = [], isLoading, isError, refetch } = useQuery<FindingWithContext[]>({
     queryKey: ['findings'],
@@ -185,10 +221,15 @@ export default function FindingsOperator() {
 
   const grouped = useMemo(() => groupByAudit(findings), [findings])
 
-  const counts = SEVERITIES.reduce((acc, sev) => {
+  const sevCounts = SEVERITIES.reduce((acc, sev) => {
     acc[sev] = findings.filter(f => f.severity === sev).length
     return acc
   }, {} as Record<SeverityLevel, number>)
+
+  const statusCounts = FINDING_STATUSES.reduce((acc, s) => {
+    acc[s] = findings.filter(f => f.status === s).length
+    return acc
+  }, {} as Record<FindingStatus, number>)
 
   return (
     <div className="space-y-6">
@@ -209,7 +250,7 @@ export default function FindingsOperator() {
         >
           All <span className="ml-1">{findings.length}</span>
         </button>
-        {SEVERITIES.map(sev => counts[sev] > 0 && (
+        {SEVERITIES.map(sev => sevCounts[sev] > 0 && (
           <button
             key={sev}
             onClick={() => setSevFilter(sevFilter === sev ? 'all' : sev)}
@@ -220,7 +261,34 @@ export default function FindingsOperator() {
             }`}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${SEV_DOT[sev]}`} />
-            {sev} <span>{counts[sev]}</span>
+            {sev} <span>{sevCounts[sev]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Status chips */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setStatusFilter('all')}
+          className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+            statusFilter === 'all'
+              ? 'bg-foreground text-background border-foreground'
+              : 'border-border text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Any status
+        </button>
+        {FINDING_STATUSES.map(s => statusCounts[s] > 0 && (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(statusFilter === s ? 'all' : s)}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+              statusFilter === s
+                ? FINDING_STATUS_STYLES[s]
+                : 'border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {FINDING_STATUS_LABELS[s]} <span className="ml-1">{statusCounts[s]}</span>
           </button>
         ))}
       </div>
@@ -247,6 +315,7 @@ export default function FindingsOperator() {
               key={group.audit_id}
               group={group}
               sevFilter={sevFilter}
+              statusFilter={statusFilter}
               onNavigate={id => navigate(`/audits/${id}`)}
             />
           ))}

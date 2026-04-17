@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Play, Loader2, Shield, Terminal,
-  ChevronDown, ChevronRight, AlertTriangle, Info,
+  ChevronDown, ChevronRight, AlertTriangle, Info, FileDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import type { Audit, Finding, SeverityLevel, RiskLevel } from '@/types'
+import type { Audit, Finding, FindingStatus, SeverityLevel, RiskLevel } from '@/types'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -35,12 +35,34 @@ const STATUS_STYLES: Record<string, string> = {
   draft:     'bg-slate-500/10 text-slate-400 border border-slate-500/20',
 }
 
+const FINDING_STATUS_STYLES: Record<FindingStatus, string> = {
+  open:           'bg-slate-500/10 text-slate-400 border border-slate-500/20',
+  in_progress:    'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+  resolved:       'bg-green-500/10 text-green-400 border border-green-500/20',
+  false_positive: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
+}
+
+const FINDING_STATUS_LABELS: Record<FindingStatus, string> = {
+  open:           'Open',
+  in_progress:    'In Progress',
+  resolved:       'Resolved',
+  false_positive: 'False Positive',
+}
+
 const TOOL_COLORS: Record<string, string> = {
   nmap:    'bg-purple-500/10 text-purple-400 border border-purple-500/20',
   wapiti:  'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20',
   nuclei:  'bg-pink-500/10 text-pink-400 border border-pink-500/20',
   nikto:   'bg-orange-500/10 text-orange-400 border border-orange-500/20',
   bash:    'bg-slate-500/10 text-slate-400 border border-slate-500/20',
+}
+
+function StatusBadge({ status }: { status: FindingStatus }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${FINDING_STATUS_STYLES[status]}`}>
+      {FINDING_STATUS_LABELS[status]}
+    </span>
+  )
 }
 
 function SeverityBadge({ severity }: { severity: SeverityLevel | RiskLevel }) {
@@ -64,8 +86,20 @@ function KpiCard({ label, value, sub }: { label: string; value: string | number;
 
 // ── FindingRow ────────────────────────────────────────────────────────────────
 
-function FindingRow({ finding }: { finding: Finding }) {
+function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | undefined }) {
   const [open, setOpen] = useState(false)
+  const qc = useQueryClient()
+
+  const statusMutation = useMutation({
+    mutationFn: (newStatus: FindingStatus) =>
+      api.patch(`/findings/${finding.id}/status`, { status: newStatus }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['audit', auditId] })
+      toast.success('Status updated')
+    },
+    onError: () => toast.error('Failed to update status'),
+  })
+
   return (
     <>
       <tr
@@ -80,10 +114,13 @@ function FindingRow({ finding }: { finding: Finding }) {
         <td className="px-4 py-3 font-medium text-foreground text-sm">{finding.title}</td>
         <td className="px-4 py-3"><SeverityBadge severity={finding.severity} /></td>
         <td className="px-4 py-3 text-xs text-muted-foreground capitalize">{finding.category.replace(/_/g, ' ')}</td>
+        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+          <StatusBadge status={finding.status} />
+        </td>
       </tr>
       {open && (
         <tr className="bg-muted/10">
-          <td colSpan={4} className="px-6 py-4">
+          <td colSpan={5} className="px-6 py-4">
             <div className="space-y-3 text-sm">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Description</p>
@@ -98,6 +135,27 @@ function FindingRow({ finding }: { finding: Finding }) {
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Recommendation</p>
                 <p className="text-foreground">{finding.recommendation}</p>
+              </div>
+              {finding.notes && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Analyst Notes</p>
+                  <p className="text-foreground">{finding.notes}</p>
+                </div>
+              )}
+              {/* Status control */}
+              <div className="flex items-center gap-3 pt-1 border-t border-border">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Status</p>
+                <select
+                  value={finding.status}
+                  disabled={statusMutation.isPending}
+                  onChange={e => statusMutation.mutate(e.target.value as FindingStatus)}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {(['open', 'in_progress', 'resolved', 'false_positive'] as FindingStatus[]).map(s => (
+                    <option key={s} value={s}>{FINDING_STATUS_LABELS[s]}</option>
+                  ))}
+                </select>
+                {statusMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               </div>
             </div>
           </td>
@@ -128,6 +186,30 @@ export default function AuditDetail() {
     },
     onError: () => toast.error('Audit execution failed'),
   })
+
+  const [pdfLoading, setPdfLoading] = useState(false)
+
+  const handleDownloadPdf = async () => {
+    if (pdfLoading) return
+    setPdfLoading(true)
+    try {
+      const response = await api.get(`/audits/${id}/report/pdf`, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `audit_report_${id}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('PDF downloaded')
+    } catch {
+      toast.error('Failed to generate PDF')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -182,16 +264,30 @@ export default function AuditDetail() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => runMutation.mutate()}
-          disabled={!canRun || runMutation.isPending}
-          className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-        >
-          {runMutation.isPending
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <Play className="h-4 w-4" />}
-          Run Audit
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {report && (
+            <button
+              onClick={handleDownloadPdf}
+              disabled={pdfLoading}
+              className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pdfLoading
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <FileDown className="h-4 w-4" />}
+              Export PDF
+            </button>
+          )}
+          <button
+            onClick={() => runMutation.mutate()}
+            disabled={!canRun || runMutation.isPending}
+            className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {runMutation.isPending
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Play className="h-4 w-4" />}
+            Run Audit
+          </button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -283,11 +379,12 @@ export default function AuditDetail() {
                     <th className="px-4 py-2 text-left">Title</th>
                     <th className="px-4 py-2 text-left">Severity</th>
                     <th className="px-4 py-2 text-left">Category</th>
+                    <th className="px-4 py-2 text-left">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {allFindings.map(finding => (
-                    <FindingRow key={finding.id} finding={finding} />
+                    <FindingRow key={finding.id} finding={finding} auditId={id} />
                   ))}
                 </tbody>
               </table>

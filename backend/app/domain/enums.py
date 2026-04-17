@@ -68,3 +68,10 @@ class FindingCategory(str, Enum):
     OUTDATED_COMPONENTS = "outdated_components"
     LOGGING_MONITORING = "logging_monitoring"
     OTHER = "other"
+
+
+class FindingStatus(str, Enum):
+    OPEN           = "open"
+    IN_PROGRESS    = "in_progress"
+    RESOLVED       = "resolved"
+    FALSE_POSITIVE = "false_positive"

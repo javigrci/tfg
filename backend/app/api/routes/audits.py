@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.db.session import get_db
@@ -9,6 +10,7 @@ from app.schemas.audit import (
     AuditRunResponse,
     FindingRead,
     FindingReadWithContext,
+    FindingStatusUpdate,
     ReportRead,
     ScanLogRead,
     ScanRead,
@@ -30,6 +32,33 @@ findings_router = APIRouter(prefix="/findings", tags=["audits"])
 def list_all_findings(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     """Devuelve todos los findings de todas las auditorías, con audit_id, audit_name y scan_tool."""
     return AuditService(db).get_all_findings()
+
+
+@findings_router.patch(
+    "/{finding_id}/status",
+    response_model=FindingRead,
+    responses={
+        200: {"description": "Estado del finding actualizado."},
+        401: {"description": "Token ausente, inválido o expirado."},
+        404: {"description": "Finding no encontrado."},
+    },
+)
+def update_finding_status(
+    finding_id: int,
+    payload: FindingStatusUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> FindingRead:
+    """
+    Actualiza el estado de un finding (open → in_progress → resolved / false_positive).
+    Gestiona resolved_at automáticamente al transicionar a/desde resolved.
+    """
+    finding = AuditService(db).update_finding_status(
+        finding_id, payload.status, payload.notes
+    )
+    if finding is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+    return finding
 
 
 def _get_or_404(service: AuditService, audit_id: int) -> AuditRead:
@@ -158,6 +187,47 @@ def get_scan_logs(audit_id: int, db: Session = Depends(get_db), _: User = Depend
     service = AuditService(db)
     _get_or_404(service, audit_id)
     return service.get_scan_logs(audit_id)
+
+
+@router.get(
+    "/{audit_id}/report/pdf",
+    responses={
+        200: {
+            "description": "PDF report downloaded as attachment.",
+            "content": {"application/pdf": {}},
+        },
+        401: {"description": "Token ausente, inválido o expirado."},
+        404: {"description": "Auditoría no encontrada o sin report aún."},
+    },
+)
+def download_report_pdf(
+    audit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> Response:
+    """
+    Genera y descarga el informe de una auditoría en formato PDF.
+
+    El PDF incluye portada, resumen ejecutivo con KPIs y el detalle completo
+    de cada finding (descripción, evidencia y recomendación).
+    Solo disponible después de ejecutar la auditoría con `/run`.
+    """
+    from app.services.pdf_service import generate_audit_pdf
+
+    service = AuditService(db)
+    audit   = _get_or_404(service, audit_id)
+    if audit.report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not available yet. Run the audit first.",
+        )
+    pdf_bytes = generate_audit_pdf(audit)
+    filename  = f"audit_report_{audit_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get(

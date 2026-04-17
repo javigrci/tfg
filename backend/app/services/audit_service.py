@@ -1,8 +1,9 @@
+import hashlib
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
-from app.domain.enums import AuditStatus, RiskLevel, ScanStatus, ScanTool, SeverityLevel
+from app.domain.enums import AuditStatus, FindingStatus, RiskLevel, ScanStatus, ScanTool, SeverityLevel
 from app.executors.factory import get_executor, get_parser
 from app.models.entities import Audit, Event, Finding, Log, Report, Scan, Target, User
 from app.schemas.audit import AuditCreate
@@ -10,6 +11,12 @@ from app.schemas.audit import AuditCreate
 
 def _now() -> datetime:
     return datetime.now(tz=timezone.utc)
+
+
+def _compute_fingerprint(tool: str, category: str, title: str, evidence: str | None) -> str:
+    """16-char hex digest que identifica el mismo hallazgo entre ejecuciones."""
+    raw = f"{tool}:{category}:{title[:80]}:{(evidence or '')[:120]}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 class AuditService:
@@ -281,6 +288,9 @@ class AuditService:
                 "category": finding.category,
                 "evidence": finding.evidence,
                 "recommendation": finding.recommendation,
+                "status": finding.status,
+                "notes": finding.notes,
+                "fingerprint": finding.fingerprint,
                 "audit_id": audit.id,
                 "audit_name": audit.name,
                 "scan_tool": scan.tool,
@@ -288,6 +298,32 @@ class AuditService:
             for finding, scan, audit in rows
         ]
 
+    def update_finding_status(
+        self,
+        finding_id: int,
+        new_status: FindingStatus,
+        notes: str | None,
+    ) -> Finding | None:
+        """Actualiza el estado de un finding y gestiona resolved_at automáticamente."""
+        finding = self.db.scalar(select(Finding).where(Finding.id == finding_id))
+        if finding is None:
+            return None
+
+        finding.status = new_status
+
+        if notes is not None:
+            finding.notes = notes
+
+        # Gestión automática de resolved_at
+        if new_status == FindingStatus.RESOLVED:
+            if finding.resolved_at is None:
+                finding.resolved_at = _now()
+        else:
+            finding.resolved_at = None  # reabierto → limpiar fecha
+
+        self.db.commit()
+        self.db.refresh(finding)
+        return finding
 
     def create_audit(self, payload: AuditCreate, created_by: User) -> Audit:
         target = self.db.scalar(select(Target).where(Target.id == payload.target_id))
@@ -377,7 +413,13 @@ class AuditService:
                 if scan_status == ScanStatus.COMPLETED:
                     findings = parser.parse(raw_result)
                     for finding_data in findings:
-                        self.db.add(Finding(scan_id=scan.id, **finding_data))
+                        fp = _compute_fingerprint(
+                            tool_name,
+                            finding_data["category"].value,
+                            finding_data["title"],
+                            finding_data.get("evidence"),
+                        )
+                        self.db.add(Finding(scan_id=scan.id, fingerprint=fp, **finding_data))
                         severity_counts[finding_data["severity"]] += 1
                     total_findings += len(findings)
 

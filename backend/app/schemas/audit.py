@@ -6,6 +6,7 @@ from app.domain.enums import (
     AuditStatus,
     AuditType,
     FindingCategory,
+    FindingStatus,
     RiskLevel,
     ScanStatus,
     ScanTool,
@@ -60,8 +61,21 @@ class FindingRead(BaseModel):
     category: FindingCategory
     evidence: Optional[str] = None
     recommendation: str
+    # Lifecycle
+    status: FindingStatus = FindingStatus.OPEN
+    notes: Optional[str] = None
+    assigned_to_id: Optional[int] = None
+    resolved_at: Optional[datetime] = None
+    # Enrichment
+    fingerprint: Optional[str] = None
+    cpe: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class FindingStatusUpdate(BaseModel):
+    status: FindingStatus = Field(..., description="Nuevo estado del hallazgo")
+    notes: Optional[str] = Field(None, description="Comentario del analista (opcional)")
 
 
 class ScanRead(BaseModel):

@@ -8,6 +8,7 @@ from app.domain.enums import (
     AuditStatus,
     AuditType,
     FindingCategory,
+    FindingStatus,
     RiskLevel,
     ScanStatus,
     ScanTool,
@@ -102,7 +103,27 @@ class Finding(Base):
     category: Mapped[FindingCategory] = mapped_column(Enum(FindingCategory), nullable=False, default=FindingCategory.OTHER)
     evidence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # ── Lifecycle ──────────────────────────────────────────────────────────────
+    status: Mapped[FindingStatus] = mapped_column(
+        Enum(FindingStatus), nullable=False, default=FindingStatus.OPEN
+    )
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    assigned_to_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # ── Fingerprint + enrichment ───────────────────────────────────────────────
+    # 16-hex SHA-256 digest: identifica el mismo hallazgo entre ejecuciones
+    fingerprint: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, index=True)
+    # CPE 2.3 extraído por NmapParser (base para CVE enrichment)
+    cpe: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
     scan: Mapped["Scan"] = relationship(back_populates="findings")
+    assigned_to: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to_id])
     finding_vulnerabilities: Mapped[list["FindingVulnerability"]] = relationship(
         back_populates="finding", cascade="all, delete-orphan"
     )

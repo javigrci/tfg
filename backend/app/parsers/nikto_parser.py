@@ -217,8 +217,8 @@ class NiktoParser:
 
     def _make_title(self, path: str, description: str) -> str:
         """Genera un título conciso a partir de la ruta y la descripción."""
-        # Tomar la primera frase de la descripción (hasta el punto o 80 chars)
-        first_sentence = re.split(r"[.!]", description)[0].strip()
+        # Dividir solo en punto seguido de espacio o fin de cadena (no en .txt, .php, etc.)
+        first_sentence = re.split(r"\.\s|\.$|!", description)[0].strip()
         if len(first_sentence) > 80:
             first_sentence = first_sentence[:77] + "…"
         if path and path != "/":

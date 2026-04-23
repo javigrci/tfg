@@ -5,8 +5,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from app.domain.enums import AuditStatus, FindingStatus, RiskLevel, ScanStatus, ScanTool, SeverityLevel
 from app.executors.factory import get_executor, get_parser
-from app.models.entities import Audit, Event, Finding, Log, Report, Scan, Target, User
+from app.models.entities import Audit, Event, Finding, FindingVulnerability, Log, Report, Scan, Target, User, Vulnerability
 from app.schemas.audit import AuditCreate
+from app.services.cve_enrichment import CVEEnrichmentService
 
 
 def _now() -> datetime:
@@ -45,7 +46,9 @@ class AuditService:
             .options(
                 joinedload(Audit.target),
                 joinedload(Audit.created_by).joinedload(User.role),
-                joinedload(Audit.scans).joinedload(Scan.findings),
+                joinedload(Audit.scans).joinedload(Scan.findings).joinedload(
+                    Finding.finding_vulnerabilities
+                ).joinedload(FindingVulnerability.vulnerability),
                 joinedload(Audit.report),
                 joinedload(Audit.events),
                 joinedload(Audit.logs),
@@ -68,9 +71,14 @@ class AuditService:
             select(Finding)
             .join(Scan, Finding.scan_id == Scan.id)
             .where(Scan.audit_id == audit_id)
+            .options(
+                joinedload(Finding.finding_vulnerabilities).joinedload(
+                    FindingVulnerability.vulnerability
+                )
+            )
             .order_by(Finding.severity.desc())
         )
-        return list(self.db.scalars(statement).all())
+        return list(self.db.scalars(statement).unique().all())
 
     def get_scan_logs(self, audit_id: int) -> list[Scan]:
         """Return scans with only the raw_output field (logs view)."""
@@ -372,6 +380,7 @@ class AuditService:
 
         severity_counts = {level: 0 for level in SeverityLevel}
         total_findings = 0
+        all_saved_findings: list[Finding] = []
 
         for tool_name in tools:
             try:
@@ -419,7 +428,10 @@ class AuditService:
                             finding_data["title"],
                             finding_data.get("evidence"),
                         )
-                        self.db.add(Finding(scan_id=scan.id, fingerprint=fp, **finding_data))
+                        f = Finding(scan_id=scan.id, fingerprint=fp, **finding_data)
+                        self.db.add(f)
+                        self.db.flush()  # obtener ID para enrichment
+                        all_saved_findings.append(f)
                         severity_counts[finding_data["severity"]] += 1
                     total_findings += len(findings)
 
@@ -464,4 +476,21 @@ class AuditService:
             )
         )
         self.db.commit()
+
+        # CVE enrichment — falla silenciosamente, no bloquea el audit
+        findings_with_cpe = [f for f in all_saved_findings if f.cpe]
+        if findings_with_cpe:
+            try:
+                CVEEnrichmentService(self.db).enrich(findings_with_cpe)
+                self.db.commit()
+            except Exception as exc:
+                self.db.add(
+                    Log(
+                        audit_id=audit.id,
+                        level="WARNING",
+                        message=f"CVE enrichment falló (no crítico): {exc}",
+                    )
+                )
+                self.db.commit()
+
         return self.get_audit(audit.id)

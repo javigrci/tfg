@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     token_expire_minutes: int = 60
 
+    # NVD API key (opcional — sin key: 5 req/30s; con key: 50 req/30s)
+    # Solicitar gratis en: https://nvd.nist.gov/developers/request-an-api-key
+    nvd_api_key: str = Field(default="", alias="NVD_API_KEY")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

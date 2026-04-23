@@ -128,6 +128,11 @@ class Finding(Base):
         back_populates="finding", cascade="all, delete-orphan"
     )
 
+    @property
+    def vulnerabilities(self) -> list["Vulnerability"]:
+        """Acceso directo a las vulnerabilidades asociadas (via FindingVulnerability)."""
+        return [fv.vulnerability for fv in self.finding_vulnerabilities]
+
 
 class Vulnerability(Base):
     __tablename__ = "vulnerabilities"

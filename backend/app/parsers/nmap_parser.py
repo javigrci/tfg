@@ -15,6 +15,24 @@ _KNOWN_SERVICE_NAMES: dict[int, str] = {
     8888: "http (Jupyter / dev server)",
 }
 
+def _cpe_uri_to_23(cpe_uri: str) -> str:
+    """
+    Convierte CPE URI (v2.2) a CPE 2.3 que acepta la NVD API.
+
+    Ejemplo:
+        cpe:/a:apache:http_server:2.4.49
+        → cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*
+    """
+    # Quitar prefijo "cpe:/" o "cpe:/"
+    stripped = cpe_uri.removeprefix("cpe:/").removeprefix("cpe://")
+    parts = stripped.split(":")
+    # Asegurar exactamente 11 componentes tras "cpe:2.3"
+    # [part, vendor, product, version, update, edition, language, sw_edition, target_sw, target_hw, other]
+    while len(parts) < 11:
+        parts.append("*")
+    return "cpe:2.3:" + ":".join(parts[:11])
+
+
 _RECOMMENDATIONS: dict[int, str] = {
     21:    "Deshabilitar FTP. Usar SFTP o SCP.",
     22:    "Restringir acceso SSH por IP. Deshabilitar autenticación por contraseña.",
@@ -102,6 +120,13 @@ class NmapParser:
                     f"Evaluar si el puerto {portid} debe estar expuesto y restringir acceso si no es necesario.",
                 )
 
+                # Extraer CPE del servicio (base para CVE enrichment)
+                cpe_value: str | None = None
+                if service_el is not None:
+                    cpe_els = service_el.findall("cpe")
+                    if cpe_els:
+                        cpe_value = _cpe_uri_to_23(cpe_els[0].text or "")
+
                 findings.append(
                     {
                         "title": f"Puerto abierto: {portid}/{protocol} ({service_name})",
@@ -117,6 +142,7 @@ class NmapParser:
                             f"Servicio: {service_display}"
                         ),
                         "recommendation": recommendation,
+                        "cpe": cpe_value,
                     }
                 )
 

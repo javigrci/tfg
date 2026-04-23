@@ -26,6 +26,15 @@ export interface Target {
   created_at: string
 }
 
+export interface Vulnerability {
+  id: number
+  name: string
+  reference: string | null   // CVE-XXXX-XXXXX
+  cvss_score: number | null
+  description: string
+  remediation: string | null
+}
+
 export interface Finding {
   id: number
   title: string
@@ -37,7 +46,9 @@ export interface Finding {
   status: FindingStatus
   notes: string | null
   fingerprint: string | null
+  cpe: string | null
   resolved_at: string | null
+  vulnerabilities: Vulnerability[]
 }
 
 export interface Scan {

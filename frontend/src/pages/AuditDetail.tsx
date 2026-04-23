@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import type { Audit, Finding, FindingStatus, SeverityLevel, RiskLevel } from '@/types'
+import type { Audit, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -55,6 +55,39 @@ const TOOL_COLORS: Record<string, string> = {
   nuclei:  'bg-pink-500/10 text-pink-400 border border-pink-500/20',
   nikto:   'bg-orange-500/10 text-orange-400 border border-orange-500/20',
   bash:    'bg-slate-500/10 text-slate-400 border border-slate-500/20',
+}
+
+function cvssStyle(score: number | null): string {
+  if (score === null) return 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+  if (score >= 9.0)   return 'bg-red-500/10 text-red-400 border border-red-500/20'
+  if (score >= 7.0)   return 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+  if (score >= 4.0)   return 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+  return 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+}
+
+function CveChips({ vulnerabilities }: { vulnerabilities: Vulnerability[] }) {
+  if (!vulnerabilities || vulnerabilities.length === 0) return null
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">CVEs</p>
+      <div className="flex flex-wrap gap-2">
+        {vulnerabilities.map(v => (
+          <a
+            key={v.id}
+            href={v.reference ? `https://nvd.nist.gov/vuln/detail/${v.reference}` : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${cvssStyle(v.cvss_score)} ${v.reference ? 'hover:opacity-80 transition-opacity cursor-pointer' : ''}`}
+          >
+            <span className="font-mono">{v.reference ?? v.name}</span>
+            {v.cvss_score !== null && (
+              <span className="font-bold">{v.cvss_score.toFixed(1)}</span>
+            )}
+          </a>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function StatusBadge({ status }: { status: FindingStatus }) {
@@ -136,6 +169,7 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Recommendation</p>
                 <p className="text-foreground">{finding.recommendation}</p>
               </div>
+              <CveChips vulnerabilities={finding.vulnerabilities} />
               {finding.notes && (
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Analyst Notes</p>
@@ -187,27 +221,33 @@ export default function AuditDetail() {
     onError: () => toast.error('Audit execution failed'),
   })
 
-  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfLoading, setPdfLoading] = useState<'technical' | 'executive' | null>(null)
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (type: 'technical' | 'executive') => {
     if (pdfLoading) return
-    setPdfLoading(true)
+    setPdfLoading(type)
+    const endpoint = type === 'executive'
+      ? `/audits/${id}/report/pdf/executive`
+      : `/audits/${id}/report/pdf`
+    const filename = type === 'executive'
+      ? `audit_executive_${id}.pdf`
+      : `audit_technical_${id}.pdf`
     try {
-      const response = await api.get(`/audits/${id}/report/pdf`, { responseType: 'blob' })
+      const response = await api.get(endpoint, { responseType: 'blob' })
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      a.download = `audit_report_${id}.pdf`
+      a.download = filename
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      toast.success('PDF downloaded')
+      toast.success(`${type === 'executive' ? 'Executive' : 'Technical'} report downloaded`)
     } catch {
       toast.error('Failed to generate PDF')
     } finally {
-      setPdfLoading(false)
+      setPdfLoading(null)
     }
   }
 
@@ -266,16 +306,28 @@ export default function AuditDetail() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {report && (
-            <button
-              onClick={handleDownloadPdf}
-              disabled={pdfLoading}
-              className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {pdfLoading
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <FileDown className="h-4 w-4" />}
-              Export PDF
-            </button>
+            <>
+              <button
+                onClick={() => handleDownloadPdf('executive')}
+                disabled={!!pdfLoading}
+                className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pdfLoading === 'executive'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileDown className="h-4 w-4" />}
+                Executive
+              </button>
+              <button
+                onClick={() => handleDownloadPdf('technical')}
+                disabled={!!pdfLoading}
+                className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pdfLoading === 'technical'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileDown className="h-4 w-4" />}
+                Technical
+              </button>
+            </>
           )}
           <button
             onClick={() => runMutation.mutate()}

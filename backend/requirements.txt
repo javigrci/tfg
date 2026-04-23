@@ -49,6 +49,7 @@ pyparsing==3.3.2
 pytest==9.0.2
 python-dotenv==1.2.2
 python-multipart==0.0.22
+nvdlib>=0.7.6
 requests==2.33.1
 rich==14.3.3
 rsa==4.9.1

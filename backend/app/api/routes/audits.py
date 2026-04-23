@@ -222,7 +222,48 @@ def download_report_pdf(
             detail="Report not available yet. Run the audit first.",
         )
     pdf_bytes = generate_audit_pdf(audit)
-    filename  = f"audit_report_{audit_id}.pdf"
+    filename  = f"audit_technical_{audit_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get(
+    "/{audit_id}/report/pdf/executive",
+    responses={
+        200: {
+            "description": "Executive PDF report downloaded as attachment.",
+            "content": {"application/pdf": {}},
+        },
+        401: {"description": "Token ausente, inválido o expirado."},
+        404: {"description": "Auditoría no encontrada o sin report aún."},
+    },
+)
+def download_executive_pdf(
+    audit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> Response:
+    """
+    Genera y descarga el informe ejecutivo en PDF.
+
+    Incluye narrativa de riesgo, KPIs, distribución OWASP, tabla resumen
+    de findings y top recomendaciones. Sin evidencia técnica.
+    Solo disponible después de ejecutar la auditoría con `/run`.
+    """
+    from app.services.pdf_service import generate_executive_pdf
+
+    service = AuditService(db)
+    audit   = _get_or_404(service, audit_id)
+    if audit.report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not available yet. Run the audit first.",
+        )
+    pdf_bytes = generate_executive_pdf(audit)
+    filename  = f"audit_executive_{audit_id}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

@@ -53,6 +53,17 @@ class TargetRead(TargetCreate):
     model_config = {"from_attributes": True}
 
 
+class VulnerabilityRead(BaseModel):
+    id: int
+    name: str
+    reference: Optional[str] = None
+    cvss_score: Optional[float] = None
+    description: str
+    remediation: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
 class FindingRead(BaseModel):
     id: int
     title: str
@@ -69,6 +80,8 @@ class FindingRead(BaseModel):
     # Enrichment
     fingerprint: Optional[str] = None
     cpe: Optional[str] = None
+    # CVEs asociados
+    vulnerabilities: list[VulnerabilityRead] = []
 
     model_config = {"from_attributes": True}
 

@@ -4,16 +4,19 @@ from app.executors.legacy import LegacyAuditExecutor
 from app.executors.nikto_executor import NiktoExecutor
 from app.executors.nmap_executor import NmapExecutor
 from app.executors.nuclei_executor import NucleiExecutor
+from app.executors.wapiti_executor import WapitiExecutor
 from app.parsers.legacy_parser import LegacyResultParser
 from app.parsers.nikto_parser import NiktoParser
 from app.parsers.nmap_parser import NmapParser
 from app.parsers.nuclei_parser import NucleiParser
+from app.parsers.wapiti_parser import WapitiParser
 
 _EXECUTORS: dict[ScanTool, type[AuditExecutor]] = {
     ScanTool.BASH:   LegacyAuditExecutor,
     ScanTool.NMAP:   NmapExecutor,
     ScanTool.NIKTO:  NiktoExecutor,
     ScanTool.NUCLEI: NucleiExecutor,
+    ScanTool.WAPITI: WapitiExecutor,
 }
 
 _PARSERS = {
@@ -21,6 +24,7 @@ _PARSERS = {
     ScanTool.NMAP:   NmapParser,
     ScanTool.NIKTO:  NiktoParser,
     ScanTool.NUCLEI: NucleiParser,
+    ScanTool.WAPITI: WapitiParser,
 }
 
 

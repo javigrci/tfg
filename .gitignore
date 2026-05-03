@@ -28,3 +28,4 @@ lerna-debug.log*
 *.sln
 *.sw?
 .claude
+*.db-journal

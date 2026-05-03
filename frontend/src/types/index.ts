@@ -9,7 +9,7 @@ export interface AppUser {
 
 export type FindingStatus = 'open' | 'in_progress' | 'resolved' | 'false_positive'
 export type AuditStatus   = 'draft' | 'pending' | 'running' | 'completed' | 'failed'
-export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance' | 'static_analysis'
+export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance'
 export type ScanStatus    = 'pending' | 'running' | 'completed' | 'failed'
 export type ScanTool      = 'bash' | 'nmap' | 'nikto' | 'wapiti' | 'nuclei'
 export type SeverityLevel = 'info' | 'low' | 'medium' | 'high' | 'critical'
@@ -53,11 +53,25 @@ export interface Finding {
 
 export interface Scan {
   id: number
+  run_number: number
   tool: ScanTool
   command: string | null
   status: ScanStatus
   executed_at: string | null
   findings: Finding[]
+}
+
+export interface DeltaSummary {
+  new: number
+  resolved: number
+  persisting: number
+}
+
+export interface DeltaResponse {
+  new: Finding[]
+  resolved: Finding[]
+  persisting: Finding[]
+  summary: DeltaSummary
 }
 
 export interface Report {

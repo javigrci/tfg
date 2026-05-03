@@ -18,7 +18,6 @@ class AuditType(str, Enum):
     PENETRATION_TEST = "penetration_test"
     VULNERABILITY_SCAN = "vulnerability_scan"
     COMPLIANCE = "compliance"
-    STATIC_ANALYSIS = "static_analysis"
 
 
 class ScanStatus(str, Enum):

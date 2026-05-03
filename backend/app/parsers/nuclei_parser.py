@@ -17,40 +17,65 @@ _SEVERITY_MAP: dict[str, SeverityLevel] = {
 # Orden importa: el primer match gana. Más específico primero.
 
 _TAG_RULES: list[tuple[list[str], FindingCategory]] = [
+    # ── Injection (más específico primero) ────────────────────────────────────
     (
-        ["sqli", "sql-injection", "sql", "lfi", "rfi",
-         "path-traversal", "rce", "command-injection", "ssti", "xxe", "injection"],
+        ["sqli", "sql-injection", "lfi", "rfi", "path-traversal",
+         "rce", "command-injection", "ssti", "xxe", "ssrf",
+         "deserializ", "file-upload", "template-injection",
+         "code-injection", "injection", "sql"],
         FindingCategory.INJECTION,
     ),
+    # ── XSS ──────────────────────────────────────────────────────────────────
     (
-        ["xss", "cross-site-scripting"],
+        ["xss", "cross-site-scripting", "dom-xss", "reflected-xss", "stored-xss"],
         FindingCategory.XSS,
     ),
+    # ── Broken Auth ───────────────────────────────────────────────────────────
     (
         ["auth", "bypass", "default-login", "default-password", "unauth",
-         "authentication", "login"],
+         "authentication", "login", "jwt", "oauth", "saml", "session",
+         "brute-force", "weak-password", "no-auth", "hardcoded",
+         "default-credential", "weak-auth"],
         FindingCategory.BROKEN_AUTH,
     ),
+    # ── Broken Access Control ─────────────────────────────────────────────────
     (
-        ["idor", "access-control", "privilege-escalation", "unauthorized-access"],
+        ["idor", "access-control", "privilege-escalation", "unauthorized-access",
+         "open-redirect", "redirect", "panel", "admin-panel",
+         "directory-listing", "listing"],
         FindingCategory.BROKEN_ACCESS,
     ),
+    # ── Sensitive Data Exposure ───────────────────────────────────────────────
     (
         ["exposure", "disclosure", "leak", "sensitive", "token",
-         "secret", "credential", "api-key"],
+         "secret", "credential", "api-key", "backup", "database",
+         "info-disclosure", "file-disclosure", "aws", "gcp",
+         "azure", "s3", "devops", "keys", "password-disclosure",
+         "source-code", "private-key", "certificate", "data-exposure"],
         FindingCategory.SENSITIVE_EXPOSURE,
     ),
+    # ── Security Misconfiguration ─────────────────────────────────────────────
     (
         ["misconfig", "config", "misconfiguration", "exposed-panel",
-         "exposed", "header", "cors", "ssl", "tls"],
+         "exposed", "header", "cors", "ssl", "tls", "network",
+         "tcp", "k8s", "docker", "kubernetes", "smtp",
+         "dns", "ftp", "snmp", "iis", "nginx", "php",
+         "jenkins", "gitlab", "kibana", "grafana", "prometheus",
+         "debug", "trace", "http", "firewall", "open-port",
+         "cleartext", "unencrypted", "aem", "spring"],
         FindingCategory.SECURITY_MISCONFIG,
     ),
+    # ── Outdated / Vulnerable Components ─────────────────────────────────────
     (
-        ["outdated", "eol", "deprecated", "cve"],
+        ["outdated", "eol", "deprecated", "cve", "wordpress",
+         "joomla", "drupal", "magento", "typo3", "cms", "log4j",
+         "jquery", "bootstrap", "struts", "apache", "old-version",
+         "unpatched", "vulnerable", "version"],
         FindingCategory.OUTDATED_COMPONENTS,
     ),
+    # ── Logging & Monitoring ──────────────────────────────────────────────────
     (
-        ["log", "logging", "monitoring"],
+        ["log", "logging", "monitoring", "audit", "siem", "alerting"],
         FindingCategory.LOGGING_MONITORING,
     ),
 ]
@@ -168,6 +193,10 @@ class NucleiParser:
         classification = info.get("classification") or {}
         cve_ids = classification.get("cve-id") or []
         cpe_value = cve_ids[0] if cve_ids else None
+
+        # Si no hubo tag match pero el template tiene CVE, es un componente vulnerable
+        if category == FindingCategory.OTHER and cpe_value:
+            category = FindingCategory.OUTDATED_COMPONENTS
 
         return {
             "title":          self._make_title(name, data.get("matched-at", "")),

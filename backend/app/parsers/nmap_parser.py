@@ -2,12 +2,44 @@ import xml.etree.ElementTree as ET
 
 from app.domain.enums import FindingCategory, SeverityLevel
 
-# Clasificación de riesgo por puerto
-_HIGH_RISK_PORTS = {21, 23, 445, 1433, 3306, 5432, 27017, 6379}   # FTP, Telnet, SMB, DBs, Redis
-_MEDIUM_RISK_PORTS = {22, 3389, 5985, 5986, 8080, 8443}            # SSH, RDP, WinRM, alt-HTTP
+# ── Clasificación de severidad por puerto ────────────────────────────────────
+HIGH_RISK_PORTS = {
+    21, 23, 445,                        # FTP, Telnet, SMB
+    1433, 3306, 5432, 5433, 27017,      # SQL Server, MySQL, PostgreSQL, MongoDB
+    6379, 9200, 11211, 2181,            # Redis, Elasticsearch, Memcached, ZooKeeper
+    5900, 5901,                         # VNC (sin auth habitual)
+}
+MEDIUM_RISK_PORTS = {
+    22, 2222,                           # SSH
+    3389, 4899,                         # RDP, Radmin
+    5985, 5986,                         # WinRM
+    8080, 8443, 8000, 8888, 9000, 9090, # HTTP alternativo / paneles admin
+}
+
+# ── Clasificación de categoría por puerto ─────────────────────────────────────
+# Bases de datos y almacenamiento → datos en riesgo
+DB_PORTS = {
+    1433, 3306, 5432, 5433, 27017, 6379,
+    9200, 11211, 2181, 9092, 7474, 5984, 9042,  # Elastic, Memcached, ZooKeeper, Kafka, Neo4j, CouchDB, Cassandra
+}
+# Acceso remoto → control de acceso
+REMOTE_PORTS = {22, 2222, 3389, 4899, 5900, 5901, 5985, 5986}
+# Servicios web y paneles → superficie expuesta
+WEB_PORTS    = {80, 443, 3000, 4000, 4200, 5000, 8000, 8080, 8443, 8888, 9000, 9090, 9443}
+# Protocolos de red inseguros o innecesariamente expuestos
+NET_PORTS    = {21, 23, 25, 53, 69, 79, 110, 111, 143, 161, 162,
+                 389, 465, 512, 513, 514, 587, 631, 993, 995, 1080, 2049}
+
+# Fallback por nombre de servicio cuando el puerto no está en las listas anteriores
+SVC_DB     = {"mysql", "postgres", "mssql", "mongodb", "redis", "elastic",
+               "cassandra", "couchdb", "memcache", "oracle", "db2", "mariadb"}
+SVC_REMOTE = {"ssh", "rdp", "vnc", "winrm", "rdesktop", "teamviewer"}
+SVC_WEB    = {"http", "https", "www", "webdav", "xmlrpc", "ajp"}
+SVC_NET    = {"ftp", "smtp", "pop3", "imap", "dns", "snmp", "nfs",
+               "rpc", "ldap", "kerberos", "telnet", "finger", "tftp"}
 
 # Puertos que nmap no identifica bien — nombre legible propio
-_KNOWN_SERVICE_NAMES: dict[int, str] = {
+KNOWN_SERVICE_NAMES: dict[int, str] = {
     3000: "http (Node.js / Juice Shop)",
     4000: "http (Node.js)",
     5000: "http (Python / Flask)",
@@ -33,19 +65,37 @@ def _cpe_uri_to_23(cpe_uri: str) -> str:
     return "cpe:2.3:" + ":".join(parts[:11])
 
 
-_RECOMMENDATIONS: dict[int, str] = {
-    21:    "Deshabilitar FTP. Usar SFTP o SCP.",
-    22:    "Restringir acceso SSH por IP. Deshabilitar autenticación por contraseña.",
-    23:    "Deshabilitar Telnet inmediatamente. Usar SSH.",
-    445:   "Revisar configuración SMB. Deshabilitar SMBv1.",
+RECOMMENDATIONS: dict[int, str] = {
+    21:    "Deshabilitar FTP. Migrar a SFTP o SCP para transferencias seguras.",
+    22:    "Restringir acceso SSH por IP. Deshabilitar autenticación por contraseña y usar claves.",
+    23:    "Deshabilitar Telnet inmediatamente. Reemplazar por SSH.",
+    25:    "Restringir SMTP a servidores de correo autorizados. Evitar open relay.",
+    53:    "Restringir consultas DNS recursivas a clientes internos. Deshabilitar transferencias de zona.",
+    80:    "Considerar redirigir todo el tráfico HTTP a HTTPS.",
+    110:   "POP3 sin cifrar. Migrar a POP3S (995) o IMAP con TLS.",
+    143:   "IMAP sin cifrar. Migrar a IMAPS (993).",
+    161:   "SNMP expuesto. Usar SNMPv3 con autenticación o deshabilitar si no es necesario.",
+    389:   "LDAP sin cifrar. Migrar a LDAPS (636) o usar StartTLS.",
+    443:   "Verificar configuración TLS: versión mínima TLS 1.2, deshabilitar ciphers débiles.",
+    445:   "Revisar configuración SMB. Deshabilitar SMBv1. Restringir a hosts necesarios.",
+    587:   "Asegurar autenticación SMTP y cifrado TLS en el puerto de envío.",
     1433:  "SQL Server no debe estar expuesto públicamente. Restringir a localhost o VPN.",
-    3306:  "MySQL no debe estar expuesto públicamente. Restringir a localhost.",
-    3389:  "Restringir acceso RDP por IP o VPN. Habilitar NLA.",
-    5432:  "PostgreSQL no debe estar expuesto públicamente. Configurar pg_hba.conf.",
-    5985:  "WinRM expuesto. Restringir por IP y requerir HTTPS (5986).",
-    5986:  "WinRM-HTTPS expuesto. Restringir acceso por IP.",
-    6379:  "Redis sin autenticación. Configurar requirepass y bind a localhost.",
-    8080:  "Puerto HTTP alternativo expuesto. Verificar si es necesario.",
+    2181:  "ZooKeeper expuesto sin autenticación. Configurar ACLs y restringir acceso de red.",
+    2222:  "Puerto SSH alternativo detectado. Aplicar las mismas restricciones que el puerto 22.",
+    3306:  "MySQL no debe estar expuesto públicamente. Restringir a localhost o red interna.",
+    3389:  "Restringir acceso RDP por IP o VPN. Habilitar NLA (Network Level Authentication).",
+    4899:  "Radmin expuesto. Considerar reemplazar por RDP con NLA o acceso VPN.",
+    5432:  "PostgreSQL no debe estar expuesto públicamente. Configurar pg_hba.conf apropiadamente.",
+    5900:  "VNC expuesto. Aplicar autenticación fuerte y restringir acceso por IP o VPN.",
+    5985:  "WinRM (HTTP) expuesto. Restringir por IP y migrar a HTTPS (5986).",
+    5986:  "WinRM-HTTPS expuesto. Restringir acceso por IP y verificar certificado TLS.",
+    6379:  "Redis expuesto sin autenticación habitual. Configurar requirepass y bind a localhost.",
+    8080:  "Puerto HTTP alternativo expuesto. Verificar si el servicio debe ser accesible externamente.",
+    8443:  "HTTPS alternativo expuesto. Verificar configuración TLS y necesidad de exposición.",
+    9000:  "Panel o servicio expuesto en puerto 9000. Verificar autenticación y acceso.",
+    9090:  "Panel de administración potencialmente expuesto. Restringir acceso por IP.",
+    9200:  "Elasticsearch expuesto. Habilitar autenticación X-Pack y restringir acceso de red.",
+    11211: "Memcached expuesto sin autenticación. Bind a localhost y deshabilitar UDP.",
     27017: "MongoDB expuesto. Habilitar autenticación y restringir acceso de red.",
 }
 
@@ -108,14 +158,14 @@ class NmapParser:
                 product = service_el.get("product", "") if service_el is not None else ""
                 version = service_el.get("version", "") if service_el is not None else ""
                 service_display = (
-                    _KNOWN_SERVICE_NAMES.get(portid)
+                    KNOWN_SERVICE_NAMES.get(portid)
                     or f"{product} {version}".strip()
                     or service_name
                 )
 
                 severity = self._severity(portid)
-                category = self._category(portid)
-                recommendation = _RECOMMENDATIONS.get(
+                category = self._category(portid, service_name)
+                recommendation = RECOMMENDATIONS.get(
                     portid,
                     f"Evaluar si el puerto {portid} debe estar expuesto y restringir acceso si no es necesario.",
                 )
@@ -161,17 +211,30 @@ class NmapParser:
         return findings
 
     def _severity(self, port: int) -> SeverityLevel:
-        if port in _HIGH_RISK_PORTS:
+        if port in HIGH_RISK_PORTS:
             return SeverityLevel.HIGH
-        if port in _MEDIUM_RISK_PORTS:
+        if port in MEDIUM_RISK_PORTS:
             return SeverityLevel.MEDIUM
         return SeverityLevel.LOW
 
-    def _category(self, port: int) -> FindingCategory:
-        if port in {3306, 5432, 1433, 27017, 6379}:
+    def _category(self, port: int, service_name: str = "") -> FindingCategory:
+        svc = service_name.lower()
+
+        # 1. Port-based classification (most reliable)
+        if port in DB_PORTS:
             return FindingCategory.SENSITIVE_EXPOSURE
-        if port in {22, 3389, 5985, 5986}:
+        if port in REMOTE_PORTS:
             return FindingCategory.BROKEN_ACCESS
-        if port in {21, 23, 445}:
+        if port in WEB_PORTS or port in NET_PORTS:
             return FindingCategory.SECURITY_MISCONFIG
-        return FindingCategory.OTHER
+
+        # 2. Service-name fallback for unlisted ports
+        if any(kw in svc for kw in SVC_DB):
+            return FindingCategory.SENSITIVE_EXPOSURE
+        if any(kw in svc for kw in SVC_REMOTE):
+            return FindingCategory.BROKEN_ACCESS
+        if any(kw in svc for kw in SVC_WEB | SVC_NET):
+            return FindingCategory.SECURITY_MISCONFIG
+
+        # 3. Any open port is a potential misconfiguration
+        return FindingCategory.SECURITY_MISCONFIG

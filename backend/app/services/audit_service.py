@@ -40,13 +40,18 @@ class AuditService:
         return list(self.db.scalars(statement).unique().all())
 
     def get_audit(self, audit_id: int) -> Audit | None:
+        max_run = self.db.scalar(
+            select(func.max(Scan.run_number)).where(Scan.audit_id == audit_id)
+        ) or 1
         statement = (
             select(Audit)
             .where(Audit.id == audit_id)
             .options(
                 joinedload(Audit.target),
                 joinedload(Audit.created_by).joinedload(User.role),
-                joinedload(Audit.scans).joinedload(Scan.findings).joinedload(
+                joinedload(Audit.scans.and_(Scan.run_number == max_run)).joinedload(
+                    Scan.findings
+                ).joinedload(
                     Finding.finding_vulnerabilities
                 ).joinedload(FindingVulnerability.vulnerability),
                 joinedload(Audit.report),
@@ -57,20 +62,26 @@ class AuditService:
         return self.db.scalars(statement).unique().first()
 
     def get_scans(self, audit_id: int) -> list[Scan]:
+        max_run = self.db.scalar(
+            select(func.max(Scan.run_number)).where(Scan.audit_id == audit_id)
+        ) or 1
         statement = (
             select(Scan)
-            .where(Scan.audit_id == audit_id)
+            .where(Scan.audit_id == audit_id, Scan.run_number == max_run)
             .options(joinedload(Scan.findings))
             .order_by(Scan.executed_at)
         )
         return list(self.db.scalars(statement).unique().all())
 
     def get_findings(self, audit_id: int) -> list[Finding]:
-        """Return all findings across every scan of the given audit."""
+        """Return all findings from the latest run of the given audit."""
+        max_run = self.db.scalar(
+            select(func.max(Scan.run_number)).where(Scan.audit_id == audit_id)
+        ) or 1
         statement = (
             select(Finding)
             .join(Scan, Finding.scan_id == Scan.id)
-            .where(Scan.audit_id == audit_id)
+            .where(Scan.audit_id == audit_id, Scan.run_number == max_run)
             .options(
                 joinedload(Finding.finding_vulnerabilities).joinedload(
                     FindingVulnerability.vulnerability
@@ -81,10 +92,13 @@ class AuditService:
         return list(self.db.scalars(statement).unique().all())
 
     def get_scan_logs(self, audit_id: int) -> list[Scan]:
-        """Return scans with only the raw_output field (logs view)."""
+        """Return scans (raw_output) from the latest run only."""
+        max_run = self.db.scalar(
+            select(func.max(Scan.run_number)).where(Scan.audit_id == audit_id)
+        ) or 1
         statement = (
             select(Scan)
-            .where(Scan.audit_id == audit_id)
+            .where(Scan.audit_id == audit_id, Scan.run_number == max_run)
             .order_by(Scan.executed_at)
         )
         return list(self.db.scalars(statement).all())
@@ -375,8 +389,11 @@ class AuditService:
 
         tools: list[str] = audit.selected_modules or [ScanTool.BASH.value]
 
-        audit.scans.clear()
-        self.db.flush()
+        # Incrementar run_number — los scans anteriores se conservan para delta
+        max_run = self.db.scalar(
+            select(func.max(Scan.run_number)).where(Scan.audit_id == audit_id)
+        ) or 0
+        new_run_number = max_run + 1
 
         severity_counts = {level: 0 for level in SeverityLevel}
         total_findings = 0
@@ -410,6 +427,7 @@ class AuditService:
             for raw_result in raw_results:
                 scan = Scan(
                     audit_id=audit.id,
+                    run_number=new_run_number,
                     tool=raw_result["tool"],
                     command=raw_result.get("command"),
                     status=scan_status,

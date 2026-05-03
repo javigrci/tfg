@@ -82,6 +82,7 @@ class Scan(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     audit_id: Mapped[int] = mapped_column(ForeignKey("audits.id"), nullable=False)
+    run_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     tool: Mapped[ScanTool] = mapped_column(Enum(ScanTool), nullable=False, default=ScanTool.BASH)
     command: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[ScanStatus] = mapped_column(Enum(ScanStatus), default=ScanStatus.PENDING, nullable=False)

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -8,6 +10,7 @@ from app.schemas.audit import (
     AuditCreate,
     AuditRead,
     AuditRunResponse,
+    DeltaResponse,
     FindingRead,
     FindingReadWithContext,
     FindingStatusUpdate,
@@ -187,6 +190,33 @@ def get_scan_logs(audit_id: int, db: Session = Depends(get_db), _: User = Depend
     service = AuditService(db)
     _get_or_404(service, audit_id)
     return service.get_scan_logs(audit_id)
+
+
+@router.get(
+    "/{audit_id}/delta",
+    response_model=Optional[DeltaResponse],
+    responses={
+        200: {"description": "Delta entre las 2 ultimas ejecuciones. null si <2 ejecuciones."},
+        401: {"description": "Token ausente, invalido o expirado."},
+        404: {"description": "Auditoria no encontrada."},
+    },
+)
+def get_delta(
+    audit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Compara las dos ultimas ejecuciones de la auditoria por fingerprint.
+
+    Retorna null si la auditoria tiene menos de 2 ejecuciones.
+    Auto-marca como resolved los findings que desaparecieron entre ejecuciones.
+    """
+    from app.services.delta_service import DeltaService
+
+    service = AuditService(db)
+    _get_or_404(service, audit_id)
+    return DeltaService(db).get_delta(audit_id)
 
 
 @router.get(

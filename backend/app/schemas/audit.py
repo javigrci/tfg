@@ -93,6 +93,7 @@ class FindingStatusUpdate(BaseModel):
 
 class ScanRead(BaseModel):
     id: int
+    run_number: int = 1
     tool: ScanTool
     command: Optional[str] = None
     status: ScanStatus
@@ -100,6 +101,19 @@ class ScanRead(BaseModel):
     findings: list[FindingRead]
 
     model_config = {"from_attributes": True}
+
+
+class DeltaSummary(BaseModel):
+    new: int
+    resolved: int
+    persisting: int
+
+
+class DeltaResponse(BaseModel):
+    new: list[FindingRead]
+    resolved: list[FindingRead]
+    persisting: list[FindingRead]
+    summary: DeltaSummary
 
 
 class ScanLogRead(BaseModel):

@@ -28,33 +28,48 @@ _SIMPLE_RE = re.compile(r"^\+\s+(?P<desc>.+)$")
 # ── Clasificación por palabras clave ──────────────────────────────────────────
 # Orden importa: los casos más específicos van primero.
 _RULES: list[tuple[list[str], SeverityLevel, FindingCategory]] = [
-    # Crítico
-    (["sql injection", "command injection", "remote code", " rce "],
+    # ── CRÍTICO ───────────────────────────────────────────────────────────────
+    (["sql injection", "command injection", "remote code execution", " rce "],
      SeverityLevel.CRITICAL, FindingCategory.INJECTION),
 
-    # Alto — exposición de datos sensibles
-    (["phpinfo", "server-status", "server-info", ".env", "passwd", "credentials", "password file"],
-     SeverityLevel.HIGH, FindingCategory.SENSITIVE_EXPOSURE),
-
-    # Alto — métodos peligrosos
-    (["'put' method", "'delete' method", "put is allowed", "delete is allowed",
-      "http method.*put", "http method.*delete"],
-     SeverityLevel.HIGH, FindingCategory.SECURITY_MISCONFIG),
+    # ── ALTO — Injection ──────────────────────────────────────────────────────
+    (["file inclusion", "path traversal", "directory traversal", "lfi", "rfi",
+      "local file", "remote file inclusion"],
+     SeverityLevel.HIGH, FindingCategory.INJECTION),
 
     # Alto — XSS
-    (["xss", "cross-site scripting"],
+    (["xss", "cross-site scripting", "cross site scripting"],
      SeverityLevel.HIGH, FindingCategory.XSS),
 
-    # Alto — componentes obsoletos
-    (["outdated", "vulnerable version", "cve-"],
+    # Alto — exposición de interfaces admin / datos sensibles
+    (["phpinfo", "server-status", "server-info", ".env", "passwd",
+      "credentials", "password file", "phpmyadmin", "wp-admin",
+      "admin login", "admin interface", "admin page", "admin section",
+      "manager app", "management console"],
+     SeverityLevel.HIGH, FindingCategory.SENSITIVE_EXPOSURE),
+
+    # Alto — métodos HTTP peligrosos
+    (["'put' method", "'delete' method", "put is allowed", "delete is allowed",
+      "http method.*put", "http method.*delete", "webdav"],
+     SeverityLevel.HIGH, FindingCategory.SECURITY_MISCONFIG),
+
+    # Alto — componentes obsoletos / CVEs conocidos
+    (["outdated", "vulnerable version", "cve-", "end.of.life", "end of life",
+      "eol version"],
      SeverityLevel.HIGH, FindingCategory.OUTDATED_COMPONENTS),
 
     # Alto — backup / configuración expuesta
-    (["backup", "config file", ".bak", ".old", ".orig", ".swp"],
+    (["backup", "config file", ".bak", ".old", ".orig", ".swp",
+      "configuration file", "configuration information"],
      SeverityLevel.HIGH, FindingCategory.SENSITIVE_EXPOSURE),
 
-    # Medio — cabeceras de seguridad críticas
-    (["x-frame-options", "clickjacking"],
+    # Alto — credenciales por defecto / autenticación débil
+    (["default credential", "default password", "default login",
+      "authentication bypass", "session fixation"],
+     SeverityLevel.HIGH, FindingCategory.BROKEN_ACCESS),
+
+    # ── MEDIO — Security Misconfiguration ────────────────────────────────────
+    (["x-frame-options", "anti-clickjacking", "clickjacking"],
      SeverityLevel.MEDIUM, FindingCategory.SECURITY_MISCONFIG),
 
     (["content-security-policy", " csp "],
@@ -63,29 +78,54 @@ _RULES: list[tuple[list[str], SeverityLevel, FindingCategory]] = [
     (["strict-transport-security", "hsts"],
      SeverityLevel.MEDIUM, FindingCategory.SECURITY_MISCONFIG),
 
-    # Medio — cookies
-    (["httponly", "http-only", "secure flag", "samesite"],
-     SeverityLevel.MEDIUM, FindingCategory.BROKEN_ACCESS),
+    (["debug", "http trace", "xst", "cross site tracing",
+      "trace method", "track method"],
+     SeverityLevel.MEDIUM, FindingCategory.SECURITY_MISCONFIG),
 
-    # Medio — métodos HTTP menos peligrosos
-    (["trace", "track"],
+    (["access-control-allow-origin", "cors", "cross-origin"],
+     SeverityLevel.MEDIUM, FindingCategory.SECURITY_MISCONFIG),
+
+    (["cgi-bin", "cgi script", "might be a cgi", "cgi directory"],
      SeverityLevel.MEDIUM, FindingCategory.SECURITY_MISCONFIG),
 
     # Medio — listado de directorios
     (["directory indexing", "directory listing", "index of /"],
      SeverityLevel.MEDIUM, FindingCategory.SENSITIVE_EXPOSURE),
 
-    # Bajo — cabeceras informativas
+    # Medio — cookies inseguras
+    (["httponly", "http-only", "secure flag", "samesite"],
+     SeverityLevel.MEDIUM, FindingCategory.BROKEN_ACCESS),
+
+    # Medio — open redirect / CSRF
+    (["open redirect", "csrf", "cross-site request forgery",
+      "cross site request forgery"],
+     SeverityLevel.MEDIUM, FindingCategory.BROKEN_ACCESS),
+
+    # ── BAJO — cabeceras informativas ────────────────────────────────────────
     (["x-content-type-options", "x-xss-protection"],
      SeverityLevel.LOW, FindingCategory.SECURITY_MISCONFIG),
 
-    # Bajo — archivos por defecto
-    (["readme", "changelog", "license", "default file", "default page",
-      "sample", "test file", "apache default"],
+    (["referrer-policy", "permissions-policy", "feature-policy"],
      SeverityLevel.LOW, FindingCategory.SECURITY_MISCONFIG),
 
-    # Bajo — divulgación de versión
-    (["powered-by", "server header", "version information", "x-powered-by"],
+    # Bajo — TLS/SSL (más allá de HSTS)
+    (["ssl", "tls", "certificate", "cipher suite", "weak cipher",
+      "self-signed", "untrusted cert"],
+     SeverityLevel.LOW, FindingCategory.SECURITY_MISCONFIG),
+
+    # Bajo — archivos por defecto / documentación pública
+    (["readme", "changelog", "license", "default file", "default page",
+      "sample", "test file", "apache default", "install.php"],
+     SeverityLevel.LOW, FindingCategory.SECURITY_MISCONFIG),
+
+    # Bajo — CMS / frameworks detectados
+    (["wordpress", "wp-content", "wp-includes", "joomla", "drupal",
+      "magento", "typo3", "cms detected"],
+     SeverityLevel.LOW, FindingCategory.OUTDATED_COMPONENTS),
+
+    # Bajo — divulgación de versión / tecnología
+    (["powered-by", "server header", "version information", "x-powered-by",
+      "robots.txt", "sitemap.xml", "etag", "inode", "leak"],
      SeverityLevel.LOW, FindingCategory.SENSITIVE_EXPOSURE),
 ]
 

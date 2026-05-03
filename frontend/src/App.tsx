@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
+import { ThemeProvider, useTheme } from '@/context/ThemeContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import AppLayout from '@/components/layout/AppLayout'
 import Login from '@/pages/Login'
@@ -8,6 +9,7 @@ import DashboardAdmin from '@/pages/DashboardAdmin'
 import DashboardOperator from '@/pages/DashboardOperator'
 import Audits from '@/pages/Audits'
 import AuditDetail from '@/pages/AuditDetail'
+import AuditNew from '@/pages/AuditNew'
 import Targets from '@/pages/Targets'
 import FindingsAdmin from '@/pages/FindingsAdmin'
 import FindingsOperator from '@/pages/FindingsOperator'
@@ -33,33 +35,41 @@ function ReportsPage() {
   return user.role.name === 'admin' ? <ReportsAdmin /> : <ReportsOperator />
 }
 
+function ThemedToaster() {
+  const { theme } = useTheme()
+  return <Toaster position="bottom-right" theme={theme} richColors />
+}
+
 export default function App() {
   return (
-    <AuthProvider>
-      <Toaster position="bottom-right" theme="dark" richColors />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Login />} />
-          {/* Rutas accesibles para cualquier rol autenticado */}
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="audits" element={<Audits />} />
-              <Route path="audits/:id" element={<AuditDetail />} />
-              <Route path="targets" element={<Targets />} />
-              <Route path="findings" element={<FindingsPage />} />
-              <Route path="reports" element={<ReportsPage />} />
-              <Route path="dashboard" element={<DashboardPage />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <ThemedToaster />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Login />} />
+            {/* Rutas accesibles para cualquier rol autenticado */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="audits" element={<Audits />} />
+                <Route path="audits/new" element={<AuditNew />} />
+                <Route path="audits/:id" element={<AuditDetail />} />
+                <Route path="targets" element={<Targets />} />
+                <Route path="findings" element={<FindingsPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="dashboard" element={<DashboardPage />} />
+              </Route>
             </Route>
-          </Route>
 
-          {/* Rutas exclusivas de admin */}
-          <Route element={<ProtectedRoute requiredRole="admin" />}>
-            <Route element={<AppLayout />}>
-              <Route path="users" element={<UsersAdmin />} />
+            {/* Rutas exclusivas de admin */}
+            <Route element={<ProtectedRoute requiredRole="admin" />}>
+              <Route element={<AppLayout />}>
+                <Route path="users" element={<UsersAdmin />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }

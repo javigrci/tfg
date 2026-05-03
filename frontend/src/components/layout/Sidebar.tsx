@@ -8,9 +8,12 @@ import {
   LogOut,
   Shield,
   Users,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
+import { useTheme } from '@/context/ThemeContext'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -24,6 +27,7 @@ const navItems = [
 export default function Sidebar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { theme, toggleTheme } = useTheme()
 
   function handleLogout() {
     logout()
@@ -80,6 +84,17 @@ export default function Sidebar() {
             </div>
           </div>
         )}
+        <button
+          onClick={toggleTheme}
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark'
+            ? <Sun  className="h-4 w-4 shrink-0" />
+            : <Moon className="h-4 w-4 shrink-0" />
+          }
+          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        </button>
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"

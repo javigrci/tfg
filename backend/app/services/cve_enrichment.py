@@ -19,11 +19,34 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.domain.enums import SeverityLevel
 from app.models.entities import Finding, FindingVulnerability, Vulnerability
 
 logger = logging.getLogger(__name__)
 
 MAX_CVES_PER_FINDING = 5
+
+# Orden de severidad de menor a mayor — usado para comparar niveles
+SEV_ORDER: list[SeverityLevel] = [
+    SeverityLevel.INFO,
+    SeverityLevel.LOW,
+    SeverityLevel.MEDIUM,
+    SeverityLevel.HIGH,
+    SeverityLevel.CRITICAL,
+]
+
+
+def _cvss_to_severity(score: float) -> SeverityLevel:
+    """Convierte un CVSS base score al SeverityLevel equivalente (escala NVD estándar)."""
+    if score >= 9.0:
+        return SeverityLevel.CRITICAL
+    if score >= 7.0:
+        return SeverityLevel.HIGH
+    if score >= 4.0:
+        return SeverityLevel.MEDIUM
+    if score > 0.0:
+        return SeverityLevel.LOW
+    return SeverityLevel.INFO
 
 
 class CVEEnrichmentService:
@@ -54,6 +77,7 @@ class CVEEnrichmentService:
                 cves = self._fetch_cves(nvdlib, finding.cpe, api_key)
                 if cves:
                     self._upsert_vulnerabilities(finding, cves)
+                    self._upgrade_severity(finding, cves)
                     enriched += 1
             except Exception as exc:
                 logger.warning(
@@ -154,6 +178,36 @@ class CVEEnrichmentService:
                 )
 
         self.db.flush()
+
+    def _upgrade_severity(self, finding: Finding, cves: list) -> None:
+        """
+        Eleva la severidad del finding si el CVSS máximo de los CVEs asociados
+        corresponde a un nivel superior. Nunca degrada la severidad.
+
+        Ejemplo: nmap clasifica un puerto como LOW, pero el CVE del servicio
+        tiene CVSS 9.8 → el finding pasa a CRITICAL automáticamente.
+        """
+        scores = [s for cve in cves if (s := self._extract_cvss(cve)) is not None]
+        if not scores:
+            return
+
+        max_score = max(scores)
+        cve_severity = _cvss_to_severity(max_score)
+
+        current_idx = SEV_ORDER.index(finding.severity)
+        new_idx = SEV_ORDER.index(cve_severity)
+
+        if new_idx > current_idx:
+            old = finding.severity.value
+            finding.severity = cve_severity
+            self.db.flush()
+            logger.info(
+                "Severidad elevada por CVE: finding %s %s → %s (max CVSS %.1f)",
+                finding.id,
+                old,
+                cve_severity.value,
+                max_score,
+            )
 
     def _extract_cvss(self, cve) -> float | None:
         """Extrae el CVSS score del CVE object de nvdlib (v3.1 > v3.0 > v2)."""

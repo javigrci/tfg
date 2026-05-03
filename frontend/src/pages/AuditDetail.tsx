@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Play, Loader2, Shield, Terminal,
-  ChevronDown, ChevronRight, AlertTriangle, Info, FileDown,
+  ChevronDown, ChevronRight, AlertTriangle, Info, FileDown, ArrowLeftRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import type { Audit, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
+import type { Audit, DeltaResponse, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -45,8 +45,23 @@ const FINDING_STATUS_STYLES: Record<FindingStatus, string> = {
 const FINDING_STATUS_LABELS: Record<FindingStatus, string> = {
   open:           'Open',
   in_progress:    'In Progress',
-  resolved:       'Resolved',
+  resolved:       'Resolved',       // manual claim — re-run to verify
   false_positive: 'False Positive',
+}
+
+// Shown in the status selector dropdown and as tooltip hint
+const FINDING_STATUS_HINTS: Record<FindingStatus, string> = {
+  open:           'Vulnerability is confirmed and pending remediation',
+  in_progress:    'Remediation is actively in progress',
+  resolved:       'Marked resolved by analyst — re-run the audit to confirm the scanner no longer detects it',
+  false_positive: 'Analyst determined this is not a real vulnerability in this context',
+}
+
+const SEV_ORDER: Record<SeverityLevel, number> = {
+  critical: 0, high: 1, medium: 2, low: 3, info: 4,
+}
+function sortBySev(findings: Finding[]): Finding[] {
+  return [...findings].sort((a, b) => (SEV_ORDER[a.severity] ?? 5) - (SEV_ORDER[b.severity] ?? 5))
 }
 
 const TOOL_COLORS: Record<string, string> = {
@@ -177,19 +192,24 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
                 </div>
               )}
               {/* Status control */}
-              <div className="flex items-center gap-3 pt-1 border-t border-border">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Status</p>
-                <select
-                  value={finding.status}
-                  disabled={statusMutation.isPending}
-                  onChange={e => statusMutation.mutate(e.target.value as FindingStatus)}
-                  className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  {(['open', 'in_progress', 'resolved', 'false_positive'] as FindingStatus[]).map(s => (
-                    <option key={s} value={s}>{FINDING_STATUS_LABELS[s]}</option>
-                  ))}
-                </select>
-                {statusMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              <div className="flex flex-col gap-2 pt-1 border-t border-border">
+                <div className="flex items-center gap-3">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Status</p>
+                  <select
+                    value={finding.status}
+                    disabled={statusMutation.isPending}
+                    onChange={e => statusMutation.mutate(e.target.value as FindingStatus)}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    {(['open', 'in_progress', 'resolved', 'false_positive'] as FindingStatus[]).map(s => (
+                      <option key={s} value={s}>{FINDING_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                  {statusMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                </div>
+                <p className="text-[11px] text-muted-foreground/60 italic">
+                  {FINDING_STATUS_HINTS[finding.status]}
+                </p>
               </div>
             </div>
           </td>
@@ -211,11 +231,18 @@ export default function AuditDetail() {
     queryFn: () => api.get(`/audits/${id}`).then(r => r.data),
   })
 
+  const { data: delta } = useQuery<DeltaResponse | null>({
+    queryKey: ['delta', id],
+    queryFn: () => api.get(`/audits/${id}/delta`).then(r => r.data),
+    enabled: !!audit,
+  })
+
   const runMutation = useMutation({
     mutationFn: () => api.post(`/audits/${id}/run`).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['audit', id] })
       qc.invalidateQueries({ queryKey: ['audits'] })
+      qc.invalidateQueries({ queryKey: ['delta', id] })
       toast.success('Audit completed successfully')
     },
     onError: () => toast.error('Audit execution failed'),
@@ -274,7 +301,8 @@ export default function AuditDetail() {
 
   const allFindings = audit.scans.flatMap(s => s.findings)
   const report = audit.report
-  const canRun = audit.status !== 'running'
+  const isUnreachable = audit.target.status === 'unreachable'
+  const canRun = audit.status !== 'running' && !isUnreachable
 
   return (
     <div className="space-y-6">
@@ -355,6 +383,16 @@ export default function AuditDetail() {
         <KpiCard label="Medium" value={report?.medium_count ?? 0} />
         <KpiCard label="Low" value={report?.low_count ?? 0} />
       </div>
+
+      {/* Unreachable warning */}
+      {isUnreachable && (
+        <div className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            Target is <strong>unreachable</strong>. Verify connectivity before running the audit — the scan will return no findings.
+          </span>
+        </div>
+      )}
 
       {/* Body */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -442,6 +480,78 @@ export default function AuditDetail() {
               </table>
             )}
           </div>
+          {/* Changes since last run */}
+          {delta && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border">
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                  Changes since last run
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    +{delta.summary.new} new &middot; {delta.summary.resolved} resolved &middot; {delta.summary.persisting} persisting
+                  </span>
+                </h2>
+              </div>
+              <div className="divide-y divide-border">
+
+                {/* New */}
+                {delta.new.length > 0 && (
+                  <div className="px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wider text-green-400 mb-2">
+                      New ({delta.new.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {sortBySev(delta.new).map(f => (
+                        <div key={f.id} className="flex items-center gap-2 text-sm">
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-400 shrink-0" />
+                          <span className="text-foreground flex-1 truncate">{f.title}</span>
+                          <SeverityBadge severity={f.severity} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Resolved */}
+                {delta.resolved.length > 0 && (
+                  <div className="px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wider text-blue-400 mb-2">
+                      Resolved ({delta.resolved.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {sortBySev(delta.resolved).map(f => (
+                        <div key={f.id} className="flex items-center gap-2 text-sm">
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
+                          <span className="text-foreground/50 flex-1 truncate line-through">{f.title}</span>
+                          <SeverityBadge severity={f.severity} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Persisting */}
+                {delta.persisting.length > 0 && (
+                  <div className="px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wider text-yellow-400 mb-2">
+                      Persisting ({delta.persisting.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {sortBySev(delta.persisting).map(f => (
+                        <div key={f.id} className="flex items-center gap-2 text-sm">
+                          <span className="h-1.5 w-1.5 rounded-full bg-yellow-400 shrink-0" />
+                          <span className="text-muted-foreground flex-1 truncate">{f.title}</span>
+                          <SeverityBadge severity={f.severity} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* Right — Target info + Report */}
@@ -449,7 +559,7 @@ export default function AuditDetail() {
 
           {/* Target info */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-foreground">System Information</h2>
+            <h2 className="text-sm font-semibold text-foreground">Target</h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Name</span>
@@ -463,19 +573,23 @@ export default function AuditDetail() {
                 <span className="text-muted-foreground">Environment</span>
                 <span className="capitalize text-foreground">{audit.target.environment}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status</span>
-                <span className="capitalize text-foreground">{audit.target.status}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Connectivity</span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+                  audit.target.status === 'reachable'
+                    ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                    : audit.target.status === 'unreachable'
+                    ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${
+                    audit.target.status === 'reachable' ? 'bg-green-400' :
+                    audit.target.status === 'unreachable' ? 'bg-red-400' : 'bg-slate-400'
+                  }`} />
+                  {audit.target.status}
+                </span>
               </div>
             </div>
-            {Object.keys(audit.target.details).length > 0 && (
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Metadata</p>
-                <pre className="rounded-lg bg-background border border-border px-3 py-2 text-xs font-mono text-muted-foreground whitespace-pre-wrap">
-                  {JSON.stringify(audit.target.details, null, 2)}
-                </pre>
-              </div>
-            )}
           </div>
 
           {/* Report */}

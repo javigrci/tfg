@@ -69,7 +69,7 @@ class FindingCategory(str, Enum):
     OTHER = "other"
 
 
-class FindingStatus(str, Enum):
+class FindingStatus(str, Enum): #revisar esto
     OPEN           = "open"
     IN_PROGRESS    = "in_progress"
     RESOLVED       = "resolved"

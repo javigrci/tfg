@@ -72,15 +72,12 @@ class FindingRead(BaseModel):
     category: FindingCategory
     evidence: Optional[str] = None
     recommendation: str
-    # Lifecycle
     status: FindingStatus = FindingStatus.OPEN
     notes: Optional[str] = None
     assigned_to_id: Optional[int] = None
     resolved_at: Optional[datetime] = None
-    # Enrichment
     fingerprint: Optional[str] = None
     cpe: Optional[str] = None
-    # CVEs asociados
     vulnerabilities: list[VulnerabilityRead] = []
 
     model_config = {"from_attributes": True}
@@ -117,8 +114,6 @@ class DeltaResponse(BaseModel):
 
 
 class ScanLogRead(BaseModel):
-    """Lightweight scan view exposing only the raw output (logs)."""
-
     id: int
     tool: ScanTool
     command: Optional[str] = None
@@ -196,7 +191,6 @@ class AuditRunResponse(BaseModel):
 
 
 class FindingReadWithContext(FindingRead):
-    """Finding enriquecido con información del audit y scan de origen."""
     audit_id: int
     audit_name: str
     scan_tool: ScanTool

@@ -23,6 +23,7 @@ class Role(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[UserRole] = mapped_column(Enum(UserRole), unique=True, nullable=False)
+
     users: Mapped[list["User"]] = relationship(back_populates="role")
 
 
@@ -106,32 +107,19 @@ class Finding(Base):
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
 
     # ── Lifecycle ──────────────────────────────────────────────────────────────
-    status: Mapped[FindingStatus] = mapped_column(
-        Enum(FindingStatus), nullable=False, default=FindingStatus.OPEN
-    )
+    status: Mapped[FindingStatus] = mapped_column(Enum(FindingStatus), nullable=False, default=FindingStatus.OPEN)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    assigned_to_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("users.id"), nullable=True
-    )
-    resolved_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-    # ── Fingerprint + enrichment ───────────────────────────────────────────────
-    # 16-hex SHA-256 digest: identifica el mismo hallazgo entre ejecuciones
+    assigned_to_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     fingerprint: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, index=True)
-    # CPE 2.3 extraído por NmapParser (base para CVE enrichment)
     cpe: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     scan: Mapped["Scan"] = relationship(back_populates="findings")
     assigned_to: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to_id])
-    finding_vulnerabilities: Mapped[list["FindingVulnerability"]] = relationship(
-        back_populates="finding", cascade="all, delete-orphan"
-    )
+    finding_vulnerabilities: Mapped[list["FindingVulnerability"]] = relationship(back_populates="finding", cascade="all, delete-orphan")
 
     @property
-    def vulnerabilities(self) -> list["Vulnerability"]:
-        """Acceso directo a las vulnerabilidades asociadas (via FindingVulnerability)."""
+    def vulnerabilities(self) -> list["Vulnerability"]: #vulnerabilidades asociadas
         return [fv.vulnerability for fv in self.finding_vulnerabilities]
 
 
@@ -140,7 +128,6 @@ class Vulnerability(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    # CVE ID, OWASP reference, or similar external identifier
     reference: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, unique=True)
     cvss_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)

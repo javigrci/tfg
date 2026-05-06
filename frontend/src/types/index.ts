@@ -8,7 +8,7 @@ export interface AppUser {
 }
 
 export type FindingStatus = 'open' | 'in_progress' | 'resolved' | 'false_positive'
-export type AuditStatus   = 'draft' | 'pending' | 'running' | 'completed' | 'failed'
+export type AuditStatus   = 'draft' | 'running' | 'completed' | 'failed'
 export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance'
 export type ScanStatus    = 'pending' | 'running' | 'completed' | 'failed'
 export type ScanTool      = 'bash' | 'nmap' | 'nikto' | 'wapiti' | 'nuclei'

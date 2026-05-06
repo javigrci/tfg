@@ -159,7 +159,7 @@ class AuditService:
         total_audits = self.db.scalar(select(func.count(Audit.id))) or 0
         active_audits = self.db.scalar(
             select(func.count(Audit.id)).where(
-                Audit.status.in_([AuditStatus.RUNNING, AuditStatus.PENDING])
+                Audit.status == AuditStatus.RUNNING
             )
         ) or 0
 
@@ -236,7 +236,7 @@ class AuditService:
         active_audits = self.db.scalar(
             select(func.count(Audit.id)).where(
                 Audit.created_by_id == user_id,
-                Audit.status.in_([AuditStatus.RUNNING, AuditStatus.PENDING]),
+                Audit.status == AuditStatus.RUNNING,
             )
         ) or 0
 
@@ -359,7 +359,7 @@ class AuditService:
             created_by_id=created_by.id,
             target_id=target.id,
             selected_modules=payload.modules,
-            status=AuditStatus.PENDING,
+            status=AuditStatus.DRAFT,
         )
         self.db.add(audit)
         self.db.flush()

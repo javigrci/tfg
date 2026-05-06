@@ -8,7 +8,6 @@ class UserRole(str, Enum):
 
 class AuditStatus(str, Enum):
     DRAFT = "draft"
-    PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"

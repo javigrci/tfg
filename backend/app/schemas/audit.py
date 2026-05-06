@@ -32,13 +32,13 @@ class UserRead(BaseModel):
 
 
 class TargetCreate(BaseModel):
-    name: str = Field(..., description="Nombre descriptivo del target (ej: 'Servidor web producción')")
-    address: str = Field(..., description="IP, hostname o URL del target (ej: '192.168.1.1', 'localhost:3000')")
+    name: str
+    address: str = Field(..., description="IP o URL de la máquina")
 
 
 class TargetUpdate(BaseModel):
-    name: Optional[str] = Field(None, description="Nombre descriptivo del target")
-    address: Optional[str] = Field(None, description="IP, hostname o URL del target")
+    name: Optional[str] = None
+    address: Optional[str] = Field(None, description="IP o URL de la máquina")
 
 
 class TargetRead(TargetCreate):
@@ -80,8 +80,8 @@ class FindingRead(BaseModel):
 
 
 class FindingStatusUpdate(BaseModel):
-    status: FindingStatus = Field(..., description="Nuevo estado del hallazgo")
-    notes: Optional[str] = Field(None, description="Comentario del analista (opcional)")
+    status: FindingStatus
+    notes: Optional[str] = None
 
 
 class ScanRead(BaseModel):
@@ -152,11 +152,11 @@ class LogRead(BaseModel):
 
 
 class AuditCreate(BaseModel):
-    name: str = Field(..., description="Nombre identificativo de la auditoría")
-    description: Optional[str] = Field(None, description="Descripción del alcance o contexto")
-    audit_type: AuditType = Field(AuditType.VULNERABILITY_SCAN, description="Tipo de auditoría a realizar")
-    target_id: int = Field(..., description="ID del target sobre el que se ejecutará la auditoría")
-    modules: list[ScanTool] = Field(default=[ScanTool.NMAP], description="Herramientas a ejecutar (ej: ['nmap', 'wapiti'])")
+    name: str
+    description: Optional[str] = None
+    audit_type: AuditType = AuditType.VULNERABILITY_SCAN
+    target_id: int
+    modules: list[ScanTool] = Field(default=[ScanTool.NMAP], description="Herramientas de escaneo")
 
 
 class AuditRead(BaseModel):

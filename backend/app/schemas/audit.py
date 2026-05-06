@@ -34,15 +34,11 @@ class UserRead(BaseModel):
 class TargetCreate(BaseModel):
     name: str = Field(..., description="Nombre descriptivo del target (ej: 'Servidor web producción')")
     address: str = Field(..., description="IP, hostname o URL del target (ej: '192.168.1.1', 'localhost:3000')")
-    environment: str = Field("lab", description="Entorno del target: lab, staging, production")
-    details: dict = Field(default_factory=dict, description="Metadatos adicionales en formato libre")
 
 
 class TargetUpdate(BaseModel):
     name: Optional[str] = Field(None, description="Nombre descriptivo del target")
     address: Optional[str] = Field(None, description="IP, hostname o URL del target")
-    environment: Optional[str] = Field(None, description="Entorno del target: lab, staging, production")
-    details: Optional[dict] = Field(None, description="Metadatos adicionales en formato libre")
 
 
 class TargetRead(TargetCreate):

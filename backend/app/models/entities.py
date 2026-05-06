@@ -46,9 +46,7 @@ class Target(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     address: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
-    environment: Mapped[str] = mapped_column(String(100), default="lab")
     status: Mapped[TargetStatus] = mapped_column(Enum(TargetStatus), default=TargetStatus.UNKNOWN, nullable=False)
-    details: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     audits: Mapped[list["Audit"]] = relationship(back_populates="target")

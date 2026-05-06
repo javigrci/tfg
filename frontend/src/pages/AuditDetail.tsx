@@ -569,10 +569,6 @@ export default function AuditDetail() {
                 <span className="text-muted-foreground">Address</span>
                 <span className="font-mono text-foreground">{audit.target.address}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Environment</span>
-                <span className="capitalize text-foreground">{audit.target.environment}</span>
-              </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Connectivity</span>
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${

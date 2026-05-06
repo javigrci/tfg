@@ -7,12 +7,6 @@ import type { Target } from '@/types'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const ENV_STYLES: Record<string, string> = {
-  lab:        'bg-blue-500/10 text-blue-400 border border-blue-500/20',
-  staging:    'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
-  production: 'bg-red-500/10 text-red-400 border border-red-500/20',
-}
-
 const STATUS_STYLES: Record<string, string> = {
   reachable:   'bg-green-500/10 text-green-400 border border-green-500/20',
   unreachable: 'bg-red-500/10 text-red-400 border border-red-500/20',
@@ -25,13 +19,9 @@ const STATUS_DOT: Record<string, string> = {
   unknown:     'bg-slate-400',
 }
 
-const DEFAULT_DETAILS = `{\n  "tags": ["web"],\n  "os": "Ubuntu 22.04"\n}`
-
 interface TargetForm {
   name: string
   address: string
-  environment: string
-  details: string
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -44,10 +34,7 @@ export default function Targets() {
   const [deleteError, setDeleteError]   = useState('')
   const [checkingId, setCheckingId]     = useState<number | null>(null)
 
-  const [form, setForm] = useState<TargetForm>({
-    name: '', address: '', environment: 'lab', details: DEFAULT_DETAILS,
-  })
-  const [formError, setFormError] = useState('')
+  const [form, setForm] = useState<TargetForm>({ name: '', address: '' })
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -63,8 +50,7 @@ export default function Targets() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['targets'] })
       setShowModal(false)
-      setForm({ name: '', address: '', environment: 'lab', details: DEFAULT_DETAILS })
-      setFormError('')
+      setForm({ name: '', address: '' })
       toast.success('Target created successfully')
     },
     onError: () => toast.error('Failed to create target'),
@@ -103,20 +89,7 @@ export default function Targets() {
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    setFormError('')
-    let parsed: object
-    try {
-      parsed = JSON.parse(form.details)
-    } catch {
-      setFormError('Metadata must be valid JSON.')
-      return
-    }
-    createMutation.mutate({
-      name: form.name,
-      address: form.address,
-      environment: form.environment,
-      details: parsed,
-    })
+    createMutation.mutate({ name: form.name, address: form.address })
   }
 
   function handleCheck(target: Target) {
@@ -169,7 +142,6 @@ export default function Targets() {
               <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-3 text-left">Name</th>
                 <th className="px-4 py-3 text-left">Address</th>
-                <th className="px-4 py-3 text-left">Environment</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -179,11 +151,6 @@ export default function Targets() {
                 <tr key={target.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-medium text-foreground">{target.name}</td>
                   <td className="px-4 py-3 font-mono text-muted-foreground">{target.address}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${ENV_STYLES[target.environment] ?? ENV_STYLES.lab}`}>
-                      {target.environment}
-                    </span>
-                  </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[target.status]}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[target.status]}`} />
@@ -233,7 +200,7 @@ export default function Targets() {
                 </p>
               </div>
               <button
-                onClick={() => { setShowModal(false); setFormError('') }}
+                onClick={() => setShowModal(false)}
                 className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
               >
                 <X className="h-4 w-4" />
@@ -270,43 +237,14 @@ export default function Targets() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Environment
-                </label>
-                <select
-                  value={form.environment}
-                  onChange={e => setForm(f => ({ ...f, environment: e.target.value }))}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="lab">Lab</option>
-                  <option value="staging">Staging</option>
-                  <option value="production">Production</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Metadata <span className="normal-case font-normal">(JSON)</span>
-                </label>
-                <textarea
-                  rows={4}
-                  value={form.details}
-                  onChange={e => setForm(f => ({ ...f, details: e.target.value }))}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                />
-              </div>
-
-              {(formError || createMutation.isError) && (
-                <p className="text-sm text-red-400">
-                  {formError || 'Failed to create target.'}
-                </p>
+              {createMutation.isError && (
+                <p className="text-sm text-red-400">Failed to create target.</p>
               )}
 
               <div className="flex gap-3 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(false); setFormError('') }}
+                  onClick={() => setShowModal(false)}
                   className="flex-1 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
                 >
                   Cancel

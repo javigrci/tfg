@@ -63,8 +63,6 @@ class TargetService:
         target = Target(
             name=payload.name,
             address=payload.address,
-            environment=payload.environment,
-            details=payload.details,
             status=_check_reachability(payload.address),
         )
         self.db.add(target)
@@ -78,10 +76,6 @@ class TargetService:
         if payload.address is not None:
             target.address = payload.address
             target.status = _check_reachability(payload.address)
-        if payload.environment is not None:
-            target.environment = payload.environment
-        if payload.details is not None:
-            target.details = payload.details
         self.db.commit()
         self.db.refresh(target)
         return target

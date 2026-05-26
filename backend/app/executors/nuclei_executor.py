@@ -1,13 +1,12 @@
 import shutil
 import subprocess
-
-from app.domain.enums import ScanTool
+import os
 from app.executors.base import AuditExecutor
 
-NUCLEI_TIMEOUT = 900  # 15 minutos (RNF-002)
+timeout = 900
 
 
-_FALLBACK_PATHS = [
+rutas = [
     "/home/user_test/go/bin/nuclei",
     "/root/go/bin/nuclei",
     "/usr/local/bin/nuclei",
@@ -15,65 +14,52 @@ _FALLBACK_PATHS = [
 ]
 
 
-def _find_nuclei() -> str:
-    """Devuelve la ruta al binario nuclei o lanza RuntimeError."""
+def find_nuclei() -> str:
     found = shutil.which("nuclei")
     if found:
         return found
-
-    import os
-    for path in _FALLBACK_PATHS:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            return path
+    for ruta in rutas:
+        if os.path.isfile(ruta) and os.access(ruta, os.X_OK):
+            return ruta
 
     raise RuntimeError(
-        "nuclei no encontrado. "
-        "Linux: go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest  "
-        "o descarga el binario precompilado de "
-        "https://github.com/projectdiscovery/nuclei/releases"
+        "nuclei no encontrado. Es necesario instalarlo."
     )
 
 
 class NucleiExecutor(AuditExecutor):
-    """
-    Lanza nuclei contra el target y devuelve el output NDJSON crudo.
+    name = "nuclei"
+    display_name = "Nuclei Template Scanner"
+    description = "Detecta vulnerabilidades y malas configuraciones mediante plantillas automatizadas."
+    timeout = timeout
 
-    Flags usados:
-        -jsonl      → una línea JSON por finding (NDJSON, v3+)
-        -silent     → suprime el banner y el progreso
-        -no-color   → sin códigos ANSI (facilita el parsing)
-        -severity   → critical/high/medium/low/info
-        -timeout 15 → timeout de conexión por template (segundos)
-    """
-
-    def execute(self, target_address: str, modules: list[str]) -> list[dict]:
-        nuclei_bin = _find_nuclei()
+    def execute(self, direccion: str, details: dict | None = None) -> list[dict]:
+        nuclei_bin = find_nuclei()
 
         cmd_parts = [
             nuclei_bin,
-            "-u", target_address,
+            "-u", direccion,
             "-jsonl",
             "-silent",
             "-no-color",
             "-severity", "critical,high,medium,low,info",
             "-timeout", "15",
         ]
-        command = " ".join(cmd_parts)
+        comando = " ".join(cmd_parts)
 
         result = subprocess.run(
             cmd_parts,
             capture_output=True,
             text=True,
-            timeout=NUCLEI_TIMEOUT,
+            timeout=timeout,
         )
 
-        # nuclei escribe los findings en stdout y los errores en stderr
         raw_output = result.stdout if result.stdout.strip() else result.stderr
 
         return [
             {
-                "tool": ScanTool.NUCLEI,
-                "command": command,
+                "tool": self.name,
+                "command": comando,
                 "raw_output": raw_output,
             }
         ]

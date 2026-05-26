@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # Solicitar gratis en: https://nvd.nist.gov/developers/request-an-api-key
     nvd_api_key: str = Field(default="", alias="NVD_API_KEY")
 
+    # Puertos a excluir del escaneo nmap — evita que la propia plataforma
+    # aparezca como finding cuando el target comparte host con la app.
+    # En producción con Nginx: EXCLUDED_PORTS=80,443
+    excluded_ports: str = Field(default="8000,5173", alias="EXCLUDED_PORTS")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

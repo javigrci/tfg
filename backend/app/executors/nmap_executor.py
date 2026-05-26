@@ -3,60 +3,66 @@ import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
-from app.domain.enums import ScanTool
+from app.core.config import get_settings
 from app.executors.base import AuditExecutor
 
-NMAP_TIMEOUT = 300  # 5 minutos (RNF-002)
+timeout = 180
 
-_WINDOWS_FALLBACK_PATHS = [
+rutas_windows = [
     Path("C:/Program Files/Nmap/nmap.exe"),
     Path("C:/Program Files (x86)/Nmap/nmap.exe"),
 ]
 
 
-def _find_nmap() -> str:
-    """Devuelve la ruta al binario nmap o lanza RuntimeError."""
-    found = shutil.which("nmap")
-    if found:
-        return found
-    for path in _WINDOWS_FALLBACK_PATHS:
-        if path.exists():
-            return str(path)
+def find_nmap() -> str:
+    herramienta = shutil.which("nmap")
+    if herramienta:
+        return herramienta
+    for ruta in rutas_windows:
+        if ruta.exists():
+            return str(ruta)
     raise RuntimeError(
-        "nmap no encontrado. "
-        "Linux: apt install nmap  |  Windows: https://nmap.org/download.html"
+        "nmap no encontrado. Es necesario instalarlo"
     )
 
 
-def _extract_host(address: str) -> str:
-    """Extrae solo el hostname/IP de una URL. Si no es URL, devuelve tal cual."""
-    if address.startswith(("http://", "https://")):
-        parsed = urlparse(address)
-        return parsed.hostname or address
-    return address
+def extraer_host(direccion: str) -> str:
+    if direccion.startswith(("http://", "https://")):
+        parsed = urlparse(direccion)
+        return parsed.hostname or direccion
+    return direccion
 
 
 class NmapExecutor(AuditExecutor):
-    """Lanza nmap contra el target y devuelve el output XML crudo."""
+    name = "nmap"
+    display_name = "Nmap Port Scanner"
+    description = "Enumera los puertos abiertos, servicios y versiones mediante un escaneo."
+    timeout = timeout
 
-    def execute(self, target_address: str, modules: list[str]) -> list[dict]:
-        nmap_bin = _find_nmap()
-        host = _extract_host(target_address)
+    def execute(self, direccion: str, details: dict | None = None) -> list[dict]:
+        nmap_bin = find_nmap()
+        host = extraer_host(direccion)
 
-        command = f"nmap -sV -T4 --open -oX - {host}"
+        cmd = [nmap_bin, "-sV", "-T4", "--open", "-oX", "-"]
+        excluded = get_settings().excluded_ports
+        if excluded:
+            cmd.extend(["--exclude-ports", excluded])
+        cmd.append(host)
+
+        comando = " ".join(cmd)
         result = subprocess.run(
-            [nmap_bin, "-sV", "-T4", "--open", "-oX", "-", host],
+            cmd,
             capture_output=True,
             text=True,
-            timeout=NMAP_TIMEOUT,
+            timeout=timeout,
         )
 
         raw_output = result.stdout if result.stdout.strip() else result.stderr
 
         return [
             {
-                "tool": ScanTool.NMAP,
-                "command": command,
+                "tool": self.name,
+                "command": comando,
                 "raw_output": raw_output,
             }
         ]

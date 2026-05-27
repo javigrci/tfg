@@ -206,6 +206,10 @@ class AuditRunResponse(BaseModel):
     total_findings: int
 
 
+class AlertCountRead(BaseModel):
+    count: int
+
+
 class FindingReadWithContext(FindingRead):
     audit_id: int
     audit_name: str

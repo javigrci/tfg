@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard,
   ClipboardList,
@@ -14,6 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
+import api from '@/lib/api'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -28,6 +30,15 @@ export default function Sidebar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
+
+  const { data: alerts } = useQuery<{ count: number }>({
+    queryKey: ['alert-count'],
+    queryFn: () => api.get('/findings/alerts').then(r => r.data),
+    refetchInterval: 30_000,   // refresco cada 30 s
+    staleTime:       20_000,
+  })
+
+  const alertCount = alerts?.count ?? 0
 
   function handleLogout() {
     logout()
@@ -66,7 +77,12 @@ export default function Sidebar() {
             }
           >
             <Icon className="h-4 w-4 shrink-0" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {to === '/findings' && alertCount > 0 && (
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white leading-none">
+                {alertCount > 99 ? '99+' : alertCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

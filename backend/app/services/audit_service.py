@@ -380,6 +380,20 @@ class AuditService:
             ],
         }
 
+    def get_alert_count(self) -> int:
+        """
+        Cuenta findings con severidad critical/high y estado open/in_progress.
+        Usado para el badge de notificaciones en el sidebar.
+        """
+        count = self.db.scalar(
+            select(func.count(Finding.id))
+            .where(
+                Finding.severity.in_([SeverityLevel.CRITICAL, SeverityLevel.HIGH]),
+                Finding.status.in_([FindingStatus.OPEN, FindingStatus.IN_PROGRESS]),
+            )
+        )
+        return count or 0
+
     def get_all_findings(self) -> list[dict]:
         """Devuelve todos los findings del sistema con contexto de audit y scan."""
         statement = (

@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models.entities import Audit as AuditModel
 from app.models.entities import User
 from app.schemas.audit import (
+    AlertCountRead,
     AuditCreate,
     AuditRead,
     ComplianceRead,
@@ -49,6 +50,22 @@ def _run_audit_background(audit_id: int) -> None:
 
 router = APIRouter(prefix="/audits", tags=["audits"])
 findings_router = APIRouter(prefix="/findings", tags=["audits"])
+
+
+@findings_router.get(
+    "/alerts",
+    response_model=AlertCountRead,
+    responses={
+        200: {"description": "Numero de findings critical/high con estado open o in_progress."},
+        401: {"description": "Token ausente, invalido o expirado."},
+    },
+)
+def get_alert_count(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    """
+    Devuelve el recuento de findings criticos/altos sin resolver.
+    Usado por el sidebar para el badge de notificaciones.
+    """
+    return {"count": AuditService(db).get_alert_count()}
 
 
 @findings_router.get(

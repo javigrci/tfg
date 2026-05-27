@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+/* ── Page setup ──────────────────────────────────────────────────────────── */
+@page {
+    size: A4;
+    margin: 18mm 18mm 22mm 18mm;
+    @top-left {
+        content: "AuditFlow — {{ report_type }}";
+        font-family: sans-serif;
+        font-size: 7pt;
+        color: #94A3B8;
+    }
+    @bottom-center {
+        content: "Page " counter(page) " of " counter(pages) " — Confidential";
+        font-family: sans-serif;
+        font-size: 7pt;
+        color: #94A3B8;
+    }
+}
+
+/* ── Reset & base ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: sans-serif;
+    font-size: 9pt;
+    color: #1E293B;
+    line-height: 1.45;
+}
+
+/* ── Severity colours ────────────────────────────────────────────────────── */
+:root {
+    --c-critical: #EF4444;
+    --c-high:     #F97316;
+    --c-medium:   #EAB308;
+    --c-low:      #3B82F6;
+    --c-info:     #64748B;
+    --c-border:   #E2E8F0;
+    --c-bg-light: #F1F5F9;
+    --c-text-muted: #64748B;
+    --c-text-dark:  #0F172A;
+}
+
+/* ── Page break ──────────────────────────────────────────────────────────── */
+.page-break { break-before: page; }
+
+/* ── Section heading ─────────────────────────────────────────────────────── */
+.section-heading {
+    font-size: 14pt;
+    font-weight: bold;
+    color: var(--c-text-dark);
+    border-bottom: 1pt solid var(--c-border);
+    padding-bottom: 4pt;
+    margin-bottom: 10pt;
+}
+
+.subsection-heading {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #1E293B;
+    margin: 10pt 0 4pt 0;
+}
+
+/* ── Label (small caps) ──────────────────────────────────────────────────── */
+.label {
+    font-size: 7pt;
+    font-weight: bold;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 2pt;
+}
+
+/* ── Severity badge ──────────────────────────────────────────────────────── */
+.badge {
+    display: inline-block;
+    padding: 1pt 6pt;
+    border-radius: 3pt;
+    font-size: 7pt;
+    font-weight: bold;
+    color: #fff;
+    text-transform: uppercase;
+}
+.badge-critical { background: var(--c-critical); }
+.badge-high     { background: var(--c-high); }
+.badge-medium   { background: var(--c-medium); }
+.badge-low      { background: var(--c-low); }
+.badge-info     { background: var(--c-info); }
+
+/* ── KPI row ─────────────────────────────────────────────────────────────── */
+.kpi-row {
+    display: flex;
+    gap: 4pt;
+    margin-bottom: 10pt;
+}
+.kpi-box {
+    flex: 1;
+    background: var(--c-bg-light);
+    padding: 6pt 8pt;
+    border-radius: 4pt;
+}
+.kpi-value {
+    font-size: 18pt;
+    font-weight: bold;
+    line-height: 1.1;
+}
+.kpi-label {
+    font-size: 7pt;
+    color: var(--c-text-muted);
+    margin-top: 2pt;
+}
+.kpi-critical .kpi-value { color: var(--c-critical); }
+.kpi-high     .kpi-value { color: var(--c-high); }
+.kpi-medium   .kpi-value { color: var(--c-medium); }
+.kpi-low      .kpi-value { color: var(--c-low); }
+.kpi-total    .kpi-value { color: var(--c-text-dark); }
+
+/* ── Cover ───────────────────────────────────────────────────────────────── */
+.cover-title {
+    font-size: 22pt;
+    font-weight: bold;
+    color: var(--c-text-dark);
+    margin-bottom: 4pt;
+}
+.cover-subtitle {
+    font-size: 10pt;
+    color: var(--c-text-muted);
+    margin-bottom: 10pt;
+}
+.cover-meta {
+    font-size: 9pt;
+    color: #475569;
+    margin-top: 6pt;
+    border-top: 1pt solid var(--c-border);
+    padding-top: 8pt;
+}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+}
+th {
+    background: var(--c-bg-light);
+    color: #475569;
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 4pt 5pt;
+    text-align: left;
+    border-bottom: 1pt solid var(--c-border);
+}
+td {
+    padding: 4pt 5pt;
+    border-bottom: 1pt solid var(--c-border);
+    vertical-align: top;
+}
+tr:last-child td { border-bottom: none; }
+tr.alt-row { background: #F8FAFC; }
+
+/* ── Code / evidence block ───────────────────────────────────────────────── */
+.code-block {
+    font-family: monospace;
+    font-size: 7.5pt;
+    background: var(--c-bg-light);
+    color: #334155;
+    padding: 6pt;
+    border-radius: 3pt;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 3pt 0 6pt 0;
+}
+
+/* ── Finding block ───────────────────────────────────────────────────────── */
+.finding {
+    margin-bottom: 10pt;
+    padding-bottom: 8pt;
+    border-bottom: 1pt solid var(--c-border);
+}
+.finding-header {
+    display: flex;
+    align-items: baseline;
+    gap: 6pt;
+    margin-bottom: 3pt;
+}
+.finding-title {
+    font-size: 10pt;
+    font-weight: bold;
+    color: var(--c-text-dark);
+}
+.finding-meta {
+    font-size: 8pt;
+    color: var(--c-text-muted);
+    margin-bottom: 5pt;
+}
+
+/* ── Scan flow diagram ───────────────────────────────────────────────────── */
+.scan-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 6pt 0 12pt 0;
+    flex-wrap: wrap;
+    row-gap: 6pt;
+}
+.scan-box {
+    background: var(--c-bg-light);
+    border: 1pt solid #CBD5E1;
+    border-radius: 4pt;
+    padding: 5pt 8pt;
+    text-align: center;
+    min-width: 55pt;
+}
+.scan-box-tool {
+    font-size: 8pt;
+    font-weight: bold;
+    color: var(--c-text-dark);
+    text-transform: uppercase;
+}
+.scan-box-count {
+    font-size: 7pt;
+    color: var(--c-text-muted);
+    margin-top: 2pt;
+}
+.scan-arrow {
+    font-size: 10pt;
+    color: #94A3B8;
+    padding: 0 5pt;
+}
+
+/* ── Remediation tiers ───────────────────────────────────────────────────── */
+.tier-header {
+    padding: 3pt 6pt;
+    color: #fff;
+    font-size: 8pt;
+    font-weight: bold;
+    border-radius: 3pt 3pt 0 0;
+    margin-top: 8pt;
+}
+.tier-immediate   { background: var(--c-critical); }
+.tier-short_term  { background: var(--c-high); }
+.tier-medium_term { background: var(--c-medium); color: #1E293B; }
+.tier-maintenance { background: var(--c-info); }
+
+.tier-body {
+    border: 1pt solid var(--c-border);
+    border-top: none;
+    padding: 6pt;
+    margin-bottom: 4pt;
+    border-radius: 0 0 3pt 3pt;
+}
+.rem-group { margin-bottom: 8pt; }
+.rem-group-title {
+    font-size: 9.5pt;
+    font-weight: bold;
+    color: #1E293B;
+    margin-bottom: 3pt;
+}
+.rem-guidance {
+    font-size: 8.5pt;
+    color: #334155;
+    margin-bottom: 4pt;
+}
+
+/* ── Bar chart (Risk Distribution) ──────────────────────────────────────── */
+.bar-row {
+    display: flex;
+    align-items: center;
+    gap: 6pt;
+    margin-bottom: 5pt;
+}
+.bar-label {
+    width: 130pt;
+    font-size: 8.5pt;
+    color: #1E293B;
+    flex-shrink: 0;
+}
+.bar-track {
+    flex: 1;
+    height: 7pt;
+    background: #E2E8F0;
+    border-radius: 2pt;
+    overflow: hidden;
+}
+.bar-fill {
+    height: 100%;
+    background: #3B82F6;
+    border-radius: 2pt;
+}
+.bar-count {
+    width: 20pt;
+    font-size: 8pt;
+    font-weight: bold;
+    color: #475569;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+/* ── Executive table ─────────────────────────────────────────────────────── */
+.exec-table th { background: #1E293B; color: #fff; }
+.tier-row td {
+    font-size: 7pt;
+    font-weight: bold;
+    color: #fff;
+    padding: 2pt 5pt;
+}
+.tier-row-immediate   td { background: var(--c-critical); }
+.tier-row-short_term  td { background: var(--c-high); }
+.tier-row-medium_term td { background: var(--c-medium); color: #1E293B; }
+.tier-row-maintenance td { background: var(--c-info); }
+
+/* ── Timeline box ────────────────────────────────────────────────────────── */
+.timeline-box {
+    background: var(--c-bg-light);
+    border-radius: 4pt;
+    padding: 8pt 10pt;
+    margin-top: 10pt;
+    font-size: 8.5pt;
+    color: #1E293B;
+}
+.timeline-box strong { display: block; margin-bottom: 3pt; font-size: 9pt; }
+
+/* ── TOC ─────────────────────────────────────────────────────────────────── */
+.toc-title {
+    font-size: 14pt;
+    font-weight: bold;
+    color: var(--c-text-dark);
+    border-bottom: 1pt solid var(--c-border);
+    padding-bottom: 4pt;
+    margin-bottom: 10pt;
+}
+.toc-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4pt 0;
+    border-bottom: 1pt dotted #E2E8F0;
+    font-size: 10pt;
+    color: #1E293B;
+    text-decoration: none;
+}
+.toc-page::before {
+    content: target-counter(attr(href url), page);
+}
+</style>
+</head>
+<body>
+{% block content %}{% endblock %}
+</body>
+</html>

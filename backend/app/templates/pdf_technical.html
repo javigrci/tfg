@@ -1,0 +1,216 @@
+{% extends "pdf_base.html" %}
+{% block content %}
+
+{# ── Cover ──────────────────────────────────────────────────────────────── #}
+<div>
+  <p class="cover-title">{{ audit.name }}</p>
+  <p class="cover-subtitle">Technical Security Report</p>
+  {% if report %}
+  <span class="badge badge-{{ report.risk_level.value }}">RISK: {{ report.risk_level.value|upper }}</span>
+  {% endif %}
+  <div class="cover-meta">
+    <p>Target: {{ audit.target.address }} &nbsp;|&nbsp; Type: {{ audit.audit_type.value|replace('_',' ')|title }}</p>
+    <p>Auditor: {{ audit.created_by.username if audit.created_by else '—' }} &nbsp;|&nbsp; Generated: {{ now }}</p>
+  </div>
+</div>
+
+{# ── TOC ─────────────────────────────────────────────────────────────────── #}
+<div class="page-break">
+  <p class="toc-title">Contents</p>
+  <a class="toc-entry" href="#section-summary">
+    <span>Summary</span><span class="toc-page"></span>
+  </a>
+  <a class="toc-entry" href="#section-scans">
+    <span>Scans Executed</span><span class="toc-page"></span>
+  </a>
+  <a class="toc-entry" href="#section-findings">
+    <span>Findings ({{ all_finds|length }})</span><span class="toc-page"></span>
+  </a>
+  <a class="toc-entry" href="#section-remediation">
+    <span>Remediation Plan</span><span class="toc-page"></span>
+  </a>
+</div>
+
+{# ── Section 1: Summary ──────────────────────────────────────────────────── #}
+<div class="page-break" id="section-summary">
+  <p class="section-heading">Summary</p>
+
+  {% if report %}
+  <div class="kpi-row">
+    <div class="kpi-box kpi-total">
+      <div class="kpi-value">{{ report.total_findings }}</div>
+      <div class="kpi-label">TOTAL</div>
+    </div>
+    <div class="kpi-box kpi-critical">
+      <div class="kpi-value">{{ report.critical_count }}</div>
+      <div class="kpi-label">CRITICAL</div>
+    </div>
+    <div class="kpi-box kpi-high">
+      <div class="kpi-value">{{ report.high_count }}</div>
+      <div class="kpi-label">HIGH</div>
+    </div>
+    <div class="kpi-box kpi-medium">
+      <div class="kpi-value">{{ report.medium_count }}</div>
+      <div class="kpi-label">MEDIUM</div>
+    </div>
+    <div class="kpi-box kpi-low">
+      <div class="kpi-value">{{ report.low_count }}</div>
+      <div class="kpi-label">LOW</div>
+    </div>
+  </div>
+
+  <p class="label" style="margin-top:8pt;">Audit Details</p>
+  <table style="margin-top:4pt;">
+    <colgroup><col style="width:28%"><col></colgroup>
+    <tbody>
+      <tr><td><strong>Target</strong></td><td>{{ audit.target.address }}</td></tr>
+      <tr class="alt-row"><td><strong>Environment</strong></td><td>{{ audit.target.environment|title }}</td></tr>
+      <tr><td><strong>Audit Type</strong></td><td>{{ audit.audit_type.value|replace('_',' ')|title }}</td></tr>
+      <tr class="alt-row"><td><strong>Status</strong></td><td>{{ audit.status.value|title }}</td></tr>
+      <tr><td><strong>Auditor</strong></td><td>{{ audit.created_by.username if audit.created_by else '—' }}</td></tr>
+      <tr class="alt-row"><td><strong>Risk Score</strong></td><td>{{ '%.1f'|format(report.risk_score) }} / 10</td></tr>
+      <tr><td><strong>Generated</strong></td><td>{{ now }}</td></tr>
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">No report data available.</p>
+  {% endif %}
+</div>
+
+{# ── Section 2: Scans Executed ───────────────────────────────────────────── #}
+<div class="page-break" id="section-scans">
+  <p class="section-heading">Scans Executed</p>
+
+  {% if audit.scans %}
+    {% if audit.scans|length >= 2 %}
+    <p class="subsection-heading">Execution Flow</p>
+    <div class="scan-flow">
+      {% for scan in audit.scans %}
+      <div class="scan-box">
+        <div class="scan-box-tool">{{ scan.tool.value|upper }}</div>
+        <div class="scan-box-count">{{ scan.findings|length }} finding{{ 's' if scan.findings|length != 1 else '' }}</div>
+      </div>
+      {% if not loop.last %}<div class="scan-arrow">→</div>{% endif %}
+      {% endfor %}
+    </div>
+    <p class="subsection-heading">Scan Details</p>
+    {% endif %}
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:15%">Tool</th>
+          <th style="width:15%">Status</th>
+          <th style="width:8%" class="text-center">Run</th>
+          <th style="width:10%" class="text-center">Findings</th>
+          <th>Command</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for scan in audit.scans %}
+        <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+          <td><strong>{{ scan.tool.value|upper }}</strong></td>
+          <td>{{ scan.status.value|title }}</td>
+          <td style="text-align:center;">{{ scan.run_number }}</td>
+          <td style="text-align:center;">{{ scan.findings|length }}</td>
+          <td style="font-family:monospace; font-size:7.5pt; word-break:break-all;">
+            {{ (scan.command or '—')[:100] }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">No scans have been executed for this audit.</p>
+  {% endif %}
+</div>
+
+{# ── Section 3: Findings ─────────────────────────────────────────────────── #}
+<div class="page-break" id="section-findings">
+  <p class="section-heading">Findings ({{ all_finds|length }})</p>
+
+  {% if all_finds %}
+    {% for scan in audit.scans %}
+      {% set scan_finds = scan.findings|sort(attribute='severity_index') %}
+      {% if scan_finds %}
+      <p class="subsection-heading">
+        {{ scan.tool.value|upper }} — Run {{ scan.run_number }} ({{ scan_finds|length }} finding{{ 's' if scan_finds|length != 1 else '' }})
+      </p>
+      {% for f in scan_finds %}
+      <div class="finding">
+        <div class="finding-header">
+          <span class="badge badge-{{ f.severity.value }}">{{ f.severity.value|upper }}</span>
+          <span class="finding-title">{{ f.title }}</span>
+        </div>
+        <div class="finding-meta">
+          Category: {{ f.category.value|replace('_',' ')|title }}
+          &nbsp;|&nbsp; Status: {{ f.status.value|replace('_',' ')|title }}
+          {% if f.fingerprint %}&nbsp;|&nbsp; Fingerprint: {{ f.fingerprint }}{% endif %}
+        </div>
+
+        <p class="label">Description</p>
+        <p style="margin-bottom:6pt;">{{ f.description }}</p>
+
+        {% if f.evidence %}
+        <p class="label">Evidence</p>
+        <div class="code-block">{{ f.evidence[:1200] }}</div>
+        {% endif %}
+
+        <p class="label">Recommendation</p>
+        <p style="margin-bottom:6pt;">{{ f.recommendation }}</p>
+
+        {% if f.vulnerabilities %}
+        <p class="label">CVEs</p>
+        <ul style="margin:0 0 4pt 12pt; font-size:8.5pt; color:#1E293B;">
+          {% for v in f.vulnerabilities %}
+          <li>{{ v.reference or v.name }}{% if v.cvss_score is not none %} — CVSS {{ '%.1f'|format(v.cvss_score) }}{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+    {% endfor %}
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">No findings were detected in this audit.</p>
+  {% endif %}
+</div>
+
+{# ── Section 4: Remediation Plan ─────────────────────────────────────────── #}
+<div class="page-break" id="section-remediation">
+  <p class="section-heading">Remediation Plan</p>
+
+  {% if all_finds %}
+    {% for tier_key, tier_label in tiers_meta %}
+      {% set tier_groups = tiers[tier_key] %}
+      {% if tier_groups %}
+      <div class="tier-header tier-{{ tier_key }}">{{ tier_label }}</div>
+      <div class="tier-body">
+        {% for g in tier_groups %}
+        <div class="rem-group">
+          <p class="rem-group-title">{{ g.cat_label }} &nbsp; <span style="font-weight:normal; font-size:8.5pt; color:var(--c-text-muted);">[Effort: {{ g.effort }}]</span></p>
+          <p class="rem-guidance">{{ g.tech_guide }}</p>
+          <table>
+            <thead>
+              <tr><th style="width:20%">Severity</th><th>Finding</th></tr>
+            </thead>
+            <tbody>
+              {% for f in g.findings|sort(attribute='severity_index') %}
+              <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+                <td><span class="badge badge-{{ f.severity.value }}">{{ f.severity.value|upper }}</span></td>
+                <td>{{ f.title[:120] }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">No findings to remediate.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

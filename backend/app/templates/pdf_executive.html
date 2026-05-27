@@ -1,0 +1,189 @@
+{% extends "pdf_base.html" %}
+{% block content %}
+
+{# ── Cover ──────────────────────────────────────────────────────────────── #}
+<div>
+  <p class="cover-title">{{ audit.name }}</p>
+  <p class="cover-subtitle">Executive Security Report</p>
+  {% if report %}
+  <span class="badge badge-{{ report.risk_level.value }}">RISK: {{ report.risk_level.value|upper }}</span>
+  {% endif %}
+  <div class="cover-meta">
+    <p>Target: {{ audit.target.address }} &nbsp;|&nbsp; Type: {{ audit.audit_type.value|replace('_',' ')|title }}</p>
+    <p>Auditor: {{ audit.created_by.username if audit.created_by else '—' }} &nbsp;|&nbsp; Generated: {{ now }}</p>
+  </div>
+</div>
+
+{# ── TOC ─────────────────────────────────────────────────────────────────── #}
+<div class="page-break">
+  <p class="toc-title">Contents</p>
+  <a class="toc-entry" href="#section-posture">
+    <span>Risk Posture</span><span class="toc-page"></span>
+  </a>
+  <a class="toc-entry" href="#section-summary">
+    <span>Assessment Summary</span><span class="toc-page"></span>
+  </a>
+  <a class="toc-entry" href="#section-key-findings">
+    <span>Key Findings ({{ crit_high|length }})</span><span class="toc-page"></span>
+  </a>
+  <a class="toc-entry" href="#section-distribution">
+    <span>Risk Distribution</span><span class="toc-page"></span>
+  </a>
+  <a class="toc-entry" href="#section-remediation">
+    <span>Remediation Plan</span><span class="toc-page"></span>
+  </a>
+</div>
+
+{# ── Section 1: Risk Posture ─────────────────────────────────────────────── #}
+<div class="page-break" id="section-posture">
+  <p class="section-heading">Risk Posture</p>
+
+  {% if report %}
+  <p style="margin-bottom:8pt;">
+    <span class="badge badge-{{ report.risk_level.value }}" style="font-size:11pt; padding:4pt 14pt;">
+      OVERALL RISK: {{ report.risk_level.value|upper }}
+    </span>
+    &nbsp;
+    <span style="font-size:10pt; color:var(--c-text-muted);">Risk Score: {{ '%.1f'|format(report.risk_score) }} / 10</span>
+  </p>
+
+  <div class="kpi-row">
+    <div class="kpi-box kpi-total">
+      <div class="kpi-value">{{ report.total_findings }}</div>
+      <div class="kpi-label">TOTAL FINDINGS</div>
+    </div>
+    <div class="kpi-box kpi-critical">
+      <div class="kpi-value">{{ report.critical_count }}</div>
+      <div class="kpi-label">CRITICAL</div>
+    </div>
+    <div class="kpi-box kpi-high">
+      <div class="kpi-value">{{ report.high_count }}</div>
+      <div class="kpi-label">HIGH</div>
+    </div>
+    <div class="kpi-box kpi-medium">
+      <div class="kpi-value">{{ report.medium_count }}</div>
+      <div class="kpi-label">MEDIUM</div>
+    </div>
+    <div class="kpi-box kpi-low">
+      <div class="kpi-value">{{ report.low_count }}</div>
+      <div class="kpi-label">LOW</div>
+    </div>
+  </div>
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">No report data available.</p>
+  {% endif %}
+</div>
+
+{# ── Section 2: Assessment Summary ──────────────────────────────────────── #}
+<div class="page-break" id="section-summary">
+  <p class="section-heading">Assessment Summary</p>
+  <p style="margin-bottom:12pt;">{{ narrative }}</p>
+
+  {% if audit.scans %}
+  <p class="label" style="margin-bottom:4pt;">Assessment Scope</p>
+  <table>
+    <tbody>
+      <tr><td style="width:35%"><strong>Target</strong></td><td>{{ audit.target.address }}</td></tr>
+      <tr class="alt-row"><td><strong>Environment</strong></td><td>{{ audit.target.environment|title }}</td></tr>
+      <tr><td><strong>Tools used</strong></td><td>{{ tools_used|join(', ') }}</td></tr>
+      <tr class="alt-row"><td><strong>Total scans</strong></td><td>{{ audit.scans|length }}</td></tr>
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{# ── Section 3: Key Findings ─────────────────────────────────────────────── #}
+<div class="page-break" id="section-key-findings">
+  <p class="section-heading">Key Findings ({{ crit_high|length }})</p>
+
+  {% if crit_high %}
+    {% for f in crit_high %}
+    <div class="finding">
+      <div class="finding-header">
+        <span style="font-size:9pt; color:var(--c-text-muted); font-weight:bold;">{{ loop.index }}.</span>
+        <span class="badge badge-{{ f.severity.value }}">{{ f.severity.value|upper }}</span>
+        <span class="finding-title">{{ f.title }}</span>
+      </div>
+      <div class="finding-meta">
+        Category: {{ f.category.value|replace('_',' ')|title }}
+      </div>
+      <p style="font-size:8.5pt; color:#334155;">{{ f.description[:300] }}{% if f.description|length > 300 %}…{% endif %}</p>
+    </div>
+    {% endfor %}
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">No critical or high severity findings were detected.</p>
+  {% endif %}
+</div>
+
+{# ── Section 4: Risk Distribution ────────────────────────────────────────── #}
+<div class="page-break" id="section-distribution">
+  <p class="section-heading">Risk Distribution</p>
+
+  {% if cat_counts %}
+    {% for cat_key, count in cat_counts %}
+    <div class="bar-row">
+      <span class="bar-label">{{ cat_labels[cat_key] }}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:{{ ((count / max_count) * 100)|int }}%;"></div>
+      </div>
+      <span class="bar-count">{{ count }}</span>
+    </div>
+    {% endfor %}
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">No findings to display.</p>
+  {% endif %}
+</div>
+
+{# ── Section 5: Remediation Plan ─────────────────────────────────────────── #}
+<div class="page-break" id="section-remediation">
+  <p class="section-heading">Remediation Plan</p>
+
+  {% if all_finds %}
+  <p style="margin-bottom:8pt; font-size:9pt; color:#334155;">
+    The following table summarises remediation areas identified during this assessment,
+    organised by business priority. Effort estimates reflect the typical resource
+    investment required to address all findings in each area.
+  </p>
+
+  <table class="exec-table">
+    <thead>
+      <tr>
+        <th style="width:30%">Area</th>
+        <th style="width:10%; text-align:center;">Findings</th>
+        <th style="width:14%; text-align:center;">Effort</th>
+        <th>Business Impact</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tier_key, tier_label_short in tiers_meta %}
+        {% set tier_groups = tiers[tier_key] %}
+        {% if tier_groups %}
+        <tr class="tier-row tier-row-{{ tier_key }}">
+          <td colspan="4">{{ tier_label_short }}</td>
+        </tr>
+          {% for g in tier_groups %}
+          <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+            <td>{{ g.cat_label }}</td>
+            <td style="text-align:center;">{{ g.findings|length }}</td>
+            <td style="text-align:center;">{{ g.effort }}</td>
+            <td style="font-size:8pt;">{{ g.exec_impact[:140] }}{% if g.exec_impact|length > 140 %}…{% endif %}</td>
+          </tr>
+          {% endfor %}
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="timeline-box">
+    <strong>Recommended Remediation Timeline</strong>
+    Immediate: critical findings (≤7 days) &nbsp;|&nbsp;
+    Short-term: high findings (≤30 days) &nbsp;|&nbsp;
+    Medium-term: medium findings (≤90 days) &nbsp;|&nbsp;
+    Maintenance: low/info (next release cycle)
+  </div>
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">No findings to remediate.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

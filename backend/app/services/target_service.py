@@ -63,6 +63,8 @@ class TargetService:
         target = Target(
             name=payload.name,
             address=payload.address,
+            environment=payload.environment,
+            details=payload.details,
             status=_check_reachability(payload.address),
         )
         self.db.add(target)

@@ -1,11 +1,29 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Wifi, Trash2, X, Loader2, AlertTriangle } from 'lucide-react'
+import { Plus, Wifi, Trash2, X, Loader2, AlertTriangle, FlaskConical, RefreshCw, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import type { Target } from '@/types'
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface TargetForm {
+  name: string
+  address: string
+}
+
+interface LabContainer {
+  container: string
+  status: 'running' | 'stopped' | 'not_found'
+  suggested_name: string
+  suggested_address: string | null
+  environment: string
+  recommended_modules: string[]
+  details: Record<string, string>
+  description: string
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
   reachable:   'bg-green-500/10 text-green-400 border border-green-500/20',
@@ -19,9 +37,17 @@ const STATUS_DOT: Record<string, string> = {
   unknown:     'bg-slate-400',
 }
 
-interface TargetForm {
-  name: string
-  address: string
+const LAB_STATUS: Record<string, { dot: string; label: string; text: string }> = {
+  running:   { dot: 'bg-green-400',  label: 'Running',   text: 'text-green-400'  },
+  stopped:   { dot: 'bg-yellow-400', label: 'Stopped',   text: 'text-yellow-400' },
+  not_found: { dot: 'bg-slate-500',  label: 'Not found', text: 'text-slate-400'  },
+}
+
+const MODULE_COLORS: Record<string, { bg: string; text: string }> = {
+  nmap:   { bg: 'rgba(59,130,246,0.15)',  text: '#60a5fa'  },
+  nikto:  { bg: 'rgba(245,158,11,0.15)',  text: '#fbbf24'  },
+  nuclei: { bg: 'rgba(139,92,246,0.15)', text: '#a78bfa'  },
+  wapiti: { bg: 'rgba(239,68,68,0.15)',  text: '#f87171'  },
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -33,6 +59,9 @@ export default function Targets() {
   const [toDelete, setToDelete]         = useState<Target | null>(null)
   const [deleteError, setDeleteError]   = useState('')
   const [checkingId, setCheckingId]     = useState<number | null>(null)
+  const [showLabSetup, setShowLabSetup] = useState(false)
+  const [addingContainer, setAddingContainer] = useState<string | null>(null)
+  const [isAddingAll, setIsAddingAll]   = useState(false)
 
   const [form, setForm] = useState<TargetForm>({ name: '', address: '' })
 
@@ -41,6 +70,13 @@ export default function Targets() {
   const { data: targets = [], isLoading } = useQuery<Target[]>({
     queryKey: ['targets'],
     queryFn: () => api.get('/targets').then(r => r.data),
+  })
+
+  const { data: labContainers = [], isLoading: isDetecting, refetch: refetchLab } = useQuery<LabContainer[]>({
+    queryKey: ['lab-detect'],
+    queryFn: () => api.get('/lab/detect').then(r => r.data),
+    enabled: showLabSetup,
+    staleTime: 0,
   })
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -54,6 +90,19 @@ export default function Targets() {
       toast.success('Target created successfully')
     },
     onError: () => toast.error('Failed to create target'),
+  })
+
+  const addLabMutation = useMutation({
+    mutationFn: (body: object) => api.post('/targets', body).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['targets'] })
+      toast.success('Target added')
+      setAddingContainer(null)
+    },
+    onError: () => {
+      toast.error('Failed to add target')
+      setAddingContainer(null)
+    },
   })
 
   const deleteMutation = useMutation({
@@ -85,6 +134,37 @@ export default function Targets() {
     onSettled: () => setCheckingId(null),
   })
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function isAlreadyAdded(c: LabContainer): boolean {
+    if (!c.suggested_address) return false
+    return targets.some(t => t.address === c.suggested_address)
+  }
+
+  async function handleAddAll() {
+    const toAdd = labContainers.filter(
+      c => c.status === 'running' && c.suggested_address && !isAlreadyAdded(c),
+    )
+    if (toAdd.length === 0) return
+    setIsAddingAll(true)
+    try {
+      for (const c of toAdd) {
+        await api.post('/targets', {
+          name:        c.suggested_name,
+          address:     c.suggested_address!,
+          environment: c.environment,
+          details:     c.details,
+        })
+      }
+      qc.invalidateQueries({ queryKey: ['targets'] })
+      toast.success(`Added ${toAdd.length} lab target${toAdd.length > 1 ? 's' : ''}`)
+    } catch {
+      toast.error('Failed to add some targets')
+    } finally {
+      setIsAddingAll(false)
+    }
+  }
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleCreate(e: React.FormEvent) {
@@ -99,6 +179,10 @@ export default function Targets() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const runnableToAdd = labContainers.filter(
+    c => c.status === 'running' && c.suggested_address && !isAlreadyAdded(c),
+  )
+
   return (
     <div className="space-y-6">
 
@@ -110,13 +194,22 @@ export default function Targets() {
             Manage systems and infrastructure for audit
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Target
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowLabSetup(true)}
+            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+          >
+            <FlaskConical className="h-4 w-4" />
+            Lab Setup
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Add Target
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -191,7 +284,6 @@ export default function Targets() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl">
-            {/* Modal header */}
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
                 <h2 className="font-semibold text-foreground">Add New Target</h2>
@@ -207,7 +299,6 @@ export default function Targets() {
               </button>
             </div>
 
-            {/* Modal body */}
             <form onSubmit={handleCreate} className="px-6 py-5 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -259,6 +350,156 @@ export default function Targets() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Lab Setup ─────────────────────────────────────────────── */}
+      {showLabSetup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl flex flex-col max-h-[90vh]">
+
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-500/15">
+                  <FlaskConical className="h-4 w-4 text-emerald-400" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-foreground">Lab Setup</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Detect running Docker lab containers
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => refetchLab()}
+                  disabled={isDetecting}
+                  title="Refresh"
+                  className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors disabled:opacity-40"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isDetecting ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  onClick={() => setShowLabSetup(false)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+              {isDetecting ? (
+                <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Detecting containers…
+                </div>
+              ) : (
+                labContainers.map(c => {
+                  const s       = LAB_STATUS[c.status] ?? LAB_STATUS.not_found
+                  const added   = isAlreadyAdded(c)
+                  const canAdd  = c.status === 'running' && !!c.suggested_address && !added
+                  const isAdding = addingContainer === c.container
+
+                  return (
+                    <div
+                      key={c.container}
+                      className="rounded-lg border border-border bg-background/50 p-4 space-y-3"
+                    >
+                      {/* Top row: name + status + button */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm text-foreground">
+                              {c.suggested_name}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${s.text}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                              {s.label}
+                            </span>
+                          </div>
+                          {c.suggested_address ? (
+                            <p className="mt-0.5 font-mono text-xs text-muted-foreground truncate">
+                              {c.suggested_address}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-xs text-muted-foreground/50">
+                              Container not running
+                            </p>
+                          )}
+                        </div>
+
+                        {added ? (
+                          <span className="flex items-center gap-1 rounded-md border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-xs font-medium text-green-400 shrink-0">
+                            <Check className="h-3 w-3" />
+                            Added
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setAddingContainer(c.container)
+                              addLabMutation.mutate({
+                                name:        c.suggested_name,
+                                address:     c.suggested_address!,
+                                environment: c.environment,
+                                details:     c.details,
+                              })
+                            }}
+                            disabled={!canAdd || isAdding}
+                            className="flex items-center gap-1.5 rounded-md bg-blue-500 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          >
+                            {isAdding && <Loader2 className="h-3 w-3 animate-spin" />}
+                            Add
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Modules */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs text-muted-foreground/60 mr-0.5">Recommended:</span>
+                        {c.recommended_modules.map(m => {
+                          const col = MODULE_COLORS[m] ?? { bg: 'rgba(100,100,100,0.15)', text: '#9ca3af' }
+                          return (
+                            <span
+                              key={m}
+                              className="rounded px-2 py-0.5 text-xs font-medium"
+                              style={{ backgroundColor: col.bg, color: col.text }}
+                            >
+                              {m}
+                            </span>
+                          )
+                        })}
+                      </div>
+
+                      {/* Description */}
+                      <p className="text-xs text-muted-foreground/60">{c.description}</p>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            {!isDetecting && (
+              <div className="flex items-center justify-between border-t border-border px-6 py-4 shrink-0">
+                <p className="text-xs text-muted-foreground">
+                  {runnableToAdd.length > 0
+                    ? `${runnableToAdd.length} container${runnableToAdd.length > 1 ? 's' : ''} ready to add`
+                    : 'All running containers already added'}
+                </p>
+                <button
+                  onClick={handleAddAll}
+                  disabled={runnableToAdd.length === 0 || isAddingAll}
+                  className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isAddingAll && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Add all running
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

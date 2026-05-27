@@ -54,12 +54,12 @@ interface WorkflowWarning {
 const TOOL_META: Record<ScanTool, {
   label: string; desc: string
   icon: React.ReactNode; color: string; tags: string[]
+  scope: 'NET' | 'WEB'
 }> = {
-  nmap:   { label: 'Nmap',   desc: 'Port & service discovery',   icon: <Network className="h-4 w-4" />, color: '#3b82f6', tags: ['network', 'ports']     },
-  nikto:  { label: 'Nikto',  desc: 'Web server vulnerabilities', icon: <Globe   className="h-4 w-4" />, color: '#f59e0b', tags: ['web', 'headers']        },
-  nuclei: { label: 'Nuclei', desc: 'CVE template scanning',      icon: <Zap     className="h-4 w-4" />, color: '#8b5cf6', tags: ['cve', 'template']       },
-  wapiti: { label: 'Wapiti', desc: 'Web app SQLi / XSS / LFI',  icon: <Shield  className="h-4 w-4" />, color: '#ef4444', tags: ['injection', 'web']      },
-  bash:   { label: 'Bash',   desc: 'Legacy scripts',             icon: <Shield  className="h-4 w-4" />, color: '#6b7280', tags: ['legacy']                },
+  nmap:   { label: 'Nmap',   desc: 'Port & service discovery',   icon: <Network className="h-4 w-4" />, color: '#3b82f6', tags: ['network', 'ports'],    scope: 'NET' },
+  nikto:  { label: 'Nikto',  desc: 'Web server vulnerabilities', icon: <Globe   className="h-4 w-4" />, color: '#f59e0b', tags: ['web', 'headers'],       scope: 'WEB' },
+  nuclei: { label: 'Nuclei', desc: 'CVE template scanning',      icon: <Zap     className="h-4 w-4" />, color: '#8b5cf6', tags: ['cve', 'template'],      scope: 'WEB' },
+  wapiti: { label: 'Wapiti', desc: 'Web app SQLi / XSS / LFI',  icon: <Shield  className="h-4 w-4" />, color: '#ef4444', tags: ['injection', 'web'],     scope: 'WEB' },
 }
 
 const AUDIT_TYPE_META: Record<AuditType, { label: string; description: string; icon: React.ReactNode }> = {
@@ -412,11 +412,11 @@ export default function AuditNew() {
     if (warnings.some(w => w.severity === 'error')) return toast.error('Fix errors in the workflow before creating')
 
     createMutation.mutate({
-      name:             name.trim(),
-      description:      description.trim() || null,
-      audit_type:       auditType,
-      target_id:        parseInt(targetId),
-      selected_modules: executionOrder,
+      name:        name.trim(),
+      description: description.trim() || null,
+      audit_type:  auditType,
+      target_id:   parseInt(targetId),
+      modules:     executionOrder,
     })
   }
 
@@ -474,8 +474,17 @@ export default function AuditNew() {
                   >
                     {meta.icon}
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{meta.label}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground">{meta.label}</p>
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wider ${
+                        meta.scope === 'NET'
+                          ? 'bg-blue-500/20 text-blue-400'
+                          : 'bg-emerald-500/20 text-emerald-400'
+                      }`}>
+                        {meta.scope}
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground">{meta.desc}</p>
                   </div>
                 </button>

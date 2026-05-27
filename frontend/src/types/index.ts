@@ -124,6 +124,17 @@ export interface ComplianceMap {
   categories: ComplianceCategory[]
 }
 
+export interface ActionLogEntry {
+  id: number
+  action: string
+  resource_type: string | null
+  resource_id: number | null
+  resource_name: string | null
+  payload: Record<string, any>
+  created_at: string
+  user: { id: number; username: string; role: { id: number; name: UserRole } } | null
+}
+
 export interface Audit {
   id: number
   name: string

@@ -11,6 +11,7 @@ import {
   Users,
   Sun,
   Moon,
+  Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -24,6 +25,7 @@ const navItems = [
   { to: '/findings',  label: 'Findings',  icon: AlertTriangle,   adminOnly: false },
   { to: '/reports',   label: 'Reports',   icon: FileText,        adminOnly: false },
   { to: '/users',     label: 'Users',     icon: Users,           adminOnly: true  },
+  { to: '/activity',  label: 'Activity',  icon: Activity,        adminOnly: true  },
 ]
 
 export default function Sidebar() {

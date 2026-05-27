@@ -238,6 +238,21 @@ class ComplianceRead(BaseModel):
 
 # ── Target Risk History ───────────────────────────────────────────────────────
 
+class ActionLogRead(BaseModel):
+    id: int
+    action: str
+    resource_type: Optional[str] = None
+    resource_id: Optional[int] = None
+    resource_name: Optional[str] = None
+    payload: dict = {}
+    created_at: datetime
+    user: Optional[UserRead] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ── Target Risk History ───────────────────────────────────────────────────────
+
 class TargetHistoryEntry(BaseModel):
     audit_id: int
     audit_name: str

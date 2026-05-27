@@ -185,3 +185,19 @@ class Log(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     audit: Mapped["Audit"] = relationship(back_populates="logs")
+
+
+class ActionLog(Base):
+    """Registro global de acciones de usuario. Independiente de auditorías."""
+    __tablename__ = "action_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    action: Mapped[str] = mapped_column(String(80), nullable=False)
+    resource_type: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    resource_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    resource_name: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id])

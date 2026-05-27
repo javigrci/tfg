@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.models.entities import User
 from app.schemas.audit import UserRead
 from app.schemas.auth import LoginRequest, TokenResponse
+from app.services.action_log_service import ActionLogService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -33,6 +34,12 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    ActionLogService(db).log(
+        action="user_login",
+        user_id=user.id,
+        resource_type="user",
+        resource_name=user.username,
+    )
     return TokenResponse(access_token=create_access_token(subject=body.username))
 
 

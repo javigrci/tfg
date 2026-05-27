@@ -25,6 +25,7 @@ from app.schemas.audit import (
     ScanLogRead,
     ScanRead,
 )
+from app.services.action_log_service import ActionLogService
 from app.services.audit_service import AuditService
 
 
@@ -35,6 +36,14 @@ def _run_audit_background(audit_id: int) -> None:
     db = SessionLocal()
     try:
         AuditService(db).run_audit(audit_id)
+        audit = db.get(AuditModel, audit_id)
+        ActionLogService(db).log(
+            action="audit_completed",
+            resource_type="audit",
+            resource_id=audit_id,
+            resource_name=audit.name if audit else None,
+            payload={"status": "completed"},
+        )
     except Exception:
         # Si algo explota después de marcar RUNNING, dejar el audit en FAILED
         try:
@@ -43,6 +52,12 @@ def _run_audit_background(audit_id: int) -> None:
             if audit and audit.status == AuditStatus.RUNNING:
                 audit.status = AuditStatus.FAILED
                 db.commit()
+            ActionLogService(db).log(
+                action="audit_failed",
+                resource_type="audit",
+                resource_id=audit_id,
+                resource_name=audit.name if audit else None,
+            )
         except Exception:
             pass
     finally:
@@ -94,17 +109,30 @@ def update_finding_status(
     finding_id: int,
     payload: FindingStatusUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> FindingRead:
     """
     Actualiza el estado de un finding (open → in_progress → resolved / false_positive).
     Gestiona resolved_at automáticamente al transicionar a/desde resolved.
     """
+    from app.models.entities import Finding as FindingModel
+    finding_before = db.get(FindingModel, finding_id)
+    old_status = finding_before.status.value if finding_before else None
+
     finding = AuditService(db).update_finding_status(
         finding_id, payload.status, payload.notes
     )
     if finding is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+
+    ActionLogService(db).log(
+        action="finding_status_changed",
+        user_id=current_user.id,
+        resource_type="finding",
+        resource_id=finding_id,
+        resource_name=finding_before.title if finding_before else None,
+        payload={"old": old_status, "new": payload.status.value},
+    )
     return finding
 
 
@@ -145,7 +173,16 @@ def create_audit(payload: AuditCreate, db: Session = Depends(get_db), current_us
     El usuario creador se extrae automáticamente del token JWT.
     """
     try:
-        return AuditService(db).create_audit(payload, created_by=current_user)
+        audit = AuditService(db).create_audit(payload, created_by=current_user)
+        ActionLogService(db).log(
+            action="audit_created",
+            user_id=current_user.id,
+            resource_type="audit",
+            resource_id=audit.id,
+            resource_name=audit.name,
+            payload={"modules": payload.modules},
+        )
+        return audit
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -198,7 +235,7 @@ def run_audit(
     audit_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> AuditRead:
     """
     Inicia los módulos de escaneo en segundo plano y devuelve inmediatamente.
@@ -214,6 +251,14 @@ def run_audit(
     db_audit.status = AuditStatus.RUNNING
     db_audit.started_at = datetime.now(tz=timezone.utc)
     db.commit()
+
+    ActionLogService(db).log(
+        action="audit_started",
+        user_id=current_user.id,
+        resource_type="audit",
+        resource_id=audit_id,
+        resource_name=db_audit.name,
+    )
 
     background_tasks.add_task(_run_audit_background, audit_id)
     return service.get_audit(audit_id)
@@ -266,7 +311,7 @@ def create_manual_finding(
     audit_id: int,
     payload: ManualFindingCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> FindingRead:
     """
     Crea un finding manual en la auditoría.
@@ -277,7 +322,16 @@ def create_manual_finding(
     """
     service = AuditService(db)
     _get_or_404(service, audit_id)
-    return service.add_manual_finding(audit_id, payload)
+    finding = service.add_manual_finding(audit_id, payload)
+    ActionLogService(db).log(
+        action="manual_finding_created",
+        user_id=current_user.id,
+        resource_type="finding",
+        resource_id=finding.id,
+        resource_name=finding.title,
+        payload={"audit_id": audit_id, "severity": payload.severity.value},
+    )
+    return finding
 
 
 @router.get(

@@ -12,12 +12,20 @@ interface ReportEntry {
   audit_name: string
   target_address: string
   risk_level: string
+  risk_score: number
   total_findings: number
   critical_count: number
   high_count: number
   medium_count: number
   low_count: number
   created_at: string | null
+}
+
+function scoreColor(score: number): string {
+  if (score >= 7) return 'text-red-400'
+  if (score >= 5) return 'text-orange-400'
+  if (score >= 3) return 'text-yellow-400'
+  return 'text-green-400'
 }
 
 const RISK_COLORS: Record<string, string> = {
@@ -134,6 +142,7 @@ export default function ReportsAdmin() {
                 <th className="px-5 py-3 text-left">Audit Name</th>
                 <th className="px-5 py-3 text-left">Target</th>
                 <th className="px-5 py-3 text-left">Risk Level</th>
+                <th className="px-5 py-3 text-center">Score</th>
                 <th className="px-5 py-3 text-center">Findings</th>
                 <th className="px-5 py-3 text-center">C</th>
                 <th className="px-5 py-3 text-center">H</th>
@@ -152,6 +161,9 @@ export default function ReportsAdmin() {
                   <td className="px-5 py-3.5 font-medium text-foreground">{r.audit_name}</td>
                   <td className="px-5 py-3.5 text-xs text-muted-foreground">{r.target_address}</td>
                   <td className="px-5 py-3.5"><RiskBadge level={r.risk_level} /></td>
+                  <td className={`px-5 py-3.5 text-center font-mono font-semibold ${scoreColor(r.risk_score ?? 0)}`}>
+                    {(r.risk_score ?? 0).toFixed(1)}
+                  </td>
                   <td className="px-5 py-3.5 text-center text-foreground font-medium">{r.total_findings}</td>
                   <td className="px-5 py-3.5 text-center"><Count value={r.critical_count} color="#ef4444" /></td>
                   <td className="px-5 py-3.5 text-center"><Count value={r.high_count}     color="#f97316" /></td>

@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
-from app.domain.enums import AuditStatus, FindingStatus, RiskLevel, ScanStatus, ScanTool, SeverityLevel
+from app.domain.enums import AuditStatus, FindingStatus, RiskLevel, ScanStatus, SeverityLevel
 from app.executors.factory import get_executor, get_parser
 from app.models.entities import Audit, Event, Finding, FindingVulnerability, Log, Report, Scan, Target, User, Vulnerability
 from app.schemas.audit import AuditCreate
@@ -38,6 +38,14 @@ class AuditService:
             .order_by(Audit.created_at.desc())
         )
         return list(self.db.scalars(statement).unique().all())
+
+    def delete_audit(self, audit_id: int) -> bool:
+        audit = self.db.get(Audit, audit_id)
+        if audit is None:
+            return False
+        self.db.delete(audit)
+        self.db.commit()
+        return True
 
     def get_audit(self, audit_id: int) -> Audit | None:
         max_run = self.db.scalar(
@@ -106,6 +114,84 @@ class AuditService:
     def get_report(self, audit_id: int) -> Report | None:
         return self.db.scalar(select(Report).where(Report.audit_id == audit_id))
 
+    # ── OWASP Top 10 Compliance Map ───────────────────────────────────────────
+
+    _OWASP_MAP: list[tuple[str, str, list[str]]] = [
+        ("A01", "Broken Access Control",                     ["broken_access"]),
+        ("A02", "Cryptographic Failures",                    ["sensitive_exposure"]),
+        ("A03", "Injection",                                 ["injection", "xss"]),
+        ("A04", "Insecure Design",                           []),   # not covered by our tools
+        ("A05", "Security Misconfiguration",                 ["security_misconfig"]),
+        ("A06", "Vulnerable and Outdated Components",        ["outdated_components"]),
+        ("A07", "Identification and Authentication Failures",["broken_auth"]),
+        ("A08", "Software and Data Integrity Failures",      []),   # not covered by our tools
+        ("A09", "Security Logging and Monitoring Failures",  ["logging_monitoring"]),
+        ("A10", "Server-Side Request Forgery (SSRF)",        []),   # not covered by our tools
+    ]
+
+    _SEV_RANK: dict[str, int] = {
+        "critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0,
+    }
+
+    def get_compliance(self, audit_id: int) -> dict:
+        """
+        Aggregate findings by OWASP Top 10 2021 category.
+        Returns a structured dict compatible with ComplianceRead schema.
+        """
+        findings = self.get_findings(audit_id)
+
+        categories = []
+        green = yellow = red = assessed = 0
+
+        for owasp_id, owasp_name, mapped_cats in self._OWASP_MAP:
+            if not mapped_cats:
+                categories.append({
+                    "owasp_id": owasp_id,
+                    "owasp_name": owasp_name,
+                    "finding_categories": [],
+                    "status": "not_assessed",
+                    "findings_count": 0,
+                    "max_severity": None,
+                })
+                continue
+
+            assessed += 1
+            cat_findings = [f for f in findings if f.category.value in mapped_cats]
+            count = len(cat_findings)
+
+            if count == 0:
+                status = "green"
+                max_sev = None
+                green += 1
+            else:
+                ranks = [self._SEV_RANK.get(f.severity.value, 0) for f in cat_findings]
+                best_rank = max(ranks)
+                max_sev = next(k for k, v in self._SEV_RANK.items() if v == best_rank)
+                if best_rank >= 2:   # medium, high, critical
+                    status = "red"
+                    red += 1
+                else:                # info or low
+                    status = "yellow"
+                    yellow += 1
+
+            categories.append({
+                "owasp_id": owasp_id,
+                "owasp_name": owasp_name,
+                "finding_categories": mapped_cats,
+                "status": status,
+                "findings_count": count,
+                "max_severity": max_sev,
+            })
+
+        return {
+            "audit_id": audit_id,
+            "assessed_count": assessed,
+            "green_count": green,
+            "yellow_count": yellow,
+            "red_count": red,
+            "categories": categories,
+        }
+
     def get_all_reports(self) -> list[dict]:
         rows = self.db.execute(
             select(Report, Audit, Target)
@@ -120,6 +206,7 @@ class AuditService:
                 "audit_name": audit.name,
                 "target_address": target.address,
                 "risk_level": report.risk_level.value,
+                "risk_score": report.risk_score,
                 "total_findings": report.total_findings,
                 "critical_count": report.critical_count,
                 "high_count": report.high_count,
@@ -145,6 +232,7 @@ class AuditService:
                 "audit_name": audit.name,
                 "target_address": target.address,
                 "risk_level": report.risk_level.value,
+                "risk_score": report.risk_score,
                 "total_findings": report.total_findings,
                 "critical_count": report.critical_count,
                 "high_count": report.high_count,
@@ -375,19 +463,84 @@ class AuditService:
         self.db.commit()
         return self.get_audit(audit.id)
 
+    # ── Manual findings ───────────────────────────────────────────────────────
+
+    def add_manual_finding(self, audit_id: int, data) -> Finding:
+        """
+        Crea un finding manual asociado a un scan especial con tool='manual'.
+
+        El scan manual se crea si no existe y se arrastra al run_number actual
+        en cada re-ejecucion, para que sus findings permanezcan visibles.
+        Si data.cve_id está presente, ejecuta CVE enrichment igual que Nuclei.
+        """
+        from app.schemas.audit import ManualFindingCreate  # importacion diferida para evitar ciclo
+
+        max_run = self.db.scalar(
+            select(func.max(Scan.run_number)).where(Scan.audit_id == audit_id)
+        ) or 1
+
+        # Reutilizar el scan manual existente o crear uno nuevo
+        manual_scan = self.db.scalar(
+            select(Scan).where(Scan.audit_id == audit_id, Scan.tool == "manual")
+        )
+        if manual_scan is None:
+            manual_scan = Scan(
+                audit_id=audit_id,
+                run_number=max_run,
+                tool="manual",
+                status=ScanStatus.COMPLETED,
+                executed_at=_now(),
+            )
+            self.db.add(manual_scan)
+            self.db.flush()
+
+        fingerprint = _compute_fingerprint(
+            "manual",
+            data.category.value,
+            data.title,
+            data.evidence,
+        )
+
+        finding = Finding(
+            scan_id=manual_scan.id,
+            title=data.title,
+            description=data.description,
+            severity=data.severity,
+            category=data.category,
+            evidence=data.evidence,
+            recommendation=data.recommendation,
+            status=FindingStatus.OPEN,
+            fingerprint=fingerprint,
+            cpe=data.cve_id,   # igual que Nuclei: CVE ID en campo cpe → enrichment
+        )
+        self.db.add(finding)
+        self.db.commit()
+        self.db.refresh(finding)
+
+        # CVE enrichment opcional — falla silenciosamente
+        if data.cve_id:
+            try:
+                CVEEnrichmentService(self.db).enrich([finding])
+                self.db.commit()
+            except Exception:
+                pass
+
+        return finding
+
     def run_audit(self, audit_id: int) -> Audit | None:
         audit = self.get_audit(audit_id)
         if audit is None:
             return None
 
+        # Si la ruta ya marcó RUNNING, este flush es idempotente
         audit.status = AuditStatus.RUNNING
-        audit.started_at = _now()
+        audit.started_at = audit.started_at or _now()
         self.db.add(
             Event(audit_id=audit.id, event_type="audit_started", payload={"target": audit.target.address})
         )
         self.db.flush()
 
-        tools: list[str] = audit.selected_modules or [ScanTool.BASH.value]
+        tools: list[str] = audit.selected_modules or ["bash"]
 
         # Incrementar run_number — los scans anteriores se conservan para delta
         max_run = self.db.scalar(
@@ -395,21 +548,29 @@ class AuditService:
         ) or 0
         new_run_number = max_run + 1
 
+        # Arrastrar el scan manual al nuevo run_number para que sus findings
+        # sigan siendo visibles en la última ejecución
+        manual_scan = self.db.scalar(
+            select(Scan).where(Scan.audit_id == audit_id, Scan.tool == "manual")
+        )
+        if manual_scan:
+            manual_scan.run_number = new_run_number
+            self.db.flush()
+
         severity_counts = {level: 0 for level in SeverityLevel}
         total_findings = 0
         all_saved_findings: list[Finding] = []
 
         for tool_name in tools:
             try:
-                tool = ScanTool(tool_name)
-                executor = get_executor(tool)
-                parser = get_parser(tool)
+                executor = get_executor(tool_name)
+                parser = get_parser(tool_name)
             except ValueError as exc:
                 self.db.add(Log(audit_id=audit.id, level="WARNING", message=str(exc)))
                 continue
 
             try:
-                raw_results = executor.execute(audit.target.address, [])
+                raw_results = executor.execute(audit.target.address, details=audit.target.details)
                 scan_status = ScanStatus.COMPLETED
             except Exception as exc:
                 raw_results = [
@@ -459,6 +620,19 @@ class AuditService:
                 risk_level = RiskLevel(level.value)
                 break
 
+        # Risk score compuesto — modelo DefectDojo (0-10)
+        # (critical×10 + high×5 + medium×3 + low×1) / total_findings
+        if total_findings > 0:
+            weighted = (
+                severity_counts[SeverityLevel.CRITICAL] * 10
+                + severity_counts[SeverityLevel.HIGH]    *  5
+                + severity_counts[SeverityLevel.MEDIUM]  *  3
+                + severity_counts[SeverityLevel.LOW]     *  1
+            )
+            risk_score = round(weighted / total_findings, 1)
+        else:
+            risk_score = 0.0
+
         # Create or replace the report
         existing_report = self.db.scalar(select(Report).where(Report.audit_id == audit.id))
         if existing_report:
@@ -469,6 +643,7 @@ class AuditService:
             Report(
                 audit_id=audit.id,
                 risk_level=risk_level,
+                risk_score=risk_score,
                 total_findings=total_findings,
                 critical_count=severity_counts[SeverityLevel.CRITICAL],
                 high_count=severity_counts[SeverityLevel.HIGH],

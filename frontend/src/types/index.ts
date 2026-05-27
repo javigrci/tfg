@@ -11,7 +11,7 @@ export type FindingStatus = 'open' | 'in_progress' | 'resolved' | 'false_positiv
 export type AuditStatus   = 'draft' | 'running' | 'completed' | 'failed'
 export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance'
 export type ScanStatus    = 'pending' | 'running' | 'completed' | 'failed'
-export type ScanTool      = 'bash' | 'nmap' | 'nikto' | 'wapiti' | 'nuclei'
+export type ScanTool      = 'nmap' | 'nikto' | 'wapiti' | 'nuclei' | 'manual'
 export type SeverityLevel = 'info' | 'low' | 'medium' | 'high' | 'critical'
 export type RiskLevel     = 'info' | 'low' | 'medium' | 'high' | 'critical'
 export type TargetStatus  = 'unknown' | 'reachable' | 'unreachable'
@@ -76,12 +76,33 @@ export interface Report {
   id: number
   summary: string | null
   risk_level: RiskLevel
+  risk_score: number
   total_findings: number
   critical_count: number
   high_count: number
   medium_count: number
   low_count: number
   created_at: string
+}
+
+export type ComplianceStatus = 'green' | 'yellow' | 'red' | 'not_assessed'
+
+export interface ComplianceCategory {
+  owasp_id: string
+  owasp_name: string
+  finding_categories: string[]
+  status: ComplianceStatus
+  findings_count: number
+  max_severity: SeverityLevel | null
+}
+
+export interface ComplianceMap {
+  audit_id: number
+  assessed_count: number
+  green_count: number
+  yellow_count: number
+  red_count: number
+  categories: ComplianceCategory[]
 }
 
 export interface Audit {

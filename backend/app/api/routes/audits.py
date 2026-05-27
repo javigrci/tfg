@@ -1,24 +1,51 @@
+import csv
+import io
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_role
+from app.domain.enums import AuditStatus, UserRole
 from app.db.session import get_db
+from app.models.entities import Audit as AuditModel
 from app.models.entities import User
 from app.schemas.audit import (
     AuditCreate,
     AuditRead,
-    AuditRunResponse,
+    ComplianceRead,
     DeltaResponse,
     FindingRead,
     FindingReadWithContext,
     FindingStatusUpdate,
+    ManualFindingCreate,
     ReportRead,
     ScanLogRead,
     ScanRead,
 )
 from app.services.audit_service import AuditService
+
+
+def _run_audit_background(audit_id: int) -> None:
+    """Ejecuta el scan en segundo plano con su propia sesión de BD."""
+    from app.db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        AuditService(db).run_audit(audit_id)
+    except Exception:
+        # Si algo explota después de marcar RUNNING, dejar el audit en FAILED
+        try:
+            db.rollback()
+            audit = db.get(AuditModel, audit_id)
+            if audit and audit.status == AuditStatus.RUNNING:
+                audit.status = AuditStatus.FAILED
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
 
 router = APIRouter(prefix="/audits", tags=["audits"])
 findings_router = APIRouter(prefix="/findings", tags=["audits"])
@@ -106,6 +133,27 @@ def create_audit(payload: AuditCreate, db: Session = Depends(get_db), current_us
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
+@router.delete(
+    "/{audit_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        204: {"description": "Auditoría eliminada correctamente."},
+        401: {"description": "Token ausente, inválido o expirado."},
+        403: {"description": "Se requiere rol admin."},
+        404: {"description": "No existe ninguna auditoría con ese ID."},
+    },
+)
+def delete_audit(
+    audit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """Elimina una auditoría y todos sus datos asociados (scans, findings, report). Solo admin."""
+    deleted = AuditService(db).delete_audit(audit_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audit not found")
+
+
 @router.get(
     "/{audit_id}",
     response_model=AuditRead,
@@ -122,26 +170,36 @@ def get_audit(audit_id: int, db: Session = Depends(get_db), _: User = Depends(ge
 
 @router.post(
     "/{audit_id}/run",
-    response_model=AuditRunResponse,
+    response_model=AuditRead,
     responses={
-        200: {"description": "Auditoría ejecutada correctamente. Devuelve la auditoría actualizada, número de scans y total de findings."},
+        200: {"description": "Scan iniciado. La auditoría pasa a estado 'running'; el resultado llega via polling."},
         401: {"description": "Token ausente, inválido o expirado."},
         404: {"description": "No existe ninguna auditoría con ese ID."},
     },
 )
-def run_audit(audit_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> AuditRunResponse:
+def run_audit(
+    audit_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> AuditRead:
     """
-    Ejecuta los módulos de una auditoría y genera el report.
+    Inicia los módulos de escaneo en segundo plano y devuelve inmediatamente.
 
-    Lanza todos los scans configurados, almacena los findings encontrados
-    y calcula el nivel de riesgo global. Si la auditoría ya fue ejecutada,
-    los scans anteriores se eliminan y se regeneran.
+    La auditoría pasa a estado 'running' antes de retornar. El frontend
+    detecta la finalización mediante polling sobre GET /audits/{id}.
     """
     service = AuditService(db)
     _get_or_404(service, audit_id)
-    audit = service.run_audit(audit_id)
-    total_findings = sum(len(scan.findings) for scan in audit.scans)
-    return AuditRunResponse(audit=audit, scans_executed=len(audit.scans), total_findings=total_findings)
+
+    # Marcar RUNNING antes de responder para que la UI lo refleje de inmediato
+    db_audit = db.get(AuditModel, audit_id)
+    db_audit.status = AuditStatus.RUNNING
+    db_audit.started_at = datetime.now(tz=timezone.utc)
+    db.commit()
+
+    background_tasks.add_task(_run_audit_background, audit_id)
+    return service.get_audit(audit_id)
 
 
 @router.get(
@@ -174,6 +232,104 @@ def get_findings(audit_id: int, db: Session = Depends(get_db), _: User = Depends
     service = AuditService(db)
     _get_or_404(service, audit_id)
     return service.get_findings(audit_id)
+
+
+@router.post(
+    "/{audit_id}/findings",
+    response_model=FindingRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        201: {"description": "Finding manual creado y enriquecido con CVE si se aportó un CVE ID."},
+        401: {"description": "Token ausente, inválido o expirado."},
+        404: {"description": "No existe ninguna auditoría con ese ID."},
+        422: {"description": "Body inválido (campos requeridos ausentes o CVE ID con formato incorrecto)."},
+    },
+)
+def create_manual_finding(
+    audit_id: int,
+    payload: ManualFindingCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> FindingRead:
+    """
+    Crea un finding manual en la auditoría.
+
+    Los findings manuales se asocian a un scan especial con tool='manual' y
+    permanecen visibles en las re-ejecuciones. Si se proporciona un CVE ID,
+    se ejecuta enriquecimiento contra NVD igual que con Nuclei.
+    """
+    service = AuditService(db)
+    _get_or_404(service, audit_id)
+    return service.add_manual_finding(audit_id, payload)
+
+
+@router.get(
+    "/{audit_id}/findings/export",
+    responses={
+        200: {
+            "description": "CSV con todos los findings del último run.",
+            "content": {"text/csv": {}},
+        },
+        401: {"description": "Token ausente, inválido o expirado."},
+        404: {"description": "No existe ninguna auditoría con ese ID."},
+    },
+)
+def export_findings_csv(
+    audit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """
+    Descarga los findings del último run como CSV.
+
+    Incluye: id, title, severity, category, status, tool, description,
+    evidence, recommendation, cve_ids, cvss_scores, fingerprint.
+    Compatible con Excel, JIRA y otros sistemas de ticketing.
+    """
+    service = AuditService(db)
+    audit = _get_or_404(service, audit_id)
+    findings = service.get_findings(audit_id)
+
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+
+    # Header
+    writer.writerow([
+        "id", "title", "severity", "category", "status", "tool",
+        "description", "evidence", "recommendation",
+        "cve_ids", "cvss_scores", "fingerprint",
+    ])
+
+    # Build a scan_id → tool mapping from the audit
+    scan_tool: dict[int, str] = {s.id: s.tool for s in audit.scans}
+
+    for f in findings:
+        cve_ids   = "; ".join(v.reference for v in f.vulnerabilities if v.reference)
+        cvss_vals = "; ".join(
+            str(v.cvss_score) for v in f.vulnerabilities if v.cvss_score is not None
+        )
+        writer.writerow([
+            f.id,
+            f.title,
+            f.severity.value,
+            f.category.value,
+            f.status.value,
+            scan_tool.get(f.scan_id, ""),
+            f.description,
+            f.evidence or "",
+            f.recommendation,
+            cve_ids,
+            cvss_vals,
+            f.fingerprint or "",
+        ])
+
+    output.seek(0)
+    filename = f"findings_{audit_id}_{datetime.now(tz=timezone.utc).strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get(
@@ -299,6 +455,32 @@ def download_executive_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get(
+    "/{audit_id}/compliance",
+    response_model=ComplianceRead,
+    responses={
+        200: {"description": "OWASP Top 10 2021 compliance map based on current findings."},
+        401: {"description": "Token ausente, invalido o expirado."},
+        404: {"description": "Auditoria no encontrada."},
+    },
+)
+def get_compliance(
+    audit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> ComplianceRead:
+    """
+    Agrupa los findings por categoria OWASP Top 10 2021.
+
+    Devuelve semaforo por categoria: green (sin findings), yellow (solo info/low),
+    red (medium o superior). Las categorias sin cobertura de herramientas aparecen
+    como not_assessed.
+    """
+    service = AuditService(db)
+    _get_or_404(service, audit_id)
+    return service.get_compliance(audit_id)
 
 
 @router.get(

@@ -9,7 +9,6 @@ from app.domain.enums import (
     FindingStatus,
     RiskLevel,
     ScanStatus,
-    ScanTool,
     SeverityLevel,
     TargetStatus,
     UserRole,
@@ -34,6 +33,8 @@ class UserRead(BaseModel):
 class TargetCreate(BaseModel):
     name: str
     address: str = Field(..., description="IP o URL de la máquina")
+    environment: str = Field(default="unknown", description="Entorno del target: lab, staging, production, unknown")
+    details: dict = Field(default_factory=dict, description="Metadata y configuracion adicional del target (ej. credenciales de auth para wapiti)")
 
 
 class TargetUpdate(BaseModel):
@@ -41,8 +42,12 @@ class TargetUpdate(BaseModel):
     address: Optional[str] = Field(None, description="IP o URL de la máquina")
 
 
-class TargetRead(TargetCreate):
+class TargetRead(BaseModel):
     id: int
+    name: str
+    address: str
+    environment: str
+    details: dict = Field(default_factory=dict)
     status: TargetStatus
     created_at: datetime
 
@@ -84,10 +89,24 @@ class FindingStatusUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class ManualFindingCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=300)
+    description: str = Field(..., min_length=1)
+    severity: SeverityLevel
+    category: FindingCategory
+    evidence: Optional[str] = None
+    recommendation: str = Field(..., min_length=1)
+    cve_id: Optional[str] = Field(
+        None,
+        description="CVE ID opcional para enriquecimiento automatico (ej: CVE-2021-41773)",
+        pattern=r"^CVE-\d{4}-\d{4,}$",
+    )
+
+
 class ScanRead(BaseModel):
     id: int
     run_number: int = 1
-    tool: ScanTool
+    tool: str
     command: Optional[str] = None
     status: ScanStatus
     executed_at: Optional[datetime] = None
@@ -111,7 +130,7 @@ class DeltaResponse(BaseModel):
 
 class ScanLogRead(BaseModel):
     id: int
-    tool: ScanTool
+    tool: str
     command: Optional[str] = None
     executed_at: Optional[datetime] = None
     raw_output: Optional[str] = None
@@ -123,6 +142,7 @@ class ReportRead(BaseModel):
     id: int
     summary: Optional[str] = None
     risk_level: RiskLevel
+    risk_score: float = 0.0
     total_findings: int
     critical_count: int
     high_count: int
@@ -156,7 +176,7 @@ class AuditCreate(BaseModel):
     description: Optional[str] = None
     audit_type: AuditType = AuditType.VULNERABILITY_SCAN
     target_id: int
-    modules: list[ScanTool] = Field(default=[ScanTool.NMAP], description="Herramientas de escaneo")
+    modules: list[str] = Field(default=["nmap"], description="Herramientas de escaneo")
 
 
 class AuditRead(BaseModel):
@@ -189,4 +209,24 @@ class AuditRunResponse(BaseModel):
 class FindingReadWithContext(FindingRead):
     audit_id: int
     audit_name: str
-    scan_tool: ScanTool
+    scan_tool: str
+
+
+# ── OWASP Top 10 Compliance ───────────────────────────────────────────────────
+
+class ComplianceCategoryRead(BaseModel):
+    owasp_id: str                        # e.g. "A01"
+    owasp_name: str                      # e.g. "Broken Access Control"
+    finding_categories: list[str]        # FindingCategory values mapped here
+    status: str                          # "green" | "yellow" | "red" | "not_assessed"
+    findings_count: int
+    max_severity: Optional[str] = None  # highest severity found, null when no findings
+
+
+class ComplianceRead(BaseModel):
+    audit_id: int
+    assessed_count: int    # categories with tooling coverage
+    green_count: int
+    yellow_count: int
+    red_count: int
+    categories: list[ComplianceCategoryRead]

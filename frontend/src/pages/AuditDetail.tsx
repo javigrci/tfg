@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Play, Loader2, Shield, Terminal,
-  ChevronDown, ChevronRight, AlertTriangle, Info, FileDown, ArrowLeftRight,
+  ChevronDown, ChevronRight, AlertTriangle, Info, FileDown, ArrowLeftRight, Plus, X, Table2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import type { Audit, DeltaResponse, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
+import type { Audit, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -70,6 +70,7 @@ const TOOL_COLORS: Record<string, string> = {
   nuclei:  'bg-pink-500/10 text-pink-400 border border-pink-500/20',
   nikto:   'bg-orange-500/10 text-orange-400 border border-orange-500/20',
   bash:    'bg-slate-500/10 text-slate-400 border border-slate-500/20',
+  manual:  'bg-violet-500/10 text-violet-400 border border-violet-500/20',
 }
 
 function cvssStyle(score: number | null): string {
@@ -128,6 +129,295 @@ function KpiCard({ label, value, sub }: { label: string; value: string | number;
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="text-2xl font-bold text-foreground">{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  )
+}
+
+// ── OWASP Compliance Map ──────────────────────────────────────────────────────
+
+const COMPLIANCE_STYLES: Record<ComplianceStatus, string> = {
+  green:        'border-green-500/30 bg-green-500/10',
+  yellow:       'border-yellow-500/30 bg-yellow-500/10',
+  red:          'border-red-500/30 bg-red-500/10',
+  not_assessed: 'border-border bg-muted/20',
+}
+
+const COMPLIANCE_DOT: Record<ComplianceStatus, string> = {
+  green:        'bg-green-400',
+  yellow:       'bg-yellow-400',
+  red:          'bg-red-400',
+  not_assessed: 'bg-slate-500',
+}
+
+const COMPLIANCE_LABEL: Record<ComplianceStatus, string> = {
+  green:        'Compliant',
+  yellow:       'Low risk',
+  red:          'At risk',
+  not_assessed: 'Not assessed',
+}
+
+const COMPLIANCE_TEXT: Record<ComplianceStatus, string> = {
+  green:        'text-green-400',
+  yellow:       'text-yellow-400',
+  red:          'text-red-400',
+  not_assessed: 'text-muted-foreground',
+}
+
+function ComplianceMapSection({ compliance }: { compliance: ComplianceMap }) {
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">OWASP Top 10 — 2021</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Coverage based on current findings</p>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-green-400" />
+            {compliance.green_count} compliant
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-yellow-400" />
+            {compliance.yellow_count} low risk
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-red-400" />
+            {compliance.red_count} at risk
+          </span>
+        </div>
+      </div>
+      <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {compliance.categories.map(cat => (
+          <div
+            key={cat.owasp_id}
+            className={`rounded-lg border p-3 flex flex-col gap-1.5 ${COMPLIANCE_STYLES[cat.status]}`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-foreground">{cat.owasp_id}</span>
+              <span className={`h-2 w-2 rounded-full ${COMPLIANCE_DOT[cat.status]}`} />
+            </div>
+            <p className="text-xs font-medium text-foreground leading-tight">{cat.owasp_name}</p>
+            <div className="mt-auto pt-1 flex items-center justify-between">
+              <span className={`text-[11px] font-medium ${COMPLIANCE_TEXT[cat.status]}`}>
+                {COMPLIANCE_LABEL[cat.status]}
+              </span>
+              {cat.findings_count > 0 && (
+                <span className="text-[11px] text-muted-foreground">
+                  {cat.findings_count} finding{cat.findings_count !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Add Manual Finding Modal ──────────────────────────────────────────────────
+
+const SEVERITY_OPTIONS = ['info', 'low', 'medium', 'high', 'critical'] as const
+const CATEGORY_OPTIONS = [
+  { value: 'injection',          label: 'Injection' },
+  { value: 'broken_auth',        label: 'Broken Authentication' },
+  { value: 'xss',                label: 'XSS' },
+  { value: 'broken_access',      label: 'Broken Access Control' },
+  { value: 'security_misconfig', label: 'Security Misconfiguration' },
+  { value: 'sensitive_exposure', label: 'Sensitive Data Exposure' },
+  { value: 'outdated_components',label: 'Outdated Components' },
+  { value: 'logging_monitoring', label: 'Logging & Monitoring' },
+  { value: 'other',              label: 'Other' },
+]
+
+interface ManualFindingForm {
+  title: string
+  description: string
+  severity: string
+  category: string
+  evidence: string
+  recommendation: string
+  cve_id: string
+}
+
+const EMPTY_FORM: ManualFindingForm = {
+  title: '', description: '', severity: 'medium', category: 'other',
+  evidence: '', recommendation: '', cve_id: '',
+}
+
+function AddFindingModal({
+  auditId,
+  onClose,
+  onCreated,
+}: {
+  auditId: string
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [form, setForm] = useState<ManualFindingForm>(EMPTY_FORM)
+  const [submitting, setSubmitting] = useState(false)
+  const [errors, setErrors] = useState<Partial<ManualFindingForm>>({})
+
+  function validate(): boolean {
+    const e: Partial<ManualFindingForm> = {}
+    if (!form.title.trim())          e.title = 'Required'
+    if (!form.description.trim())    e.description = 'Required'
+    if (!form.recommendation.trim()) e.recommendation = 'Required'
+    if (form.cve_id && !/^CVE-\d{4}-\d{4,}$/i.test(form.cve_id)) {
+      e.cve_id = 'Format: CVE-YYYY-NNNNN'
+    }
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!validate()) return
+    setSubmitting(true)
+    try {
+      await api.post(`/audits/${auditId}/findings`, {
+        title:          form.title.trim(),
+        description:    form.description.trim(),
+        severity:       form.severity,
+        category:       form.category,
+        evidence:       form.evidence.trim() || null,
+        recommendation: form.recommendation.trim(),
+        cve_id:         form.cve_id.trim().toUpperCase() || null,
+      })
+      toast.success('Manual finding added')
+      onCreated()
+      onClose()
+    } catch {
+      toast.error('Failed to add finding')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function field(key: keyof ManualFindingForm) {
+    return {
+      value: form[key],
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+        setForm(f => ({ ...f, [key]: e.target.value })),
+    }
+  }
+
+  const inputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500'
+  const labelCls = 'block text-xs font-medium text-muted-foreground mb-1'
+  const errorCls = 'mt-0.5 text-[11px] text-red-400'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-violet-400" />
+            <h2 className="text-sm font-semibold text-foreground">Add Manual Finding</h2>
+          </div>
+          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted/40">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+
+          {/* Title */}
+          <div>
+            <label className={labelCls}>Title *</label>
+            <input {...field('title')} placeholder="e.g. Reflected XSS in search parameter" className={inputCls} />
+            {errors.title && <p className={errorCls}>{errors.title}</p>}
+          </div>
+
+          {/* Severity + Category */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Severity *</label>
+              <select {...field('severity')} className={inputCls}>
+                {SEVERITY_OPTIONS.map(s => (
+                  <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Category *</label>
+              <select {...field('category')} className={inputCls}>
+                {CATEGORY_OPTIONS.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className={labelCls}>Description *</label>
+            <textarea
+              {...field('description')}
+              rows={3}
+              placeholder="Describe the vulnerability and its context"
+              className={`${inputCls} resize-none`}
+            />
+            {errors.description && <p className={errorCls}>{errors.description}</p>}
+          </div>
+
+          {/* Evidence */}
+          <div>
+            <label className={labelCls}>Evidence <span className="text-muted-foreground/60">(optional)</span></label>
+            <textarea
+              {...field('evidence')}
+              rows={2}
+              placeholder="HTTP request/response, screenshot reference, PoC payload..."
+              className={`${inputCls} resize-none font-mono text-xs`}
+            />
+          </div>
+
+          {/* Recommendation */}
+          <div>
+            <label className={labelCls}>Recommendation *</label>
+            <textarea
+              {...field('recommendation')}
+              rows={2}
+              placeholder="Describe the remediation steps"
+              className={`${inputCls} resize-none`}
+            />
+            {errors.recommendation && <p className={errorCls}>{errors.recommendation}</p>}
+          </div>
+
+          {/* CVE ID */}
+          <div>
+            <label className={labelCls}>CVE ID <span className="text-muted-foreground/60">(optional — triggers NVD lookup)</span></label>
+            <input
+              {...field('cve_id')}
+              placeholder="CVE-2021-41773"
+              className={inputCls}
+            />
+            {errors.cve_id && <p className={errorCls}>{errors.cve_id}</p>}
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-2 border-t border-border">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors disabled:opacity-50"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {submitting ? 'Adding...' : 'Add Finding'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
@@ -229,6 +519,9 @@ export default function AuditDetail() {
   const { data: audit, isLoading, isError } = useQuery<Audit>({
     queryKey: ['audit', id],
     queryFn: () => api.get(`/audits/${id}`).then(r => r.data),
+    // Poll every 2 s while the audit is running (background task)
+    refetchInterval: (query) =>
+      query.state.data?.status === 'running' ? 2000 : false,
   })
 
   const { data: delta } = useQuery<DeltaResponse | null>({
@@ -237,18 +530,41 @@ export default function AuditDetail() {
     enabled: !!audit,
   })
 
+  const { data: compliance } = useQuery<ComplianceMap>({
+    queryKey: ['compliance', id],
+    queryFn: () => api.get(`/audits/${id}/compliance`).then(r => r.data),
+    enabled: !!audit?.report,
+  })
+
+  // Detect running → completed transition to show toast and refresh delta
+  const prevStatusRef = useRef<string | undefined>()
+  useEffect(() => {
+    const prev = prevStatusRef.current
+    const curr = audit?.status
+    if (prev === 'running' && curr === 'completed') {
+      toast.success('Audit completed successfully')
+      qc.invalidateQueries({ queryKey: ['audits'] })
+      qc.invalidateQueries({ queryKey: ['delta', id] })
+      qc.invalidateQueries({ queryKey: ['compliance', id] })
+    }
+    if (prev === 'running' && curr === 'failed') {
+      toast.error('Audit execution failed')
+    }
+    prevStatusRef.current = curr
+  }, [audit?.status, id, qc])
+
   const runMutation = useMutation({
     mutationFn: () => api.post(`/audits/${id}/run`).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['audit', id] })
-      qc.invalidateQueries({ queryKey: ['audits'] })
-      qc.invalidateQueries({ queryKey: ['delta', id] })
-      toast.success('Audit completed successfully')
+      toast.info('Scan started — results will appear automatically')
     },
-    onError: () => toast.error('Audit execution failed'),
+    onError: () => toast.error('Failed to start audit'),
   })
 
   const [pdfLoading, setPdfLoading] = useState<'technical' | 'executive' | null>(null)
+  const [csvLoading, setCsvLoading] = useState(false)
+  const [showAddFinding, setShowAddFinding] = useState(false)
 
   const handleDownloadPdf = async (type: 'technical' | 'executive') => {
     if (pdfLoading) return
@@ -278,6 +594,28 @@ export default function AuditDetail() {
     }
   }
 
+  const handleDownloadCsv = async () => {
+    if (csvLoading) return
+    setCsvLoading(true)
+    try {
+      const response = await api.get(`/audits/${id}/findings/export`, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: 'text/csv' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `findings_${id}_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('CSV exported')
+    } catch {
+      toast.error('Failed to export CSV')
+    } finally {
+      setCsvLoading(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground">
@@ -302,7 +640,8 @@ export default function AuditDetail() {
   const allFindings = audit.scans.flatMap(s => s.findings)
   const report = audit.report
   const isUnreachable = audit.target.status === 'unreachable'
-  const canRun = audit.status !== 'running' && !isUnreachable
+  const isRunning = audit.status === 'running'
+  const canRun = !isRunning && !isUnreachable
 
   return (
     <div className="space-y-6">
@@ -337,7 +676,7 @@ export default function AuditDetail() {
             <>
               <button
                 onClick={() => handleDownloadPdf('executive')}
-                disabled={!!pdfLoading}
+                disabled={!!pdfLoading || csvLoading}
                 className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {pdfLoading === 'executive'
@@ -347,13 +686,23 @@ export default function AuditDetail() {
               </button>
               <button
                 onClick={() => handleDownloadPdf('technical')}
-                disabled={!!pdfLoading}
+                disabled={!!pdfLoading || csvLoading}
                 className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {pdfLoading === 'technical'
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <FileDown className="h-4 w-4" />}
                 Technical
+              </button>
+              <button
+                onClick={handleDownloadCsv}
+                disabled={!!pdfLoading || csvLoading}
+                className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-400 hover:bg-green-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {csvLoading
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Table2 className="h-4 w-4" />}
+                CSV
               </button>
             </>
           )}
@@ -362,10 +711,10 @@ export default function AuditDetail() {
             disabled={!canRun || runMutation.isPending}
             className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {runMutation.isPending
+            {(runMutation.isPending || isRunning)
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <Play className="h-4 w-4" />}
-            Run Audit
+            {isRunning ? 'Running...' : 'Run Audit'}
           </button>
         </div>
       </div>
@@ -376,6 +725,11 @@ export default function AuditDetail() {
           {report
             ? <KpiCard label="Risk Level" value={report.risk_level.toUpperCase()} />
             : <KpiCard label="Risk Level" value="—" sub="Not run yet" />}
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          {report
+            ? <KpiCard label="Risk Score" value={`${report.risk_score}/10`} sub="DefectDojo model" />
+            : <KpiCard label="Risk Score" value="—" sub="Not run yet" />}
         </div>
         <KpiCard label="Total" value={report?.total_findings ?? 0} sub="findings" />
         <KpiCard label="Critical" value={report?.critical_count ?? 0} />
@@ -446,16 +800,28 @@ export default function AuditDetail() {
                   </span>
                 )}
               </h2>
-              {/* Severity summary */}
-              {report && allFindings.length > 0 && (
-                <div className="flex items-center gap-2">
-                  {(['critical', 'high', 'medium', 'low'] as SeverityLevel[]).map(sev => {
-                    const count = allFindings.filter(f => f.severity === sev).length
-                    if (count === 0) return null
-                    return <SeverityBadge key={sev} severity={sev} />
-                  })}
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {/* Severity summary */}
+                {report && allFindings.length > 0 && (
+                  <>
+                    {(['critical', 'high', 'medium', 'low'] as SeverityLevel[]).map(sev => {
+                      const count = allFindings.filter(f => f.severity === sev).length
+                      if (count === 0) return null
+                      return <SeverityBadge key={sev} severity={sev} />
+                    })}
+                  </>
+                )}
+                {/* Add manual finding — visible once the audit has been run */}
+                {audit.scans.length > 0 && !isRunning && (
+                  <button
+                    onClick={() => setShowAddFinding(true)}
+                    className="flex items-center gap-1.5 rounded-md border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-400 hover:bg-violet-500/20 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Finding
+                  </button>
+                )}
+              </div>
             </div>
             {allFindings.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -654,6 +1020,22 @@ export default function AuditDetail() {
           </div>
         </div>
       </div>
+
+      {/* OWASP Top 10 Compliance Map — only shown after first run */}
+      {compliance && <ComplianceMapSection compliance={compliance} />}
+
+      {/* Add Manual Finding modal */}
+      {showAddFinding && id && (
+        <AddFindingModal
+          auditId={id}
+          onClose={() => setShowAddFinding(false)}
+          onCreated={() => {
+            qc.invalidateQueries({ queryKey: ['audit', id] })
+            qc.invalidateQueries({ queryKey: ['compliance', id] })
+          }}
+        />
+      )}
+
     </div>
   )
 }

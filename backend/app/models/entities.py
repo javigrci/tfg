@@ -11,7 +11,6 @@ from app.domain.enums import (
     FindingStatus,
     RiskLevel,
     ScanStatus,
-    ScanTool,
     SeverityLevel,
     TargetStatus,
     UserRole,
@@ -46,6 +45,8 @@ class Target(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     address: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    environment: Mapped[str] = mapped_column(String(50), nullable=False, default="unknown")
+    details: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
     status: Mapped[TargetStatus] = mapped_column(Enum(TargetStatus), default=TargetStatus.UNKNOWN, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -82,7 +83,7 @@ class Scan(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     audit_id: Mapped[int] = mapped_column(ForeignKey("audits.id"), nullable=False)
     run_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    tool: Mapped[ScanTool] = mapped_column(Enum(ScanTool), nullable=False, default=ScanTool.BASH)
+    tool: Mapped[str] = mapped_column(String, nullable=False, default="bash")
     command: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[ScanStatus] = mapped_column(Enum(ScanStatus), default=ScanStatus.PENDING, nullable=False)
     executed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -103,8 +104,6 @@ class Finding(Base):
     category: Mapped[FindingCategory] = mapped_column(Enum(FindingCategory), nullable=False, default=FindingCategory.OTHER)
     evidence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
-
-    # ── Lifecycle ──────────────────────────────────────────────────────────────
     status: Mapped[FindingStatus] = mapped_column(Enum(FindingStatus), nullable=False, default=FindingStatus.OPEN)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     assigned_to_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
@@ -153,6 +152,7 @@ class Report(Base):
     audit_id: Mapped[int] = mapped_column(ForeignKey("audits.id"), unique=True, nullable=False)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel), nullable=False, default=RiskLevel.INFO)
+    risk_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_findings: Mapped[int] = mapped_column(Integer, default=0)
     critical_count: Mapped[int] = mapped_column(Integer, default=0)
     high_count: Mapped[int] = mapped_column(Integer, default=0)

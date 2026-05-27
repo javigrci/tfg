@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Wifi, Trash2, X, Loader2, AlertTriangle, FlaskConical, RefreshCw, Check } from 'lucide-react'
+import { Plus, Wifi, Trash2, X, Loader2, AlertTriangle, FlaskConical, RefreshCw, Check, TrendingUp } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts'
 import api from '@/lib/api'
-import type { Target } from '@/types'
+import type { Target, TargetHistory, TargetHistoryEntry, RiskLevel } from '@/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,11 +46,74 @@ const LAB_STATUS: Record<string, { dot: string; label: string; text: string }> =
   not_found: { dot: 'bg-slate-500',  label: 'Not found', text: 'text-slate-400'  },
 }
 
+const RISK_BADGE: Record<RiskLevel, string> = {
+  critical: 'bg-red-500/10 text-red-400 border border-red-500/20',
+  high:     'bg-orange-500/10 text-orange-400 border border-orange-500/20',
+  medium:   'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
+  low:      'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+  info:     'bg-slate-500/10 text-slate-400 border border-slate-500/20',
+}
+
+const SCORE_COLOR = (s: number) =>
+  s >= 7 ? '#f87171' : s >= 5 ? '#fb923c' : s >= 3 ? '#facc15' : '#4ade80'
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })
+}
+
 const MODULE_COLORS: Record<string, { bg: string; text: string }> = {
   nmap:   { bg: 'rgba(59,130,246,0.15)',  text: '#60a5fa'  },
   nikto:  { bg: 'rgba(245,158,11,0.15)',  text: '#fbbf24'  },
   nuclei: { bg: 'rgba(139,92,246,0.15)', text: '#a78bfa'  },
   wapiti: { bg: 'rgba(239,68,68,0.15)',  text: '#f87171'  },
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function HistoryTable({ entries }: { entries: TargetHistoryEntry[] }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground/60 mb-2 uppercase tracking-wider font-medium">
+        Completed audits
+      </p>
+      <div className="rounded-lg border border-border overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border bg-muted/40 text-muted-foreground uppercase tracking-wider">
+              <th className="px-3 py-2 text-left">Date</th>
+              <th className="px-3 py-2 text-left">Audit</th>
+              <th className="px-3 py-2 text-left">Risk</th>
+              <th className="px-3 py-2 text-right">Score</th>
+              <th className="px-3 py-2 text-right text-red-400/70">C</th>
+              <th className="px-3 py-2 text-right text-orange-400/70">H</th>
+              <th className="px-3 py-2 text-right text-yellow-400/70">M</th>
+              <th className="px-3 py-2 text-right text-blue-400/70">L</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {entries.map(e => (
+              <tr key={e.audit_id} className="hover:bg-muted/20 transition-colors">
+                <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{fmtDate(e.executed_at)}</td>
+                <td className="px-3 py-2 text-foreground max-w-[180px] truncate" title={e.audit_name}>{e.audit_name}</td>
+                <td className="px-3 py-2">
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${RISK_BADGE[e.risk_level]}`}>
+                    {e.risk_level}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right font-mono font-semibold" style={{ color: SCORE_COLOR(e.risk_score) }}>
+                  {e.risk_score.toFixed(1)}
+                </td>
+                <td className="px-3 py-2 text-right text-red-400">{e.critical_count || '—'}</td>
+                <td className="px-3 py-2 text-right text-orange-400">{e.high_count || '—'}</td>
+                <td className="px-3 py-2 text-right text-yellow-400">{e.medium_count || '—'}</td>
+                <td className="px-3 py-2 text-right text-blue-400">{e.low_count || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -62,6 +128,7 @@ export default function Targets() {
   const [showLabSetup, setShowLabSetup] = useState(false)
   const [addingContainer, setAddingContainer] = useState<string | null>(null)
   const [isAddingAll, setIsAddingAll]   = useState(false)
+  const [historyTarget, setHistoryTarget] = useState<Target | null>(null)
 
   const [form, setForm] = useState<TargetForm>({ name: '', address: '' })
 
@@ -70,6 +137,12 @@ export default function Targets() {
   const { data: targets = [], isLoading } = useQuery<Target[]>({
     queryKey: ['targets'],
     queryFn: () => api.get('/targets').then(r => r.data),
+  })
+
+  const { data: historyData, isLoading: isLoadingHistory } = useQuery<TargetHistory>({
+    queryKey: ['target-history', historyTarget?.id],
+    queryFn: () => api.get(`/targets/${historyTarget!.id}/history`).then(r => r.data),
+    enabled: historyTarget !== null,
   })
 
   const { data: labContainers = [], isLoading: isDetecting, refetch: refetchLab } = useQuery<LabContainer[]>({
@@ -262,6 +335,14 @@ export default function Targets() {
                           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           : <Wifi className="h-3.5 w-3.5" />}
                         Check
+                      </button>
+                      <button
+                        onClick={() => setHistoryTarget(target)}
+                        title="Risk history"
+                        className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                      >
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        History
                       </button>
                       <button
                         onClick={() => { setToDelete(target); setDeleteError('') }}
@@ -500,6 +581,129 @@ export default function Targets() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Risk History ─────────────────────────────────────────── */}
+      {historyTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card shadow-2xl flex flex-col max-h-[90vh]">
+
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/15">
+                  <TrendingUp className="h-4 w-4 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-foreground">Risk History</h2>
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">{historyTarget.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setHistoryTarget(null)}
+                className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              {isLoadingHistory ? (
+                <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading history…
+                </div>
+              ) : !historyData || historyData.entries.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+                  <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No completed audits yet for this target.</p>
+                  <p className="text-xs text-muted-foreground/60">Run and complete at least one audit to see risk data.</p>
+                </div>
+              ) : historyData.entries.length === 1 ? (
+                <>
+                  <p className="text-xs text-muted-foreground/70 text-center py-2">
+                    Only 1 completed audit — run a second one to see the trend.
+                  </p>
+                  {/* Still render the single-entry table */}
+                  <HistoryTable entries={historyData.entries} />
+                </>
+              ) : (
+                <>
+                  {/* Chart */}
+                  <div>
+                    <p className="text-xs text-muted-foreground/60 mb-3 uppercase tracking-wider font-medium">
+                      Risk score over time
+                    </p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart
+                        data={historyData.entries.map(e => ({
+                          label: e.audit_name.length > 18 ? e.audit_name.slice(0, 16) + '…' : e.audit_name,
+                          score: parseFloat(e.risk_score.toFixed(2)),
+                          date:  fmtDate(e.executed_at),
+                        }))}
+                        margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+                      >
+                        <defs>
+                          <linearGradient id="histGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          domain={[0, 10]}
+                          ticks={[0, 2, 4, 6, 8, 10]}
+                          tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                          }}
+                          formatter={(value: number) => [value.toFixed(2), 'Risk Score']}
+                          labelFormatter={(label, payload) => payload?.[0]?.payload?.date ?? label}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="score"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          fill="url(#histGrad)"
+                          dot={(props: any) => {
+                            const { cx, cy, payload } = props
+                            return (
+                              <circle
+                                key={cx}
+                                cx={cx} cy={cy} r={4}
+                                fill={SCORE_COLOR(payload.score)}
+                                stroke="hsl(var(--card))"
+                                strokeWidth={2}
+                              />
+                            )
+                          }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Table */}
+                  <HistoryTable entries={historyData.entries} />
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

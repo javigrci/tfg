@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.entities import User
-from app.schemas.audit import TargetCreate, TargetRead, TargetUpdate
+from app.schemas.audit import TargetCreate, TargetHistoryRead, TargetRead, TargetUpdate
 from app.services.target_service import TargetService
 
 router = APIRouter(prefix="/targets", tags=["targets"])
@@ -42,6 +42,23 @@ def list_targets(db: Session = Depends(get_db), _: User = Depends(get_current_us
 def create_target(payload: TargetCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> TargetRead:
     """Crea un nuevo target."""
     return TargetService(db).create_target(payload)
+
+
+@router.get(
+    "/{target_id}/history",
+    response_model=TargetHistoryRead,
+    responses={
+        200: {"description": "Historial de riesgo del target a través de auditorías completadas."},
+        401: {"description": "Token ausente, inválido o expirado."},
+        404: {"description": "No existe ningún target con ese ID."},
+    },
+)
+def get_target_history(target_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> TargetHistoryRead:
+    """Devuelve el historial de risk score por auditoría completada para un target dado."""
+    result = TargetService(db).get_target_history(target_id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target not found")
+    return result
 
 
 @router.get(

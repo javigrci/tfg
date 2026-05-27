@@ -24,6 +24,25 @@ export interface Target {
   created_at: string
 }
 
+export interface TargetHistoryEntry {
+  audit_id: number
+  audit_name: string
+  risk_score: number
+  risk_level: RiskLevel
+  total_findings: number
+  critical_count: number
+  high_count: number
+  medium_count: number
+  low_count: number
+  executed_at: string
+}
+
+export interface TargetHistory {
+  target_id: number
+  target_name: string
+  entries: TargetHistoryEntry[]
+}
+
 export interface Vulnerability {
   id: number
   name: string

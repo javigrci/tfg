@@ -234,3 +234,24 @@ class ComplianceRead(BaseModel):
     yellow_count: int
     red_count: int
     categories: list[ComplianceCategoryRead]
+
+
+# ── Target Risk History ───────────────────────────────────────────────────────
+
+class TargetHistoryEntry(BaseModel):
+    audit_id: int
+    audit_name: str
+    risk_score: float
+    risk_level: RiskLevel
+    total_findings: int
+    critical_count: int
+    high_count: int
+    medium_count: int
+    low_count: int
+    executed_at: datetime
+
+
+class TargetHistoryRead(BaseModel):
+    target_id: int
+    target_name: str
+    entries: list[TargetHistoryEntry]

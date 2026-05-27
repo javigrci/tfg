@@ -4,8 +4,8 @@ import subprocess
 from urllib.parse import urlparse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.domain.enums import TargetStatus
-from app.models.entities import Audit, Target
+from app.domain.enums import AuditStatus, TargetStatus
+from app.models.entities import Audit, Report, Target
 from app.schemas.audit import TargetCreate, TargetUpdate
 
 
@@ -97,3 +97,38 @@ class TargetService:
         return self.db.scalar(
             select(Audit).where(Audit.target_id == target_id)
         ) is not None
+
+    def get_target_history(self, target_id: int) -> dict | None:
+        """Devuelve el historial de riesgo del target: una entrada por cada auditoría completada."""
+        target = self.get_target(target_id)
+        if target is None:
+            return None
+
+        rows = self.db.execute(
+            select(Audit, Report)
+            .join(Report, Report.audit_id == Audit.id)
+            .where(Audit.target_id == target_id)
+            .where(Audit.status == AuditStatus.COMPLETED)
+            .order_by(Report.created_at.asc())
+        ).all()
+
+        entries = []
+        for audit, report in rows:
+            entries.append({
+                "audit_id":       audit.id,
+                "audit_name":     audit.name,
+                "risk_score":     report.risk_score,
+                "risk_level":     report.risk_level,
+                "total_findings": report.total_findings,
+                "critical_count": report.critical_count,
+                "high_count":     report.high_count,
+                "medium_count":   report.medium_count,
+                "low_count":      report.low_count,
+                "executed_at":    report.created_at,
+            })
+
+        return {
+            "target_id":   target.id,
+            "target_name": target.name,
+            "entries":     entries,
+        }

@@ -6,13 +6,24 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "AuditFlow"
     api_prefix: str = "/api/v1"
-    database_url: str = Field(default="sqlite:///./auditflow.db", alias="DATABASE_URL")
-    allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    database_url: str = Field(
+        default="postgresql+psycopg://auditflow:auditflow@localhost:5432/auditflow",
+        alias="DATABASE_URL",
+    )
+    # CORS — coma-separated origins, e.g. "http://localhost:5173,http://localhost"
+    allowed_origins: str = Field(
+        default="http://localhost:3000,http://localhost:5173",
+        alias="ALLOWED_ORIGINS",
+    )
     environment: str = "development"
 
     jwt_secret_key: str = Field(default="change-me-in-production", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = "HS256"
     token_expire_minutes: int = 60
+
+    # Bootstrap users — created on first startup if they do not exist yet
+    admin_password: str = Field(default="admin", alias="ADMIN_PASSWORD")
+    operator_password: str = Field(default="operator", alias="OPERATOR_PASSWORD")
 
     # NVD API key (opcional — sin key: 5 req/30s; con key: 50 req/30s)
     # Solicitar gratis en: https://nvd.nist.gov/developers/request-an-api-key

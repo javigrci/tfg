@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { PageLoader } from '@/components/ui/PageLoader'
+import { PageError } from '@/components/ui/PageError'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
@@ -76,22 +77,8 @@ export default function ReportsAdmin() {
     queryFn: () => api.get('/reports').then(r => r.data),
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <p className="text-sm">Failed to load reports.</p>
-        <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
-      </div>
-    )
-  }
+  if (isLoading) return <PageLoader />
+  if (isError)   return <PageError onRetry={refetch} />
 
   const total    = reports.length
   const critical = reports.filter(r => r.risk_level === 'critical').length

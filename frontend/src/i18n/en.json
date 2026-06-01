@@ -1,0 +1,275 @@
+{
+  "common": {
+    "loading":      "Loading…",
+    "retry":        "Retry",
+    "errorLoading": "Failed to load data.",
+    "save":         "Save",
+    "cancel":       "Cancel",
+    "delete":       "Delete",
+    "edit":         "Edit",
+    "add":          "Add",
+    "confirm":      "Confirm",
+    "close":        "Close",
+    "noData":       "No data available",
+    "backToAudits": "Back to audits"
+  },
+  "login": {
+    "tagline":            "Security Audit Orchestration Platform",
+    "taglineDesc":        "Advanced threat intelligence and compliance monitoring. Curated for performance, built for security professionals.",
+    "feature1":           "Real-time threat detection engine",
+    "feature2":           "Automated security scanning & reporting",
+    "welcome":            "Welcome back",
+    "welcomeDesc":        "Sign in to your AuditFlow account to continue",
+    "username":           "Username",
+    "password":           "Password",
+    "usernamePlaceholder":"Enter your identifier",
+    "signIn":             "Sign In",
+    "invalidCreds":       "Invalid username or password",
+    "contactAdmin":       "Contact your administrator to request access.",
+    "privacy":            "Privacy Policy",
+    "terms":              "Terms of Service",
+    "security":           "Security Disclosure",
+    "copyright":          "© 2026 AuditFlow Intelligence. All rights reserved."
+  },
+  "audits": {
+    "title":          "Audits",
+    "subtitle":       "Manage and run security audits",
+    "newAudit":       "New Audit",
+    "searchPlaceholder": "Search audits...",
+    "columns": {
+      "name":      "Audit Name",
+      "target":    "Target",
+      "type":      "Type",
+      "status":    "Status",
+      "startDate": "Start Date",
+      "duration":  "Duration",
+      "actions":   "Actions"
+    },
+    "empty":        "No audits yet. Create your first one.",
+    "noResults":    "No audits match your search.",
+    "deleteTitle":  "Delete audit",
+    "pagination":   "Showing {{from}}–{{to}} of {{total}} audits",
+    "deleted":      "Audit deleted",
+    "deleteFailed": "Failed to delete audit"
+  },
+  "domain": {
+    "auditType": {
+      "penetration_test":   "Pentest",
+      "vulnerability_scan": "Vuln Scan",
+      "compliance":         "Compliance",
+      "static_analysis":    "Static Analysis"
+    },
+    "targetStatus": {
+      "reachable":   "Reachable",
+      "unreachable": "Unreachable",
+      "unknown":     "Unknown"
+    },
+    "severity": {
+      "critical": "Critical",
+      "high":     "High",
+      "medium":   "Medium",
+      "low":      "Low",
+      "info":     "Info"
+    },
+    "findingStatus": {
+      "open":           "Open",
+      "in_progress":    "In Progress",
+      "resolved":       "Resolved",
+      "false_positive": "False Positive"
+    },
+    "findingCategory": {
+      "injection":           "Injection",
+      "broken_auth":         "Broken Auth",
+      "xss":                 "XSS",
+      "broken_access":       "Broken Access",
+      "security_misconfig":  "Security Misconfig",
+      "sensitive_exposure":  "Sensitive Exposure",
+      "outdated_components": "Outdated Components",
+      "logging_monitoring":  "Logging & Monitoring",
+      "other":               "Other"
+    }
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "audits":    "Audits",
+    "targets":   "Targets",
+    "findings":  "Findings",
+    "reports":   "Reports",
+    "users":     "Users",
+    "activity":  "Activity"
+  },
+  "sidebar": {
+    "logout":           "Log out",
+    "lightMode":        "Light mode",
+    "darkMode":         "Dark mode",
+    "switchLanguage":   "Español"
+  },
+  "findings": {
+    "operator": {
+      "title":              "My Findings",
+      "subtitle":           "Findings grouped by audit",
+      "allFilter":          "All",
+      "anyStatus":          "Any status",
+      "empty":              "No findings yet. Run an audit first.",
+      "findingCount_one":   "{{count}} finding",
+      "findingCount_other": "{{count}} findings",
+      "viewAudit":          "View audit",
+      "colTitle":    "Title",
+      "colSeverity": "Severity",
+      "colCategory": "Category",
+      "colTool":     "Tool",
+      "colStatus":   "Status"
+    },
+    "admin": {
+      "title":          "Findings Overview",
+      "subtitle":       "Aggregated metrics across all audits",
+      "kpiTotal":       "Total Findings",
+      "kpiCritical":    "Critical",
+      "kpiHigh":        "High",
+      "actionRequired": "Action Required",
+      "evolutionTitle": "Findings Evolution",
+      "evolutionEmpty": "Run audits to populate this chart",
+      "severityTitle":  "Severity Distribution",
+      "categoryTitle":  "Findings by Category",
+      "noData":         "No data yet"
+    }
+  },
+  "targets": {
+    "title":    "Targets",
+    "subtitle": "Manage systems and infrastructure for audit",
+    "labSetup": "Lab Setup",
+    "addTarget":"Add Target",
+    "columns": {
+      "name":    "Name",
+      "address": "Address",
+      "status":  "Status",
+      "actions": "Actions"
+    },
+    "loading":       "Loading targets…",
+    "empty":         "No targets yet.",
+    "addFirst":      "Add your first target",
+    "actionCheck":   "Check",
+    "actionHistory": "History",
+    "actionDelete":  "Delete",
+    "titleCheck":    "Check connectivity",
+    "titleHistory":  "Risk history",
+    "titleDelete":   "Delete target",
+    "modal": {
+      "addTitle":          "Add New Target",
+      "addSubtitle":       "Define a system to include in audits",
+      "nameLabel":         "Name",
+      "namePlaceholder":   "Production Web Server",
+      "addressLabel":      "Address",
+      "addressPlaceholder":"192.168.1.1 or http://app.internal",
+      "createError":       "Failed to create target.",
+      "createButton":      "Create Target"
+    },
+    "delete": {
+      "title":         "Delete target",
+      "confirmBefore": "Are you sure you want to delete",
+      "confirmAfter":  "? This action cannot be undone.",
+      "error409":      "This target has associated audits and cannot be deleted.",
+      "errorGeneric":  "An unexpected error occurred."
+    },
+    "lab": {
+      "title":         "Lab Setup",
+      "subtitle":      "Detect running Docker lab containers",
+      "detecting":     "Detecting containers…",
+      "notRunning":    "Container not running",
+      "recommended":   "Recommended:",
+      "added":         "Added",
+      "add":           "Add",
+      "addAll":        "Add all running",
+      "readyToAdd_one":   "{{count}} container ready to add",
+      "readyToAdd_other": "{{count}} containers ready to add",
+      "allAdded":      "All running containers already added",
+      "addedAll_one":   "Added {{count}} lab target",
+      "addedAll_other": "Added {{count}} lab targets",
+      "addedAllFailed": "Failed to add some targets",
+      "status": {
+        "running":   "Running",
+        "stopped":   "Stopped",
+        "not_found": "Not found"
+      }
+    },
+    "history": {
+      "title":           "Risk History",
+      "loading":         "Loading history…",
+      "empty":           "No completed audits yet for this target.",
+      "emptyHint":       "Run and complete at least one audit to see risk data.",
+      "onlyOne":         "Only 1 completed audit — run a second one to see the trend.",
+      "scoreOverTime":   "Risk score over time",
+      "completedAudits": "Completed audits",
+      "colDate":         "Date",
+      "colAudit":        "Audit",
+      "colRisk":         "Risk",
+      "colScore":        "Score",
+      "tooltipScore":    "Risk Score"
+    },
+    "toasts": {
+      "created":       "Target created successfully",
+      "createFailed":  "Failed to create target",
+      "added":         "Target added",
+      "addFailed":     "Failed to add target",
+      "reachable":     "Target is reachable",
+      "unreachable":   "Target is unreachable",
+      "checkComplete": "Connectivity check complete",
+      "checkFailed":   "Connectivity check failed"
+    }
+  },
+  "auditNew": {
+    "title":              "New Audit",
+    "availableTools":     "Available Tools",
+    "clickToAdd":         "Click to add to the workflow.",
+    "workflowEmpty":      "Workflow is empty",
+    "addToolsHint":       "Add tools from the left panel",
+    "workflowGood":       "Workflow looks good.",
+    "severityError":      "Error",
+    "severityWarning":    "Warning",
+    "removeFromWorkflow": "Remove from workflow",
+    "auditDetails":       "Audit Details",
+    "namePlaceholder":    "e.g. Q2 Web Audit",
+    "descPlaceholder":    "Optional scope notes...",
+    "selectTarget":       "Select a target...",
+    "nameLabel":          "Name",
+    "descriptionLabel":   "Description",
+    "targetLabel":        "Target",
+    "auditTypeLabel":     "Audit Type",
+    "auditTypeHint":      "Selecting a type pre-populates the recommended workflow.",
+    "custom":             "Custom",
+    "customModified":     "Workflow modified from preset",
+    "executionOrder":     "Execution order",
+    "creating":           "Creating...",
+    "createAudit":        "Create Audit",
+    "confirmReset":       "Reset workflow to \"{{type}}\" defaults?\nYour custom workflow will be replaced.",
+    "tools": {
+      "nmap":   { "desc": "Port & service discovery" },
+      "nikto":  { "desc": "Web server vulnerabilities" },
+      "nuclei": { "desc": "CVE template scanning" },
+      "wapiti": { "desc": "Web app SQLi / XSS / LFI" },
+      "manual": { "desc": "Manual findings" }
+    },
+    "auditTypes": {
+      "vulnerability_scan": { "label": "Vulnerability Scan", "desc": "Broad coverage across network and web layers" },
+      "penetration_test":   { "label": "Penetration Test",   "desc": "Active exploitation-oriented scanning" },
+      "compliance":         { "label": "Compliance Audit",   "desc": "Security headers and policy verification" }
+    },
+    "warnings": {
+      "empty":               "Add at least one tool to the workflow.",
+      "disconnectedSingle":  "{{names}} is not connected to the execution chain.",
+      "disconnectedMultiple":"{{names}} are not connected to the execution chain.",
+      "branching":           "Branching detected: only the first outgoing connection per node will be executed.",
+      "webNoNmap":           "{{tools}} benefit from Nmap running first to identify open web ports.",
+      "nmapLate":            "Nmap is placed after web tools. Move it earlier for better port discovery."
+    },
+    "toasts": {
+      "alreadyInWorkflow": "{{tool}} is already in the workflow",
+      "created":           "Audit created",
+      "createFailed":      "Failed to create audit",
+      "nameRequired":      "Audit name is required",
+      "targetRequired":    "Please select a target",
+      "toolRequired":      "Add at least one tool to the workflow",
+      "fixErrors":         "Fix errors in the workflow before creating"
+    }
+  }
+}

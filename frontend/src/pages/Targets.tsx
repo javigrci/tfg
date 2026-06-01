@@ -7,6 +7,7 @@ import {
 } from 'recharts'
 import api from '@/lib/api'
 import type { Target, TargetHistory, TargetHistoryEntry, RiskLevel } from '@/types'
+import { useTranslation } from 'react-i18next'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,19 +72,20 @@ const MODULE_COLORS: Record<string, { bg: string; text: string }> = {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function HistoryTable({ entries }: { entries: TargetHistoryEntry[] }) {
+  const { t } = useTranslation()
   return (
     <div>
       <p className="text-xs text-muted-foreground/60 mb-2 uppercase tracking-wider font-medium">
-        Completed audits
+        {t('targets.history.completedAudits')}
       </p>
       <div className="rounded-lg border border-border overflow-hidden">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-muted-foreground uppercase tracking-wider">
-              <th className="px-3 py-2 text-left">Date</th>
-              <th className="px-3 py-2 text-left">Audit</th>
-              <th className="px-3 py-2 text-left">Risk</th>
-              <th className="px-3 py-2 text-right">Score</th>
+              <th className="px-3 py-2 text-left">{t('targets.history.colDate')}</th>
+              <th className="px-3 py-2 text-left">{t('targets.history.colAudit')}</th>
+              <th className="px-3 py-2 text-left">{t('targets.history.colRisk')}</th>
+              <th className="px-3 py-2 text-right">{t('targets.history.colScore')}</th>
               <th className="px-3 py-2 text-right text-red-400/70">C</th>
               <th className="px-3 py-2 text-right text-orange-400/70">H</th>
               <th className="px-3 py-2 text-right text-yellow-400/70">M</th>
@@ -119,7 +121,8 @@ function HistoryTable({ entries }: { entries: TargetHistoryEntry[] }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Targets() {
-  const qc = useQueryClient()
+  const qc      = useQueryClient()
+  const { t }   = useTranslation()
 
   const [showModal, setShowModal]       = useState(false)
   const [toDelete, setToDelete]         = useState<Target | null>(null)
@@ -160,20 +163,20 @@ export default function Targets() {
       qc.invalidateQueries({ queryKey: ['targets'] })
       setShowModal(false)
       setForm({ name: '', address: '' })
-      toast.success('Target created successfully')
+      toast.success(t('targets.toasts.created'))
     },
-    onError: () => toast.error('Failed to create target'),
+    onError: () => toast.error(t('targets.toasts.createFailed')),
   })
 
   const addLabMutation = useMutation({
     mutationFn: (body: object) => api.post('/targets', body).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['targets'] })
-      toast.success('Target added')
+      toast.success(t('targets.toasts.added'))
       setAddingContainer(null)
     },
     onError: () => {
-      toast.error('Failed to add target')
+      toast.error(t('targets.toasts.addFailed'))
       setAddingContainer(null)
     },
   })
@@ -187,9 +190,9 @@ export default function Targets() {
     },
     onError: (err: any) => {
       if (err.response?.status === 409) {
-        setDeleteError('This target has associated audits and cannot be deleted.')
+        setDeleteError(t('targets.delete.error409'))
       } else {
-        setDeleteError('An unexpected error occurred.')
+        setDeleteError(t('targets.delete.errorGeneric'))
       }
     },
   })
@@ -199,11 +202,11 @@ export default function Targets() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['targets'] })
       const status = data?.status ?? 'unknown'
-      if (status === 'reachable') toast.success('Target is reachable')
-      else if (status === 'unreachable') toast.warning('Target is unreachable')
-      else toast.info('Connectivity check complete')
+      if (status === 'reachable') toast.success(t('targets.toasts.reachable'))
+      else if (status === 'unreachable') toast.warning(t('targets.toasts.unreachable'))
+      else toast.info(t('targets.toasts.checkComplete'))
     },
-    onError: () => toast.error('Connectivity check failed'),
+    onError: () => toast.error(t('targets.toasts.checkFailed')),
     onSettled: () => setCheckingId(null),
   })
 
@@ -230,9 +233,9 @@ export default function Targets() {
         })
       }
       qc.invalidateQueries({ queryKey: ['targets'] })
-      toast.success(`Added ${toAdd.length} lab target${toAdd.length > 1 ? 's' : ''}`)
+      toast.success(t('targets.lab.addedAll', { count: toAdd.length }))
     } catch {
-      toast.error('Failed to add some targets')
+      toast.error(t('targets.lab.addedAllFailed'))
     } finally {
       setIsAddingAll(false)
     }
@@ -262,9 +265,9 @@ export default function Targets() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Targets</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t('targets.title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Manage systems and infrastructure for audit
+            {t('targets.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -273,14 +276,14 @@ export default function Targets() {
             className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
           >
             <FlaskConical className="h-4 w-4" />
-            Lab Setup
+            {t('targets.labSetup')}
           </button>
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Add Target
+            {t('targets.addTarget')}
           </button>
         </div>
       </div>
@@ -290,26 +293,26 @@ export default function Targets() {
         {isLoading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Loading targets…
+            {t('targets.loading')}
           </div>
         ) : targets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
-            <p className="text-sm">No targets yet.</p>
+            <p className="text-sm">{t('targets.empty')}</p>
             <button
               onClick={() => setShowModal(true)}
               className="text-sm text-blue-400 hover:underline"
             >
-              Add your first target
+              {t('targets.addFirst')}
             </button>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Address</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3 text-left">{t('targets.columns.name')}</th>
+                <th className="px-4 py-3 text-left">{t('targets.columns.address')}</th>
+                <th className="px-4 py-3 text-left">{t('targets.columns.status')}</th>
+                <th className="px-4 py-3 text-right">{t('targets.columns.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -318,9 +321,9 @@ export default function Targets() {
                   <td className="px-4 py-3 font-medium text-foreground">{target.name}</td>
                   <td className="px-4 py-3 font-mono text-muted-foreground">{target.address}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[target.status]}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[target.status]}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[target.status]}`} />
-                      {target.status}
+                      {t(`domain.targetStatus.${target.status}`)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -328,29 +331,29 @@ export default function Targets() {
                       <button
                         onClick={() => handleCheck(target)}
                         disabled={checkingId === target.id}
-                        title="Check connectivity"
+                        title={t('targets.titleCheck')}
                         className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors disabled:opacity-50"
                       >
                         {checkingId === target.id
                           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           : <Wifi className="h-3.5 w-3.5" />}
-                        Check
+                        {t('targets.actionCheck')}
                       </button>
                       <button
                         onClick={() => setHistoryTarget(target)}
-                        title="Risk history"
+                        title={t('targets.titleHistory')}
                         className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
                       >
                         <TrendingUp className="h-3.5 w-3.5" />
-                        History
+                        {t('targets.actionHistory')}
                       </button>
                       <button
                         onClick={() => { setToDelete(target); setDeleteError('') }}
-                        title="Delete target"
+                        title={t('targets.titleDelete')}
                         className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/5 transition-colors"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        Delete
+                        {t('targets.actionDelete')}
                       </button>
                     </div>
                   </td>
@@ -367,9 +370,9 @@ export default function Targets() {
           <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
-                <h2 className="font-semibold text-foreground">Add New Target</h2>
+                <h2 className="font-semibold text-foreground">{t('targets.modal.addTitle')}</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Define a system to include in audits
+                  {t('targets.modal.addSubtitle')}
                 </p>
               </div>
               <button
@@ -383,12 +386,12 @@ export default function Targets() {
             <form onSubmit={handleCreate} className="px-6 py-5 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Name
+                  {t('targets.modal.nameLabel')}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Production Web Server"
+                  placeholder={t('targets.modal.namePlaceholder')}
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -397,12 +400,12 @@ export default function Targets() {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Address
+                  {t('targets.modal.addressLabel')}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="192.168.1.1 or http://app.internal"
+                  placeholder={t('targets.modal.addressPlaceholder')}
                   value={form.address}
                   onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -410,7 +413,7 @@ export default function Targets() {
               </div>
 
               {createMutation.isError && (
-                <p className="text-sm text-red-400">Failed to create target.</p>
+                <p className="text-sm text-red-400">{t('targets.modal.createError')}</p>
               )}
 
               <div className="flex gap-3 pt-1">
@@ -419,7 +422,7 @@ export default function Targets() {
                   onClick={() => setShowModal(false)}
                   className="flex-1 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -427,7 +430,7 @@ export default function Targets() {
                   className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
                 >
                   {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Create Target
+                  {t('targets.modal.createButton')}
                 </button>
               </div>
             </form>
@@ -447,9 +450,9 @@ export default function Targets() {
                   <FlaskConical className="h-4 w-4 text-emerald-400" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-foreground">Lab Setup</h2>
+                  <h2 className="font-semibold text-foreground">{t('targets.lab.title')}</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Detect running Docker lab containers
+                    {t('targets.lab.subtitle')}
                   </p>
                 </div>
               </div>
@@ -476,7 +479,7 @@ export default function Targets() {
               {isDetecting ? (
                 <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Detecting containers…
+                  {t('targets.lab.detecting')}
                 </div>
               ) : (
                 labContainers.map(c => {
@@ -499,7 +502,7 @@ export default function Targets() {
                             </span>
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${s.text}`}>
                               <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-                              {s.label}
+                              {t(`targets.lab.status.${c.status}`)}
                             </span>
                           </div>
                           {c.suggested_address ? (
@@ -508,7 +511,7 @@ export default function Targets() {
                             </p>
                           ) : (
                             <p className="mt-0.5 text-xs text-muted-foreground/50">
-                              Container not running
+                              {t('targets.lab.notRunning')}
                             </p>
                           )}
                         </div>
@@ -516,7 +519,7 @@ export default function Targets() {
                         {added ? (
                           <span className="flex items-center gap-1 rounded-md border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-xs font-medium text-green-400 shrink-0">
                             <Check className="h-3 w-3" />
-                            Added
+                            {t('targets.lab.added')}
                           </span>
                         ) : (
                           <button
@@ -533,14 +536,14 @@ export default function Targets() {
                             className="flex items-center gap-1.5 rounded-md bg-blue-500 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                           >
                             {isAdding && <Loader2 className="h-3 w-3 animate-spin" />}
-                            Add
+                            {t('targets.lab.add')}
                           </button>
                         )}
                       </div>
 
                       {/* Modules */}
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs text-muted-foreground/60 mr-0.5">Recommended:</span>
+                        <span className="text-xs text-muted-foreground/60 mr-0.5">{t('targets.lab.recommended')}</span>
                         {c.recommended_modules.map(m => {
                           const col = MODULE_COLORS[m] ?? { bg: 'rgba(100,100,100,0.15)', text: '#9ca3af' }
                           return (
@@ -568,8 +571,8 @@ export default function Targets() {
               <div className="flex items-center justify-between border-t border-border px-6 py-4 shrink-0">
                 <p className="text-xs text-muted-foreground">
                   {runnableToAdd.length > 0
-                    ? `${runnableToAdd.length} container${runnableToAdd.length > 1 ? 's' : ''} ready to add`
-                    : 'All running containers already added'}
+                    ? t('targets.lab.readyToAdd', { count: runnableToAdd.length })
+                    : t('targets.lab.allAdded')}
                 </p>
                 <button
                   onClick={handleAddAll}
@@ -577,7 +580,7 @@ export default function Targets() {
                   className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isAddingAll && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Add all running
+                  {t('targets.lab.addAll')}
                 </button>
               </div>
             )}
@@ -597,7 +600,7 @@ export default function Targets() {
                   <TrendingUp className="h-4 w-4 text-blue-400" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-foreground">Risk History</h2>
+                  <h2 className="font-semibold text-foreground">{t('targets.history.title')}</h2>
                   <p className="text-xs text-muted-foreground font-mono mt-0.5">{historyTarget.name}</p>
                 </div>
               </div>
@@ -614,18 +617,18 @@ export default function Targets() {
               {isLoadingHistory ? (
                 <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading history…
+                  {t('targets.history.loading')}
                 </div>
               ) : !historyData || historyData.entries.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
                   <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">No completed audits yet for this target.</p>
-                  <p className="text-xs text-muted-foreground/60">Run and complete at least one audit to see risk data.</p>
+                  <p className="text-sm text-muted-foreground">{t('targets.history.empty')}</p>
+                  <p className="text-xs text-muted-foreground/60">{t('targets.history.emptyHint')}</p>
                 </div>
               ) : historyData.entries.length === 1 ? (
                 <>
                   <p className="text-xs text-muted-foreground/70 text-center py-2">
-                    Only 1 completed audit — run a second one to see the trend.
+                    {t('targets.history.onlyOne')}
                   </p>
                   {/* Still render the single-entry table */}
                   <HistoryTable entries={historyData.entries} />
@@ -635,7 +638,7 @@ export default function Targets() {
                   {/* Chart */}
                   <div>
                     <p className="text-xs text-muted-foreground/60 mb-3 uppercase tracking-wider font-medium">
-                      Risk score over time
+                      {t('targets.history.scoreOverTime')}
                     </p>
                     <ResponsiveContainer width="100%" height={220}>
                       <AreaChart
@@ -673,7 +676,7 @@ export default function Targets() {
                             borderRadius: '8px',
                             fontSize: '12px',
                           }}
-                          formatter={(value) => [Number(value).toFixed(2), 'Risk Score']}
+                          formatter={(value) => [Number(value).toFixed(2), t('targets.history.tooltipScore')]}
                           labelFormatter={(label, payload) => payload?.[0]?.payload?.date ?? label}
                         />
                         <Area
@@ -717,10 +720,10 @@ export default function Targets() {
                 <AlertTriangle className="h-4 w-4 text-red-400" />
               </div>
               <div>
-                <h2 className="font-semibold text-foreground">Delete target</h2>
+                <h2 className="font-semibold text-foreground">{t('targets.delete.title')}</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Are you sure you want to delete <span className="font-medium text-foreground">{toDelete.name}</span>?
-                  This action cannot be undone.
+                  {t('targets.delete.confirmBefore')} <span className="font-medium text-foreground">{toDelete.name}</span>
+                  {t('targets.delete.confirmAfter')}
                 </p>
               </div>
             </div>
@@ -736,7 +739,7 @@ export default function Targets() {
                 onClick={() => { setToDelete(null); setDeleteError('') }}
                 className="flex-1 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => deleteMutation.mutate(toDelete.id)}
@@ -744,7 +747,7 @@ export default function Targets() {
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors disabled:opacity-50"
               >
                 {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Delete
+                {t('common.delete')}
               </button>
             </div>
           </div>

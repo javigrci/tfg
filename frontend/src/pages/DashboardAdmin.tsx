@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { PageLoader } from '@/components/ui/PageLoader'
+import { PageError } from '@/components/ui/PageError'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -75,22 +76,8 @@ export default function DashboardAdmin() {
     queryFn: () => api.get('/dashboard/stats').then(r => r.data),
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
-      </div>
-    )
-  }
-
-  if (isError || !stats) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <p className="text-sm">Failed to load dashboard data.</p>
-        <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
-      </div>
-    )
-  }
+  if (isLoading)       return <PageLoader />
+  if (isError || !stats) return <PageError onRetry={refetch} />
 
   const sevData = Object.entries(stats.severity_distribution)
     .filter(([, v]) => v > 0)

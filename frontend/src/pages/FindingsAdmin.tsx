@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { PageLoader } from '@/components/ui/PageLoader'
+import { PageError } from '@/components/ui/PageError'
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -40,18 +42,20 @@ const TOOLTIP_STYLE = {
 }
 
 const CATEGORY_ORDER = [
-  'injection', 'broken auth', 'xss', 'broken access', 'security misconfig',
-  'sensitive exposure', 'outdated components', 'logging monitoring', 'other',
+  'injection', 'broken_auth', 'xss', 'broken_access', 'security_misconfig',
+  'sensitive_exposure', 'outdated_components', 'logging_monitoring', 'other',
 ]
 
-function computeStats(findings: FindingWithContext[]): AdminFindingStats {
+function computeStats(
+  findings: FindingWithContext[],
+  t: (key: string) => string,
+): AdminFindingStats {
   const sevCount: Record<string, number> = {}
   const catCount: Record<string, number> = {}
 
   for (const f of findings) {
     sevCount[f.severity] = (sevCount[f.severity] ?? 0) + 1
-    const cat = f.category.replace(/_/g, ' ')
-    catCount[cat] = (catCount[cat] ?? 0) + 1
+    catCount[f.category] = (catCount[f.category] ?? 0) + 1
   }
 
   const sevData = Object.entries(sevCount)
@@ -59,7 +63,7 @@ function computeStats(findings: FindingWithContext[]): AdminFindingStats {
     .map(([k, v]) => ({ name: k, value: v }))
 
   const catData = CATEGORY_ORDER
-    .map(c => ({ name: c, value: catCount[c] ?? 0 }))
+    .map(c => ({ name: t(`domain.findingCategory.${c}`), value: catCount[c] ?? 0 }))
     .sort((a, b) => b.value - a.value)
 
   return {
@@ -73,62 +77,57 @@ function computeStats(findings: FindingWithContext[]): AdminFindingStats {
 }
 
 function EmptyChart({ height = 200 }: { height?: number }) {
+  const { t } = useTranslation()
   return (
     <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
-      No data yet
+      {t('findings.admin.noData')}
     </div>
   )
 }
 
 export default function FindingsAdmin() {
+  const { t } = useTranslation()
+
   const { data: findings = [], isLoading, isError, refetch } = useQuery<FindingWithContext[]>({
     queryKey: ['findings'],
     queryFn: () => api.get('/findings').then(r => r.data),
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
-      </div>
-    )
-  }
+  if (isLoading) return <PageLoader />
+  if (isError)   return <PageError onRetry={refetch} />
 
-  if (isError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <p className="text-sm">Failed to load findings.</p>
-        <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
-      </div>
-    )
-  }
-
-  const stats = computeStats(findings)
+  const stats = computeStats(findings, t)
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Findings Overview</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Aggregated metrics across all audits</p>
+        <h1 className="text-2xl font-semibold text-foreground">{t('findings.admin.title')}</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('findings.admin.subtitle')}</p>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border border-border bg-card p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Findings</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {t('findings.admin.kpiTotal')}
+          </p>
           <p className="mt-2 text-3xl font-bold text-foreground">{stats.total}</p>
         </div>
         <div className={`rounded-xl border bg-card p-5 ${stats.critical > 0 ? 'border-red-500/30' : 'border-border'}`}>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Critical</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {t('findings.admin.kpiCritical')}
+          </p>
           <p className={`mt-2 text-3xl font-bold ${stats.critical > 0 ? 'text-red-400' : 'text-foreground'}`}>
             {stats.critical}
           </p>
           {stats.critical > 0 && (
-            <p className="mt-1 text-xs text-red-400">Action Required</p>
+            <p className="mt-1 text-xs text-red-400">{t('findings.admin.actionRequired')}</p>
           )}
         </div>
         <div className={`rounded-xl border bg-card p-5 ${stats.high > 0 ? 'border-orange-500/30' : 'border-border'}`}>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">High</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {t('findings.admin.kpiHigh')}
+          </p>
           <p className={`mt-2 text-3xl font-bold ${stats.high > 0 ? 'text-orange-400' : 'text-foreground'}`}>
             {stats.high}
           </p>
@@ -138,15 +137,15 @@ export default function FindingsAdmin() {
       {/* Evolution + Severity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Findings Evolution</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">{t('findings.admin.evolutionTitle')}</h2>
           <EmptyChart />
           <p className="text-center text-xs text-muted-foreground mt-2">
-            Run audits to populate this chart
+            {t('findings.admin.evolutionEmpty')}
           </p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Severity Distribution</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">{t('findings.admin.severityTitle')}</h2>
           {stats.sevData.length === 0 ? (
             <EmptyChart height={190} />
           ) : (
@@ -177,7 +176,7 @@ export default function FindingsAdmin() {
                         className="h-2 w-2 rounded-full"
                         style={{ background: SEV_COLORS[name] ?? '#6b7280' }}
                       />
-                      <span className="capitalize text-muted-foreground">{name}</span>
+                      <span className="text-muted-foreground">{t(`domain.severity.${name}`)}</span>
                     </div>
                     <span className="text-foreground font-medium">{value}</span>
                   </div>
@@ -190,7 +189,7 @@ export default function FindingsAdmin() {
 
       {/* Findings by Category */}
       <div className="rounded-xl border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Findings by Category</h2>
+        <h2 className="text-sm font-semibold text-foreground mb-4">{t('findings.admin.categoryTitle')}</h2>
         {stats.catData.every(d => d.value === 0) ? (
           <EmptyChart height={260} />
         ) : (

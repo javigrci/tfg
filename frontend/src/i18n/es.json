@@ -1,0 +1,275 @@
+{
+  "common": {
+    "loading":      "Cargando…",
+    "retry":        "Reintentar",
+    "errorLoading": "Error al cargar los datos.",
+    "save":         "Guardar",
+    "cancel":       "Cancelar",
+    "delete":       "Eliminar",
+    "edit":         "Editar",
+    "add":          "Añadir",
+    "confirm":      "Confirmar",
+    "close":        "Cerrar",
+    "noData":       "Sin datos disponibles",
+    "backToAudits": "Volver a auditorías"
+  },
+  "login": {
+    "tagline":            "Plataforma de orquestación de auditorías",
+    "taglineDesc":        "Inteligencia avanzada de amenazas y monitorización de cumplimiento. Diseñado para profesionales de seguridad.",
+    "feature1":           "Motor de detección de amenazas en tiempo real",
+    "feature2":           "Escaneo de seguridad automatizado e informes",
+    "welcome":            "Bienvenido de nuevo",
+    "welcomeDesc":        "Inicia sesión en tu cuenta de AuditFlow para continuar",
+    "username":           "Usuario",
+    "password":           "Contraseña",
+    "usernamePlaceholder":"Introduce tu identificador",
+    "signIn":             "Iniciar sesión",
+    "invalidCreds":       "Usuario o contraseña incorrectos",
+    "contactAdmin":       "Contacta con tu administrador para solicitar acceso.",
+    "privacy":            "Política de privacidad",
+    "terms":              "Términos de servicio",
+    "security":           "Comunicación de seguridad",
+    "copyright":          "© 2026 AuditFlow Intelligence. Todos los derechos reservados."
+  },
+  "audits": {
+    "title":          "Auditorías",
+    "subtitle":       "Gestiona y ejecuta auditorías de seguridad",
+    "newAudit":       "Nueva auditoría",
+    "searchPlaceholder": "Buscar auditorías...",
+    "columns": {
+      "name":      "Nombre",
+      "target":    "Objetivo",
+      "type":      "Tipo",
+      "status":    "Estado",
+      "startDate": "Fecha inicio",
+      "duration":  "Duración",
+      "actions":   "Acciones"
+    },
+    "empty":        "Sin auditorías. Crea la primera.",
+    "noResults":    "Ninguna auditoría coincide con la búsqueda.",
+    "deleteTitle":  "Eliminar auditoría",
+    "pagination":   "Mostrando {{from}}–{{to}} de {{total}} auditorías",
+    "deleted":      "Auditoría eliminada",
+    "deleteFailed": "Error al eliminar la auditoría"
+  },
+  "domain": {
+    "auditType": {
+      "penetration_test":   "Pentest",
+      "vulnerability_scan": "Escaneo de vuln.",
+      "compliance":         "Conformidad",
+      "static_analysis":    "Análisis estático"
+    },
+    "targetStatus": {
+      "reachable":   "Alcanzable",
+      "unreachable": "No alcanzable",
+      "unknown":     "Desconocido"
+    },
+    "severity": {
+      "critical": "Crítico",
+      "high":     "Alto",
+      "medium":   "Medio",
+      "low":      "Bajo",
+      "info":     "Info"
+    },
+    "findingStatus": {
+      "open":           "Abierto",
+      "in_progress":    "En progreso",
+      "resolved":       "Resuelto",
+      "false_positive": "Falso positivo"
+    },
+    "findingCategory": {
+      "injection":           "Inyección",
+      "broken_auth":         "Auth. rota",
+      "xss":                 "XSS",
+      "broken_access":       "Control de acceso",
+      "security_misconfig":  "Mala configuración",
+      "sensitive_exposure":  "Exposición sensible",
+      "outdated_components": "Componentes obsoletos",
+      "logging_monitoring":  "Logs y monitorización",
+      "other":               "Otro"
+    }
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "audits":    "Auditorías",
+    "targets":   "Objetivos",
+    "findings":  "Hallazgos",
+    "reports":   "Informes",
+    "users":     "Usuarios",
+    "activity":  "Actividad"
+  },
+  "sidebar": {
+    "logout":           "Cerrar sesión",
+    "lightMode":        "Modo claro",
+    "darkMode":         "Modo oscuro",
+    "switchLanguage":   "English"
+  },
+  "findings": {
+    "operator": {
+      "title":              "Mis hallazgos",
+      "subtitle":           "Hallazgos agrupados por auditoría",
+      "allFilter":          "Todos",
+      "anyStatus":          "Cualquier estado",
+      "empty":              "Sin hallazgos. Ejecuta una auditoría primero.",
+      "findingCount_one":   "{{count}} hallazgo",
+      "findingCount_other": "{{count}} hallazgos",
+      "viewAudit":          "Ver auditoría",
+      "colTitle":    "Título",
+      "colSeverity": "Severidad",
+      "colCategory": "Categoría",
+      "colTool":     "Herramienta",
+      "colStatus":   "Estado"
+    },
+    "admin": {
+      "title":          "Resumen de hallazgos",
+      "subtitle":       "Métricas agregadas de todas las auditorías",
+      "kpiTotal":       "Hallazgos totales",
+      "kpiCritical":    "Críticos",
+      "kpiHigh":        "Altos",
+      "actionRequired": "Acción requerida",
+      "evolutionTitle": "Evolución de hallazgos",
+      "evolutionEmpty": "Ejecuta auditorías para poblar este gráfico",
+      "severityTitle":  "Distribución de severidad",
+      "categoryTitle":  "Hallazgos por categoría",
+      "noData":         "Sin datos"
+    }
+  },
+  "targets": {
+    "title":    "Objetivos",
+    "subtitle": "Gestiona sistemas e infraestructura para auditorías",
+    "labSetup": "Conf. laboratorio",
+    "addTarget":"Añadir objetivo",
+    "columns": {
+      "name":    "Nombre",
+      "address": "Dirección",
+      "status":  "Estado",
+      "actions": "Acciones"
+    },
+    "loading":       "Cargando objetivos…",
+    "empty":         "Sin objetivos.",
+    "addFirst":      "Añade tu primer objetivo",
+    "actionCheck":   "Verificar",
+    "actionHistory": "Historial",
+    "actionDelete":  "Eliminar",
+    "titleCheck":    "Verificar conectividad",
+    "titleHistory":  "Historial de riesgo",
+    "titleDelete":   "Eliminar objetivo",
+    "modal": {
+      "addTitle":          "Añadir nuevo objetivo",
+      "addSubtitle":       "Define un sistema para incluir en auditorías",
+      "nameLabel":         "Nombre",
+      "namePlaceholder":   "Servidor web de producción",
+      "addressLabel":      "Dirección",
+      "addressPlaceholder":"192.168.1.1 o http://app.internal",
+      "createError":       "Error al crear el objetivo.",
+      "createButton":      "Crear objetivo"
+    },
+    "delete": {
+      "title":         "Eliminar objetivo",
+      "confirmBefore": "¿Seguro que quieres eliminar",
+      "confirmAfter":  "? Esta acción no se puede deshacer.",
+      "error409":      "Este objetivo tiene auditorías asociadas y no puede eliminarse.",
+      "errorGeneric":  "Se produjo un error inesperado."
+    },
+    "lab": {
+      "title":         "Conf. laboratorio",
+      "subtitle":      "Detecta contenedores Docker de laboratorio en ejecución",
+      "detecting":     "Detectando contenedores…",
+      "notRunning":    "Contenedor no iniciado",
+      "recommended":   "Recomendado:",
+      "added":         "Añadido",
+      "add":           "Añadir",
+      "addAll":        "Añadir todos los activos",
+      "readyToAdd_one":   "{{count}} contenedor listo para añadir",
+      "readyToAdd_other": "{{count}} contenedores listos para añadir",
+      "allAdded":      "Todos los contenedores activos ya están añadidos",
+      "addedAll_one":   "{{count}} objetivo de laboratorio añadido",
+      "addedAll_other": "{{count}} objetivos de laboratorio añadidos",
+      "addedAllFailed": "Error al añadir algunos objetivos",
+      "status": {
+        "running":   "Activo",
+        "stopped":   "Detenido",
+        "not_found": "No encontrado"
+      }
+    },
+    "history": {
+      "title":           "Historial de riesgo",
+      "loading":         "Cargando historial…",
+      "empty":           "Sin auditorías completadas para este objetivo.",
+      "emptyHint":       "Ejecuta y completa al menos una auditoría para ver los datos de riesgo.",
+      "onlyOne":         "Solo 1 auditoría completada — ejecuta una segunda para ver la tendencia.",
+      "scoreOverTime":   "Puntuación de riesgo a lo largo del tiempo",
+      "completedAudits": "Auditorías completadas",
+      "colDate":         "Fecha",
+      "colAudit":        "Auditoría",
+      "colRisk":         "Riesgo",
+      "colScore":        "Puntuación",
+      "tooltipScore":    "Puntuación de riesgo"
+    },
+    "toasts": {
+      "created":       "Objetivo creado correctamente",
+      "createFailed":  "Error al crear el objetivo",
+      "added":         "Objetivo añadido",
+      "addFailed":     "Error al añadir el objetivo",
+      "reachable":     "El objetivo es alcanzable",
+      "unreachable":   "El objetivo no es alcanzable",
+      "checkComplete": "Verificación de conectividad completada",
+      "checkFailed":   "Error en la verificación de conectividad"
+    }
+  },
+  "auditNew": {
+    "title":              "Nueva auditoría",
+    "availableTools":     "Herramientas disponibles",
+    "clickToAdd":         "Haz clic para añadir al flujo.",
+    "workflowEmpty":      "Flujo de trabajo vacío",
+    "addToolsHint":       "Añade herramientas desde el panel izquierdo",
+    "workflowGood":       "El flujo es correcto.",
+    "severityError":      "Error",
+    "severityWarning":    "Advertencia",
+    "removeFromWorkflow": "Eliminar del flujo",
+    "auditDetails":       "Detalles de auditoría",
+    "namePlaceholder":    "Ej. Auditoría Web Q2",
+    "descPlaceholder":    "Notas opcionales de alcance...",
+    "selectTarget":       "Selecciona un objetivo...",
+    "nameLabel":          "Nombre",
+    "descriptionLabel":   "Descripción",
+    "targetLabel":        "Objetivo",
+    "auditTypeLabel":     "Tipo de auditoría",
+    "auditTypeHint":      "Seleccionar un tipo precarga el flujo recomendado.",
+    "custom":             "Personalizado",
+    "customModified":     "Flujo modificado desde la plantilla",
+    "executionOrder":     "Orden de ejecución",
+    "creating":           "Creando...",
+    "createAudit":        "Crear auditoría",
+    "confirmReset":       "¿Restablecer el flujo a los valores de \"{{type}}\"?\nTu flujo personalizado será reemplazado.",
+    "tools": {
+      "nmap":   { "desc": "Descubrimiento de puertos y servicios" },
+      "nikto":  { "desc": "Vulnerabilidades del servidor web" },
+      "nuclei": { "desc": "Escaneo de plantillas CVE" },
+      "wapiti": { "desc": "SQLi / XSS / LFI en aplicaciones web" },
+      "manual": { "desc": "Hallazgos manuales" }
+    },
+    "auditTypes": {
+      "vulnerability_scan": { "label": "Escaneo de vulnerabilidades", "desc": "Cobertura amplia en capas de red y web" },
+      "penetration_test":   { "label": "Test de penetración",         "desc": "Escaneo orientado a explotación activa" },
+      "compliance":         { "label": "Auditoría de conformidad",    "desc": "Verificación de cabeceras y políticas de seguridad" }
+    },
+    "warnings": {
+      "empty":               "Añade al menos una herramienta al flujo.",
+      "disconnectedSingle":  "{{names}} no está conectado a la cadena de ejecución.",
+      "disconnectedMultiple":"{{names}} no están conectados a la cadena de ejecución.",
+      "branching":           "Bifurcación detectada: solo se ejecutará la primera conexión saliente de cada nodo.",
+      "webNoNmap":           "{{tools}} se benefician de ejecutar Nmap primero para identificar puertos web abiertos.",
+      "nmapLate":            "Nmap está colocado después de las herramientas web. Muévelo antes para un mejor descubrimiento de puertos."
+    },
+    "toasts": {
+      "alreadyInWorkflow": "{{tool}} ya está en el flujo",
+      "created":           "Auditoría creada",
+      "createFailed":      "Error al crear la auditoría",
+      "nameRequired":      "El nombre de la auditoría es obligatorio",
+      "targetRequired":    "Selecciona un objetivo",
+      "toolRequired":      "Añade al menos una herramienta al flujo",
+      "fixErrors":         "Corrige los errores del flujo antes de crear"
+    }
+  }
+}

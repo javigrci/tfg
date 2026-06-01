@@ -4,11 +4,13 @@ import {
   Shield, Lock, Terminal, ShieldCheck, Search,
   Key, Eye, EyeOff, Zap, LogIn,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/context/AuthContext'
 
 export default function Login() {
   const { login, token } = useAuth()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -29,7 +31,7 @@ export default function Login() {
       await login(username, password)
       navigate('/audits', { replace: true })
     } catch {
-      setError('Invalid username or password')
+      setError(t('login.invalidCreds'))
     } finally {
       setLoading(false)
     }
@@ -65,22 +67,21 @@ export default function Login() {
           {/* Headline */}
           <div className="flex-1">
             <h1 className="text-4xl font-bold text-white leading-tight mb-4">
-              Security Audit<br />Orchestration<br />Platform
+              {t('login.tagline')}
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed max-w-xs">
-              Advanced threat intelligence and compliance monitoring.
-              Curated for performance, built for security professionals.
+              {t('login.taglineDesc')}
             </p>
 
             {/* Feature chips */}
             <div className="mt-12 space-y-3">
               <div className="flex items-center gap-3 rounded-lg bg-white/5 px-4 py-3">
                 <Zap className="h-4 w-4 shrink-0 text-yellow-400" />
-                <span className="text-slate-300 text-sm">Real-time threat detection engine</span>
+                <span className="text-slate-300 text-sm">{t('login.feature1')}</span>
               </div>
               <div className="flex items-center gap-3 rounded-lg bg-white/5 px-4 py-3">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-green-400" />
-                <span className="text-slate-300 text-sm">Automated security scanning &amp; reporting</span>
+                <span className="text-slate-300 text-sm">{t('login.feature2')}</span>
               </div>
             </div>
           </div>
@@ -95,9 +96,9 @@ export default function Login() {
         <div className="flex w-full max-w-md flex-1 flex-col justify-center">
           {/* Cabecera del form */}
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2">Welcome back</h2>
+            <h2 className="text-3xl font-bold text-white mb-2">{t('login.welcome')}</h2>
             <p className="text-sm text-slate-400">
-              Sign in to your AuditFlow account to continue
+              {t('login.welcomeDesc')}
             </p>
           </div>
 
@@ -105,7 +106,7 @@ export default function Login() {
             {/* Username */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                Username
+                {t('login.username')}
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -113,7 +114,7 @@ export default function Login() {
                   type="text"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  placeholder="Enter your identifier"
+                  placeholder={t('login.usernamePlaceholder')}
                   required
                   autoComplete="username"
                   className="w-full rounded-lg border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -124,7 +125,7 @@ export default function Login() {
             {/* Password */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                Password
+                {t('login.password')}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -164,25 +165,25 @@ export default function Login() {
               {loading
                 ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 : <LogIn className="h-4 w-4" />}
-              Sign In
+              {t('login.signIn')}
             </button>
           </form>
 
           <p className="mt-8 text-center text-xs text-slate-500">
-            Contact your administrator to request access.
+            {t('login.contactAdmin')}
           </p>
         </div>
 
         {/* Footer */}
         <div className="w-full space-y-2 text-center">
           <div className="flex items-center justify-center gap-3 text-xs text-slate-600">
-            <span>Privacy Policy</span>
+            <span>{t('login.privacy')}</span>
             <span>·</span>
-            <span>Terms of Service</span>
+            <span>{t('login.terms')}</span>
             <span>·</span>
-            <span>Security Disclosure</span>
+            <span>{t('login.security')}</span>
           </div>
-          <p className="text-xs text-slate-700">© 2026 AuditFlow Intelligence. All rights reserved.</p>
+          <p className="text-xs text-slate-700">{t('login.copyright')}</p>
         </div>
       </div>
 

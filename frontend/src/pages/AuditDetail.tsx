@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
+import { PageLoader } from '@/components/ui/PageLoader'
 import type { Audit, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
@@ -616,14 +617,7 @@ export default function AuditDetail() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-24 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" />
-        Loading audit…
-      </div>
-    )
-  }
+  if (isLoading) return <PageLoader className="h-auto py-24" />
 
   if (isError || !audit) {
     return (

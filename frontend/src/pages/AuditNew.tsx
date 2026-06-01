@@ -38,6 +38,7 @@ import {
 import api from '@/lib/api'
 import type { Target, AuditType, ScanTool } from '@/types'
 import { useTheme } from '@/context/ThemeContext'
+import { useTranslation } from 'react-i18next'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -129,11 +130,14 @@ function detectWorkflowType(order: ScanTool[]): WorkflowType {
   return 'custom'
 }
 
-function analyzeWorkflow(nodes: Node[], edges: Edge[], order: ScanTool[]): WorkflowWarning[] {
+function analyzeWorkflow(
+  nodes: Node[], edges: Edge[], order: ScanTool[],
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): WorkflowWarning[] {
   const warnings: WorkflowWarning[] = []
 
   if (order.length === 0) {
-    warnings.push({ id: 'empty', severity: 'error', message: 'Add at least one tool to the workflow.' })
+    warnings.push({ id: 'empty', severity: 'error', message: t('auditNew.warnings.empty') })
     return warnings
   }
 
@@ -152,7 +156,9 @@ function analyzeWorkflow(nodes: Node[], edges: Edge[], order: ScanTool[]): Workf
     const names = disconnected.map(n => TOOL_META[(n.data as Record<string, unknown>).tool as ScanTool].label).join(', ')
     warnings.push({
       id: 'disconnected', severity: 'error',
-      message: `${names} ${disconnected.length === 1 ? 'is' : 'are'} not connected to the execution chain.`,
+      message: disconnected.length === 1
+        ? t('auditNew.warnings.disconnectedSingle',  { names })
+        : t('auditNew.warnings.disconnectedMultiple', { names }),
     })
   }
 
@@ -162,28 +168,28 @@ function analyzeWorkflow(nodes: Node[], edges: Edge[], order: ScanTool[]): Workf
   if (Object.values(outCount).some(c => c > 1)) {
     warnings.push({
       id: 'branching', severity: 'warning',
-      message: 'Branching detected: only the first outgoing connection per node will be executed.',
+      message: t('auditNew.warnings.branching'),
     })
   }
 
   // Web tools without Nmap
   const hasNmap = order.includes('nmap')
-  const webTools = (['nikto', 'wapiti'] as ScanTool[]).filter(t => order.includes(t))
+  const webTools = (['nikto', 'wapiti'] as ScanTool[]).filter(wt => order.includes(wt))
   if (webTools.length > 0 && !hasNmap) {
     warnings.push({
       id: 'web-no-nmap', severity: 'warning',
-      message: `${webTools.map(t => TOOL_META[t].label).join(' and ')} benefit from Nmap running first to identify open web ports.`,
+      message: t('auditNew.warnings.webNoNmap', { tools: webTools.map(wt => TOOL_META[wt].label).join(' and ') }),
     })
   }
 
   // Nmap after web tools
   if (hasNmap && webTools.length > 0) {
-    const nmapIdx    = order.indexOf('nmap')
-    const firstWeb   = Math.min(...webTools.map(t => order.indexOf(t)))
+    const nmapIdx  = order.indexOf('nmap')
+    const firstWeb = Math.min(...webTools.map(wt => order.indexOf(wt)))
     if (nmapIdx > firstWeb) {
       warnings.push({
         id: 'nmap-late', severity: 'warning',
-        message: 'Nmap is placed after web tools. Move it earlier for better port discovery.',
+        message: t('auditNew.warnings.nmapLate'),
       })
     }
   }
@@ -248,6 +254,7 @@ function ToolNode({ data, id }: NodeProps) {
   const tool     = (data as Record<string, unknown>).tool as ScanTool
   const onRemove = (data as Record<string, unknown>).onRemove as (id: string) => void
   const meta     = TOOL_META[tool]
+  const { t }    = useTranslation()
   return (
     <div
       className="relative w-60 rounded-lg bg-card shadow-md"
@@ -268,12 +275,12 @@ function ToolNode({ data, id }: NodeProps) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">{meta.label}</p>
-          <p className="truncate text-sm text-muted-foreground">{meta.desc}</p>
+          <p className="truncate text-sm text-muted-foreground">{t(`auditNew.tools.${tool}.desc`)}</p>
         </div>
         <button
           onClick={e => { e.stopPropagation(); onRemove(id) }}
           className="nodrag flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-destructive/80 text-destructive-foreground text-xs hover:bg-destructive transition-colors"
-          title="Remove from workflow"
+          title={t('auditNew.removeFromWorkflow')}
         >
           ✕
         </button>
@@ -305,6 +312,7 @@ const NODE_TYPES: NodeTypes = {
 export default function AuditNew() {
   const navigate    = useNavigate()
   const { theme }   = useTheme()
+  const { t }       = useTranslation()
 
   const [name,        setName]        = useState('')
   const [description, setDescription] = useState('')
@@ -317,7 +325,7 @@ export default function AuditNew() {
   // Derived
   const executionOrder = useMemo(() => getExecutionOrder(nodes, edges), [nodes, edges])
   const detectedType   = useMemo(() => detectWorkflowType(executionOrder), [executionOrder])
-  const warnings       = useMemo(() => analyzeWorkflow(nodes, edges, executionOrder), [nodes, edges, executionOrder])
+  const warnings       = useMemo(() => analyzeWorkflow(nodes, edges, executionOrder, t), [nodes, edges, executionOrder, t])
 
   // Remove a tool node and heal the edges around it
   const handleRemoveTool = useCallback((nodeId: string) => {
@@ -348,7 +356,7 @@ export default function AuditNew() {
   // Add tool from palette → append before 'end'
   function addTool(tool: ScanTool) {
     if (executionOrder.includes(tool)) {
-      toast.warning(`${TOOL_META[tool].label} is already in the workflow`)
+      toast.warning(t('auditNew.toasts.alreadyInWorkflow', { tool: TOOL_META[tool].label }))
       return
     }
     const newId = `tool-${Date.now()}-${tool}`
@@ -382,7 +390,7 @@ export default function AuditNew() {
   function handleTypeChange(type: AuditType) {
     if (
       detectedType === 'custom' &&
-      !window.confirm(`Reset workflow to "${AUDIT_TYPE_META[type].label}" defaults?\nYour custom workflow will be replaced.`)
+      !window.confirm(t('auditNew.confirmReset', { type: t(`auditNew.auditTypes.${type}.label`) }))
     ) return
 
     setAuditType(type)
@@ -404,15 +412,15 @@ export default function AuditNew() {
 
   const createMutation = useMutation({
     mutationFn: (payload: object) => api.post('/audits', payload),
-    onSuccess:  (res) => { toast.success('Audit created'); navigate(`/audits/${res.data.id}`) },
-    onError:    ()    => toast.error('Failed to create audit'),
+    onSuccess:  (res) => { toast.success(t('auditNew.toasts.created')); navigate(`/audits/${res.data.id}`) },
+    onError:    ()    => toast.error(t('auditNew.toasts.createFailed')),
   })
 
   function handleCreate() {
-    if (!name.trim())                return toast.error('Audit name is required')
-    if (!targetId)                   return toast.error('Please select a target')
-    if (executionOrder.length === 0) return toast.error('Add at least one tool to the workflow')
-    if (warnings.some(w => w.severity === 'error')) return toast.error('Fix errors in the workflow before creating')
+    if (!name.trim())                return toast.error(t('auditNew.toasts.nameRequired'))
+    if (!targetId)                   return toast.error(t('auditNew.toasts.targetRequired'))
+    if (executionOrder.length === 0) return toast.error(t('auditNew.toasts.toolRequired'))
+    if (warnings.some(w => w.severity === 'error')) return toast.error(t('auditNew.toasts.fixErrors'))
 
     createMutation.mutate({
       name:        name.trim(),
@@ -438,10 +446,10 @@ export default function AuditNew() {
           className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Audits
+          {t('common.backToAudits')}
         </button>
         <span className="text-muted-foreground/30">/</span>
-        <h1 className="text-sm font-semibold text-foreground">New Audit</h1>
+        <h1 className="text-sm font-semibold text-foreground">{t('auditNew.title')}</h1>
       </div>
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
@@ -451,10 +459,10 @@ export default function AuditNew() {
         <div className="flex w-72 shrink-0 flex-col border-r border-border bg-card/50 overflow-y-auto">
           <div className="flex flex-col gap-2.5 p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Available Tools
+              {t('auditNew.availableTools')}
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground/60">
-              Click to add to the workflow.
+              {t('auditNew.clickToAdd')}
             </p>
 
             {(['nmap', 'nikto', 'nuclei', 'wapiti'] as ScanTool[]).map(tool => {
@@ -488,7 +496,7 @@ export default function AuditNew() {
                         {meta.scope}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{meta.desc}</p>
+                    <p className="text-xs text-muted-foreground">{t(`auditNew.tools.${tool}.desc`)}</p>
                   </div>
                 </button>
               )
@@ -500,7 +508,7 @@ export default function AuditNew() {
             {warnings.length === 0 && executionOrder.length > 0 && (
               <div className="flex items-center gap-2 rounded-md border border-green-500/30 bg-green-500/10 p-3">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-400" />
-                <p className="text-[11px] text-green-300 font-medium">Workflow looks good.</p>
+                <p className="text-[11px] text-green-300 font-medium">{t('auditNew.workflowGood')}</p>
               </div>
             )}
             {warnings.map(w => (
@@ -522,7 +530,7 @@ export default function AuditNew() {
                       className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide"
                       style={{ color: w.severity === 'error' ? '#f87171' : '#fbbf24' }}
                     >
-                      {w.severity === 'error' ? 'Error' : 'Warning'}
+                      {w.severity === 'error' ? t('auditNew.severityError') : t('auditNew.severityWarning')}
                     </p>
                     <p
                       className="text-[11px] leading-relaxed"
@@ -544,8 +552,8 @@ export default function AuditNew() {
               <div className="rounded-full border border-dashed border-border p-4">
                 <Zap className="h-8 w-8 opacity-30" />
               </div>
-              <p className="text-sm font-medium">Workflow is empty</p>
-              <p className="text-xs">Add tools from the left panel</p>
+              <p className="text-sm font-medium">{t('auditNew.workflowEmpty')}</p>
+              <p className="text-xs">{t('auditNew.addToolsHint')}</p>
             </div>
           )}
           <ReactFlow
@@ -570,31 +578,31 @@ export default function AuditNew() {
         {/* Right — Audit details */}
         <div className="flex w-72 shrink-0 flex-col gap-5 overflow-y-auto border-l border-border bg-card/50 p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Audit Details
+            {t('auditNew.auditDetails')}
           </p>
 
           {/* Name */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-foreground">
-              Name <span className="text-destructive">*</span>
+              {t('auditNew.nameLabel')} <span className="text-destructive">*</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. Q2 Web Audit"
+              placeholder={t('auditNew.namePlaceholder')}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 
           {/* Description */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">Description</label>
+            <label className="text-xs font-medium text-foreground">{t('auditNew.descriptionLabel')}</label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               rows={3}
-              placeholder="Optional scope notes..."
+              placeholder={t('auditNew.descPlaceholder')}
               className="resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
@@ -602,7 +610,7 @@ export default function AuditNew() {
           {/* Target */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-foreground">
-              Target <span className="text-destructive">*</span>
+              {t('auditNew.targetLabel')} <span className="text-destructive">*</span>
             </label>
             <div className="relative">
               <select
@@ -610,9 +618,9 @@ export default function AuditNew() {
                 onChange={e => setTargetId(e.target.value)}
                 className="w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">Select a target...</option>
-                {targets.map(t => (
-                  <option key={t.id} value={t.id}>{t.name} — {t.address}</option>
+                <option value="">{t('auditNew.selectTarget')}</option>
+                {targets.map(tgt => (
+                  <option key={tgt.id} value={tgt.id}>{tgt.name} — {tgt.address}</option>
                 ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -621,9 +629,9 @@ export default function AuditNew() {
 
           {/* Audit type */}
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-medium text-foreground">Audit Type</label>
+            <label className="text-xs font-medium text-foreground">{t('auditNew.auditTypeLabel')}</label>
             <p className="text-xs text-muted-foreground/60">
-              Selecting a type pre-populates the recommended workflow.
+              {t('auditNew.auditTypeHint')}
             </p>
             <div className="flex flex-col gap-2">
               {(Object.entries(AUDIT_TYPE_META) as [AuditType, typeof AUDIT_TYPE_META[AuditType]][]).map(([type, meta]) => {
@@ -645,9 +653,9 @@ export default function AuditNew() {
                     </div>
                     <div>
                       <p className={`text-xs font-semibold ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {meta.label}
+                        {t(`auditNew.auditTypes.${type}.label`)}
                       </p>
-                      <p className="text-[11px] text-muted-foreground/60">{meta.description}</p>
+                      <p className="text-[11px] text-muted-foreground/60">{t(`auditNew.auditTypes.${type}.desc`)}</p>
                     </div>
                   </button>
                 )
@@ -660,8 +668,8 @@ export default function AuditNew() {
                     <Wand2 className="h-3.5 w-3.5 text-purple-400" />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-purple-300">Custom</p>
-                    <p className="text-[11px] text-purple-400/70">Workflow modified from preset</p>
+                    <p className="text-xs font-semibold text-purple-300">{t('auditNew.custom')}</p>
+                    <p className="text-[11px] text-purple-400/70">{t('auditNew.customModified')}</p>
                   </div>
                 </div>
               )}
@@ -671,7 +679,7 @@ export default function AuditNew() {
           {/* Execution order summary */}
           {executionOrder.length > 0 && (
             <div className="rounded-md border border-border bg-muted/20 p-3">
-              <p className="mb-2 text-xs font-medium text-foreground">Execution order</p>
+              <p className="mb-2 text-xs font-medium text-foreground">{t('auditNew.executionOrder')}</p>
               <ol className="space-y-1.5">
                 {executionOrder.map((tool, i) => (
                   <li key={i} className="flex items-center gap-2 text-xs">
@@ -693,7 +701,7 @@ export default function AuditNew() {
             disabled={!canCreate}
             className="mt-auto rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {createMutation.isPending ? 'Creating...' : 'Create Audit'}
+            {createMutation.isPending ? t('auditNew.creating') : t('auditNew.createAudit')}
           </button>
         </div>
       </div>

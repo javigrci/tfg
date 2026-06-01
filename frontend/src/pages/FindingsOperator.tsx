@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { PageLoader } from '@/components/ui/PageLoader'
+import { PageError } from '@/components/ui/PageError'
 import api from '@/lib/api'
 import type { SeverityLevel, FindingStatus } from '@/types'
 
@@ -37,13 +40,6 @@ const FINDING_STATUS_STYLES: Record<FindingStatus, string> = {
   false_positive: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
 }
 
-const FINDING_STATUS_LABELS: Record<FindingStatus, string> = {
-  open:           'Open',
-  in_progress:    'In Progress',
-  resolved:       'Resolved',
-  false_positive: 'False Positive',
-}
-
 const FINDING_STATUSES: FindingStatus[] = ['open', 'in_progress', 'resolved', 'false_positive']
 
 const SEV_STYLES: Record<SeverityLevel, string> = {
@@ -71,18 +67,20 @@ const SEV_TEXT: Record<SeverityLevel, string> = {
 }
 
 function SeverityBadge({ severity }: { severity: SeverityLevel }) {
+  const { t } = useTranslation()
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${SEV_STYLES[severity]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${SEV_STYLES[severity]}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${SEV_DOT[severity]}`} />
-      {severity}
+      {t(`domain.severity.${severity}`)}
     </span>
   )
 }
 
 function StatusBadge({ status }: { status: FindingStatus }) {
+  const { t } = useTranslation()
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${FINDING_STATUS_STYLES[status]}`}>
-      {FINDING_STATUS_LABELS[status]}
+      {t(`domain.findingStatus.${status}`)}
     </span>
   )
 }
@@ -122,6 +120,7 @@ function AuditCard({
   statusFilter: FindingStatus | 'all'
   onNavigate: (id: number) => void
 }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
   const visibleFindings = group.findings.filter(f => {
@@ -145,7 +144,7 @@ function AuditCard({
           <div className="min-w-0">
             <p className="font-semibold text-foreground text-sm truncate">{group.audit_name}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {group.findings.length} finding{group.findings.length !== 1 ? 's' : ''}
+              {t('findings.operator.findingCount', { count: group.findings.length })}
             </p>
           </div>
         </div>
@@ -164,7 +163,7 @@ function AuditCard({
             onClick={e => { e.stopPropagation(); onNavigate(group.audit_id) }}
             className="text-xs text-blue-400 hover:underline ml-2"
           >
-            View audit
+            {t('findings.operator.viewAudit')}
           </button>
         </div>
       </button>
@@ -174,11 +173,11 @@ function AuditCard({
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/20 text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-3 text-left">Title</th>
-                <th className="px-5 py-3 text-left">Severity</th>
-                <th className="px-5 py-3 text-left">Category</th>
-                <th className="px-5 py-3 text-left">Tool</th>
-                <th className="px-5 py-3 text-left">Status</th>
+                <th className="px-5 py-3 text-left">{t('findings.operator.colTitle')}</th>
+                <th className="px-5 py-3 text-left">{t('findings.operator.colSeverity')}</th>
+                <th className="px-5 py-3 text-left">{t('findings.operator.colCategory')}</th>
+                <th className="px-5 py-3 text-left">{t('findings.operator.colTool')}</th>
+                <th className="px-5 py-3 text-left">{t('findings.operator.colStatus')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -188,8 +187,8 @@ function AuditCard({
                   <td className="px-5 py-3">
                     <SeverityBadge severity={f.severity} />
                   </td>
-                  <td className="px-5 py-3 text-xs text-muted-foreground capitalize">
-                    {f.category.replace(/_/g, ' ')}
+                  <td className="px-5 py-3 text-xs text-muted-foreground">
+                    {t(`domain.findingCategory.${f.category}`)}
                   </td>
                   <td className="px-5 py-3">
                     <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium uppercase text-muted-foreground">
@@ -211,6 +210,7 @@ function AuditCard({
 
 export default function FindingsOperator() {
   const navigate = useNavigate()
+  const { t }    = useTranslation()
   const [sevFilter, setSevFilter] = useState<SeverityLevel | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<FindingStatus | 'all'>('all')
 
@@ -234,8 +234,8 @@ export default function FindingsOperator() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">My Findings</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Findings grouped by audit</p>
+        <h1 className="text-2xl font-semibold text-foreground">{t('findings.operator.title')}</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('findings.operator.subtitle')}</p>
       </div>
 
       {/* Severity chips */}
@@ -248,20 +248,20 @@ export default function FindingsOperator() {
               : 'border-border text-muted-foreground hover:text-foreground'
           }`}
         >
-          All <span className="ml-1">{findings.length}</span>
+          {t('findings.operator.allFilter')} <span className="ml-1">{findings.length}</span>
         </button>
         {SEVERITIES.map(sev => sevCounts[sev] > 0 && (
           <button
             key={sev}
             onClick={() => setSevFilter(sevFilter === sev ? 'all' : sev)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium capitalize border transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
               sevFilter === sev
                 ? SEV_STYLES[sev]
                 : 'border-border text-muted-foreground hover:text-foreground'
             }`}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${SEV_DOT[sev]}`} />
-            {sev} <span>{sevCounts[sev]}</span>
+            {t(`domain.severity.${sev}`)} <span>{sevCounts[sev]}</span>
           </button>
         ))}
       </div>
@@ -276,7 +276,7 @@ export default function FindingsOperator() {
               : 'border-border text-muted-foreground hover:text-foreground'
           }`}
         >
-          Any status
+          {t('findings.operator.anyStatus')}
         </button>
         {FINDING_STATUSES.map(s => statusCounts[s] > 0 && (
           <button
@@ -288,25 +288,19 @@ export default function FindingsOperator() {
                 : 'border-border text-muted-foreground hover:text-foreground'
             }`}
           >
-            {FINDING_STATUS_LABELS[s]} <span className="ml-1">{statusCounts[s]}</span>
+            {t(`domain.findingStatus.${s}`)} <span className="ml-1">{statusCounts[s]}</span>
           </button>
         ))}
       </div>
 
       {/* Audit cards */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          Loading findings…
-        </div>
+        <PageLoader className="h-auto py-20" />
       ) : isError ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-          <p className="text-sm">Failed to load findings.</p>
-          <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
-        </div>
+        <PageError onRetry={refetch} className="h-auto py-20" />
       ) : grouped.length === 0 ? (
         <div className="py-20 text-center text-sm text-muted-foreground">
-          No findings yet. Run an audit first.
+          {t('findings.operator.empty')}
         </div>
       ) : (
         <div className="space-y-3">

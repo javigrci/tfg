@@ -1,0 +1,70 @@
+# AuditFlow — Entorno de laboratorio (máquinas vulnerables)
+#
+# Uso:
+#   docker compose -f docker-compose.lab.yml up -d
+#   docker compose -f docker-compose.lab.yml down
+#
+# Puertos expuestos:
+#   DVWA:           http://localhost:8080   (admin / password)
+#   Juice Shop:     http://localhost:3000
+#   Metasploitable: http://localhost:8180   SSH: localhost:2222
+
+services:
+
+  # ── DVWA (Damn Vulnerable Web Application) ────────────────────────────────
+  # La imagen oficial ghcr.io/digininja/dvwa acepta DVWA_DEFAULT_SECURITY_LEVEL
+  # como variable de entorno — no hace falta ningún script de init externo.
+  dvwa-db:
+    image: mariadb:10.6
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: dvwa
+      MYSQL_DATABASE:      dvwa
+      MYSQL_USER:          dvwa
+      MYSQL_PASSWORD:      dvwa
+    volumes:
+      - dvwa_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-udvwa", "-pdvwa"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  dvwa:
+    image: ghcr.io/digininja/dvwa:latest
+    restart: unless-stopped
+    depends_on:
+      dvwa-db:
+        condition: service_healthy
+    environment:
+      DB_SERVER:                 dvwa-db
+      DB_DATABASE:               dvwa
+      DB_USER:                   dvwa
+      DB_PASSWORD:               dvwa
+      # Security level por defecto — cambia a "medium", "high" o "impossible" si necesario
+      DVWA_DEFAULT_SECURITY_LEVEL: low
+    ports:
+      - "8080:80"
+
+  # ── OWASP Juice Shop ──────────────────────────────────────────────────────
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+
+  # ── Metasploitable 2 ──────────────────────────────────────────────────────
+  # Máquina con servicios antiguos para demos de CVE enrichment real:
+  # Apache 2.2.8, vsftpd 2.3.4, OpenSSH 4.7p1
+  metasploitable:
+    image: tleemcjr/metasploitable2
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    ports:
+      - "2121:21"
+      - "8180:80"
+      - "2222:22"
+
+volumes:
+  dvwa_db_data:

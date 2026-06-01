@@ -30,4 +30,11 @@ frontend:
 install:
 	@cd backend && if [ ! -d venv ]; then $(VENV_CMD); fi
 	cd backend && $(PIP) install -r requirements.txt
+	# wapiti3 en venv aislado (conflicto httpx con el resto de la app)
+	@if ! command -v wapiti >/dev/null 2>&1; then \
+		python3 -m venv /tmp/wapiti-venv && \
+		/tmp/wapiti-venv/bin/pip install --quiet wapiti3 && \
+		ln -sf /tmp/wapiti-venv/bin/wapiti ~/.local/bin/wapiti && \
+		echo "wapiti instalado en ~/.local/bin/wapiti"; \
+	fi
 	cd frontend && npm install

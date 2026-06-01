@@ -50,7 +50,8 @@ pytest==9.0.2
 python-dotenv==1.2.2
 python-multipart==0.0.22
 nvdlib>=0.7.6
-wapiti3>=3.1.8
+# wapiti3 se instala en venv aislado (ver Dockerfile / make install)
+# para evitar conflicto: wapiti3==3.1.8 requiere httpx==0.24.1 pero la app usa httpx==0.28.1
 requests==2.33.1
 rich==14.3.3
 rsa==4.9.1

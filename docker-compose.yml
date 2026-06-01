@@ -1,0 +1,59 @@
+services:
+
+  # ── Base de datos ─────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     auditflow
+      POSTGRES_PASSWORD: auditflow
+      POSTGRES_DB:       auditflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auditflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend (FastAPI) ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL:      postgresql+psycopg://auditflow:auditflow@db:5432/auditflow
+      JWT_SECRET_KEY:    ${JWT_SECRET_KEY:-change-me-in-production}
+      NVD_API_KEY:       ${NVD_API_KEY:-}
+      EXCLUDED_PORTS:    ${EXCLUDED_PORTS:-80,443}
+      ADMIN_PASSWORD:    ${ADMIN_PASSWORD:-admin}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:-operator}
+      ALLOWED_ORIGINS:   http://localhost
+    ports:
+      - "8000:8000"
+    volumes:
+      # Directorio temporal compartido para outputs de herramientas (wapiti, nuclei)
+      - scan_tmp:/tmp
+
+  # ── Frontend (React + nginx) ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  postgres_data:
+  scan_tmp:

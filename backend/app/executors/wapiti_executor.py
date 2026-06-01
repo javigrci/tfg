@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import subprocess
 import uuid
@@ -46,58 +45,6 @@ def _is_web_target(direccion: str) -> bool:
     return direccion.startswith(("http://", "https://"))
 
 
-def _set_web_security_level(
-    base_url: str,
-    username: str,
-    password: str,
-    level: str = "low",
-) -> None:
-    """
-    Pre-scan: login a DVWA y establece el security level antes de escanear.
-
-    Hace tres peticiones HTTP simples (sin browser):
-      1. GET /login.php          → extrae el CSRF token (user_token)
-      2. POST /login.php         → obtiene la cookie de sesion
-      3. POST /security.php      → establece el nivel deseado
-
-    Falla silenciosamente si el target no es DVWA o hay un error de red.
-    Requiere 'requests' (dependencia transitiva de nvdlib / pip standard).
-    """
-    try:
-        import requests  # tipo: ignore[import]
-        s = requests.Session()
-        s.verify = False  # entorno de laboratorio local
-
-        # 1. Obtener CSRF token de la pagina de login
-        r = s.get(f"{base_url}/login.php", timeout=8)
-        match = re.search(
-            r"name=['\"]user_token['\"][^>]+value=['\"]([^'\"]+)['\"]",
-            r.text,
-        )
-        token = match.group(1) if match else ""
-
-        # 2. Login con credenciales
-        s.post(
-            f"{base_url}/login.php",
-            data={
-                "username":   username,
-                "password":   password,
-                "Login":      "Login",
-                "user_token": token,
-            },
-            timeout=8,
-            allow_redirects=True,
-        )
-
-        # 3. Establecer security level
-        s.post(
-            f"{base_url}/security.php",
-            data={"seclev_submit": "Submit", "security": level},
-            timeout=8,
-        )
-    except Exception:
-        pass  # falla silenciosamente — wapiti intentara igualmente
-
 
 class WapitiExecutor(AuditExecutor):
     name         = "wapiti"
@@ -140,10 +87,6 @@ class WapitiExecutor(AuditExecutor):
                 if form_url:
                     cmd.extend(["--form-url", form_url])
 
-            # Pre-scan: forzar security level si el target lo requiere (ej. DVWA)
-            sec_level = details.get("dvwa_security_level")
-            if sec_level and form_user and form_pass:
-                _set_web_security_level(direccion, form_user, form_pass, sec_level)
 
         comando = " ".join(cmd)
 

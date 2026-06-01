@@ -673,7 +673,7 @@ export default function Targets() {
                             borderRadius: '8px',
                             fontSize: '12px',
                           }}
-                          formatter={(value: number) => [value.toFixed(2), 'Risk Score']}
+                          formatter={(value) => [Number(value).toFixed(2), 'Risk Score']}
                           labelFormatter={(label, payload) => payload?.[0]?.payload?.date ?? label}
                         />
                         <Area

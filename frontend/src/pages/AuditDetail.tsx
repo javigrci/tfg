@@ -537,7 +537,7 @@ export default function AuditDetail() {
   })
 
   // Detect running → completed transition to show toast and refresh delta
-  const prevStatusRef = useRef<string | undefined>()
+  const prevStatusRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     const prev = prevStatusRef.current
     const curr = audit?.status

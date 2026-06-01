@@ -60,7 +60,10 @@ const TOOL_META: Record<ScanTool, {
   nikto:  { label: 'Nikto',  desc: 'Web server vulnerabilities', icon: <Globe   className="h-4 w-4" />, color: '#f59e0b', tags: ['web', 'headers'],       scope: 'WEB' },
   nuclei: { label: 'Nuclei', desc: 'CVE template scanning',      icon: <Zap     className="h-4 w-4" />, color: '#8b5cf6', tags: ['cve', 'template'],      scope: 'WEB' },
   wapiti: { label: 'Wapiti', desc: 'Web app SQLi / XSS / LFI',  icon: <Shield  className="h-4 w-4" />, color: '#ef4444', tags: ['injection', 'web'],     scope: 'WEB' },
+  // 'manual' no aparece en el panel de selección (findings manuales se añaden desde AuditDetail)
+  manual: { label: 'Manual', desc: 'Manual findings',            icon: <Wand2   className="h-4 w-4" />, color: '#7c3aed', tags: [],                       scope: 'NET' },
 }
+
 
 const AUDIT_TYPE_META: Record<AuditType, { label: string; description: string; icon: React.ReactNode }> = {
   vulnerability_scan: { label: 'Vulnerability Scan', description: 'Broad coverage across network and web layers', icon: <ShieldCheck    className="h-4 w-4" /> },

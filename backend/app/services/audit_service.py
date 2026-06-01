@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from app.domain.enums import AuditStatus, FindingStatus, RiskLevel, ScanStatus, SeverityLevel
 from app.executors.factory import get_executor, get_parser
-from app.models.entities import Audit, Event, Finding, FindingVulnerability, Log, Report, Scan, Target, User, Vulnerability
+from app.models.entities import Audit, Event, Finding, FindingVulnerability, Log, OwaspCategory, Report, Scan, Target, User, Vulnerability
 from app.schemas.audit import AuditCreate
 from app.services.cve_enrichment import CVEEnrichmentService
 
@@ -116,38 +116,33 @@ class AuditService:
 
     # ── OWASP Top 10 Compliance Map ───────────────────────────────────────────
 
-    _OWASP_MAP: list[tuple[str, str, list[str]]] = [
-        ("A01", "Broken Access Control",                     ["broken_access"]),
-        ("A02", "Cryptographic Failures",                    ["sensitive_exposure"]),
-        ("A03", "Injection",                                 ["injection", "xss"]),
-        ("A04", "Insecure Design",                           []),   # not covered by our tools
-        ("A05", "Security Misconfiguration",                 ["security_misconfig"]),
-        ("A06", "Vulnerable and Outdated Components",        ["outdated_components"]),
-        ("A07", "Identification and Authentication Failures",["broken_auth"]),
-        ("A08", "Software and Data Integrity Failures",      []),   # not covered by our tools
-        ("A09", "Security Logging and Monitoring Failures",  ["logging_monitoring"]),
-        ("A10", "Server-Side Request Forgery (SSRF)",        []),   # not covered by our tools
-    ]
-
     _SEV_RANK: dict[str, int] = {
         "critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0,
     }
 
     def get_compliance(self, audit_id: int) -> dict:
         """
-        Aggregate findings by OWASP Top 10 2021 category.
+        Aggregate findings by OWASP Top 10 category.
+        Categories are read from the owasp_categories table (seeded with 2025 edition).
         Returns a structured dict compatible with ComplianceRead schema.
         """
         findings = self.get_findings(audit_id)
+        owasp_cats = list(
+            self.db.scalars(
+                select(OwaspCategory).order_by(OwaspCategory.position)
+            ).all()
+        )
 
         categories = []
         green = yellow = red = assessed = 0
 
-        for owasp_id, owasp_name, mapped_cats in self._OWASP_MAP:
+        for cat in owasp_cats:
+            mapped_cats: list[str] = cat.finding_categories or []
+
             if not mapped_cats:
                 categories.append({
-                    "owasp_id": owasp_id,
-                    "owasp_name": owasp_name,
+                    "owasp_id": cat.code,
+                    "owasp_name": cat.name,
                     "finding_categories": [],
                     "status": "not_assessed",
                     "findings_count": 0,
@@ -175,8 +170,8 @@ class AuditService:
                     yellow += 1
 
             categories.append({
-                "owasp_id": owasp_id,
-                "owasp_name": owasp_name,
+                "owasp_id": cat.code,
+                "owasp_name": cat.name,
                 "finding_categories": mapped_cats,
                 "status": status,
                 "findings_count": count,

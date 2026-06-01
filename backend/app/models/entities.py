@@ -187,6 +187,19 @@ class Log(Base):
     audit: Mapped["Audit"] = relationship(back_populates="logs")
 
 
+class OwaspCategory(Base):
+    """Categorías OWASP Top 10 almacenadas en BD — actualizables sin tocar código."""
+    __tablename__ = "owasp_categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)   # "A01:2025"
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False, default=2025)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)               # 1-10
+    finding_categories: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+
 class ActionLog(Base):
     """Registro global de acciones de usuario. Independiente de auditorías."""
     __tablename__ = "action_logs"

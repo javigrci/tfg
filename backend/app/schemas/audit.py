@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.domain.enums import (
     AuditStatus,
@@ -13,6 +13,24 @@ from app.domain.enums import (
     TargetStatus,
     UserRole,
 )
+
+
+def _validate_target_address(v: str) -> str:
+    """Rechaza direcciones vacías, con espacios o con forma de flag de CLI.
+
+    Sin esto, un executor (nmap/nikto/nuclei/wapiti) recibe la dirección como
+    un único argumento de subprocess sin shell — pero si empieza por '-' la
+    propia herramienta la interpreta como una opción suya, no como el target,
+    y el scan corre sin analizar nada (ver MVP.md, discrepancias resueltas).
+    """
+    v = v.strip()
+    if not v:
+        raise ValueError("Address cannot be empty")
+    if v.startswith("-"):
+        raise ValueError("Address cannot start with '-' (would be parsed as a tool flag, not a target)")
+    if any(c.isspace() for c in v):
+        raise ValueError("Address cannot contain whitespace")
+    return v
 
 
 class RoleRead(BaseModel):
@@ -36,10 +54,20 @@ class TargetCreate(BaseModel):
     environment: str = Field(default="unknown", description="Entorno del target: lab, staging, production, unknown")
     details: dict = Field(default_factory=dict, description="Metadata y configuracion adicional del target (ej. credenciales de auth para wapiti)")
 
+    @field_validator("address")
+    @classmethod
+    def address_is_safe(cls, v: str) -> str:
+        return _validate_target_address(v)
+
 
 class TargetUpdate(BaseModel):
     name: Optional[str] = None
     address: Optional[str] = Field(None, description="IP o URL de la máquina")
+
+    @field_validator("address")
+    @classmethod
+    def address_is_safe(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_target_address(v) if v is not None else v
 
 
 class TargetRead(BaseModel):

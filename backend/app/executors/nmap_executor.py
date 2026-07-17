@@ -26,11 +26,22 @@ def find_nmap() -> str:
     )
 
 
-def extraer_host(direccion: str) -> str:
+def extraer_host_puerto(direccion: str) -> tuple[str, str | None]:
+    """Separa host y puerto de una URL o de un 'host:puerto' plano.
+
+    nmap no entiende 'host:puerto' como target — sin esto, una direccion como
+    'localhost:8080' se pasaba tal cual y nmap la resolvia como un hostname
+    invalido, produciendo un scan "completado" que en realidad no comprobo
+    nada (ver MVP.md, discrepancias resueltas).
+    """
     if direccion.startswith(("http://", "https://")):
         parsed = urlparse(direccion)
-        return parsed.hostname or direccion
-    return direccion
+        return parsed.hostname or direccion, str(parsed.port) if parsed.port else None
+    if direccion.count(":") == 1:
+        host, _, puerto = direccion.partition(":")
+        if host and puerto.isdigit():
+            return host, puerto
+    return direccion, None
 
 
 class NmapExecutor(AuditExecutor):
@@ -41,12 +52,14 @@ class NmapExecutor(AuditExecutor):
 
     def execute(self, direccion: str, details: dict | None = None) -> list[dict]:
         nmap_bin = find_nmap()
-        host = extraer_host(direccion)
+        host, puerto = extraer_host_puerto(direccion)
 
         cmd = [nmap_bin, "-sV", "-T4", "--open", "-oX", "-"]
         excluded = get_settings().excluded_ports
         if excluded:
             cmd.extend(["--exclude-ports", excluded])
+        if puerto:
+            cmd.extend(["-p", puerto])
         cmd.append(host)
 
         comando = " ".join(cmd)

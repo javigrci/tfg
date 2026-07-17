@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { PageLoader } from '@/components/ui/PageLoader'
 import { PageError } from '@/components/ui/PageError'
 import {
@@ -54,9 +55,10 @@ const TOOLTIP_STYLE = {
 const RISK_ORDER = ['critical', 'high', 'medium', 'low', 'info']
 
 function RiskBadge({ level }: { level: string }) {
+  const { t } = useTranslation()
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium uppercase border ${RISK_STYLES[level] ?? RISK_STYLES.info}`}>
-      {level}
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${RISK_STYLES[level] ?? RISK_STYLES.info}`}>
+      {t(`domain.severity.${level}`)}
     </span>
   )
 }
@@ -71,6 +73,7 @@ function Count({ value, color }: { value: number; color: string }) {
 
 export default function ReportsAdmin() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const { data: reports = [], isLoading, isError, refetch } = useQuery<ReportEntry[]>({
     queryKey: ['reports-admin'],
@@ -85,30 +88,31 @@ export default function ReportsAdmin() {
   const high     = reports.filter(r => r.risk_level === 'high').length
 
   const riskDist = RISK_ORDER.map(level => ({
-    name: level,
+    name: t(`domain.severity.${level}`),
+    key: level,
     value: reports.filter(r => r.risk_level === level).length,
   })).filter(d => d.value > 0)
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Reports</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">All audits across the system</p>
+        <h1 className="text-2xl font-semibold text-foreground">{t('reports.admin.title')}</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('reports.admin.subtitle')}</p>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border border-border bg-card p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Reports</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('reports.admin.kpiTotal')}</p>
           <p className="mt-2 text-3xl font-bold text-foreground">{total}</p>
         </div>
         <div className={`rounded-xl border bg-card p-5 ${critical > 0 ? 'border-red-500/30' : 'border-border'}`}>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Critical Risk</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('reports.admin.kpiCritical')}</p>
           <p className={`mt-2 text-3xl font-bold ${critical > 0 ? 'text-red-400' : 'text-foreground'}`}>{critical}</p>
-          {critical > 0 && <p className="mt-1 text-xs text-red-400">Action Required</p>}
+          {critical > 0 && <p className="mt-1 text-xs text-red-400">{t('reports.admin.kpiAction')}</p>}
         </div>
         <div className={`rounded-xl border bg-card p-5 ${high > 0 ? 'border-orange-500/30' : 'border-border'}`}>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">High Risk</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('reports.admin.kpiHigh')}</p>
           <p className={`mt-2 text-3xl font-bold ${high > 0 ? 'text-orange-400' : 'text-foreground'}`}>{high}</p>
         </div>
       </div>
@@ -116,26 +120,26 @@ export default function ReportsAdmin() {
       {/* Table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">All Reports</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('reports.admin.tableTitle')}</h2>
         </div>
         {reports.length === 0 ? (
           <div className="py-16 text-center text-sm text-muted-foreground">
-            No reports yet. Run an audit first.
+            {t('reports.admin.empty')}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
-                <th className="px-5 py-3 text-left">Audit Name</th>
-                <th className="px-5 py-3 text-left">Target</th>
-                <th className="px-5 py-3 text-left">Risk Level</th>
-                <th className="px-5 py-3 text-center">Score</th>
-                <th className="px-5 py-3 text-center">Findings</th>
+                <th className="px-5 py-3 text-left">{t('reports.admin.colName')}</th>
+                <th className="px-5 py-3 text-left">{t('reports.admin.colTarget')}</th>
+                <th className="px-5 py-3 text-left">{t('reports.admin.colRisk')}</th>
+                <th className="px-5 py-3 text-center">{t('reports.admin.colScore')}</th>
+                <th className="px-5 py-3 text-center">{t('reports.admin.colFindings')}</th>
                 <th className="px-5 py-3 text-center">C</th>
                 <th className="px-5 py-3 text-center">H</th>
                 <th className="px-5 py-3 text-center">M</th>
                 <th className="px-5 py-3 text-center">L</th>
-                <th className="px-5 py-3 text-left">Date</th>
+                <th className="px-5 py-3 text-left">{t('reports.admin.colDate')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -169,16 +173,16 @@ export default function ReportsAdmin() {
       {/* Risk Distribution */}
       {riskDist.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Risk Distribution</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">{t('reports.admin.chartTitle')}</h2>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={riskDist} margin={{ left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} className="capitalize" />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} />
               <Tooltip {...TOOLTIP_STYLE} />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {riskDist.map(entry => (
-                  <Cell key={entry.name} fill={RISK_COLORS[entry.name] ?? '#6b7280'} />
+                  <Cell key={entry.key} fill={RISK_COLORS[entry.key] ?? '#6b7280'} />
                 ))}
               </Bar>
             </BarChart>

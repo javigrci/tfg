@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { PageLoader } from '@/components/ui/PageLoader'
 import { PageError } from '@/components/ui/PageError'
 import {
@@ -60,17 +61,20 @@ function KpiCard({ label, value, sub, accent }: {
 }
 
 function EmptyChart({ height = 200 }: { height?: number }) {
+  const { t } = useTranslation()
   return (
     <div
       className="flex items-center justify-center text-sm text-muted-foreground"
       style={{ height }}
     >
-      No data yet
+      {t('dashboard.admin.noData')}
     </div>
   )
 }
 
 export default function DashboardAdmin() {
+  const { t } = useTranslation()
+
   const { data: stats, isLoading, isError, refetch } = useQuery<AdminStats>({
     queryKey: ['dashboard-admin'],
     queryFn: () => api.get('/dashboard/stats').then(r => r.data),
@@ -84,7 +88,7 @@ export default function DashboardAdmin() {
     .map(([k, v]) => ({ name: k, value: v }))
 
   const catData = Object.entries(stats.findings_by_category)
-    .map(([k, v]) => ({ name: k.replace(/_/g, ' '), value: v }))
+    .map(([k, v]) => ({ name: t(`domain.findingCategory.${k}`), value: v }))
     .sort((a, b) => b.value - a.value)
 
   const hasEvolution = stats.findings_evolution.length > 0
@@ -94,27 +98,27 @@ export default function DashboardAdmin() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">System Overview</p>
+        <h1 className="text-2xl font-semibold text-foreground">{t('dashboard.admin.title')}</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('dashboard.admin.subtitle')}</p>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total Audits" value={stats.total_audits} />
-        <KpiCard label="Active Audits" value={stats.active_audits} sub="Running or Pending" />
+        <KpiCard label={t('dashboard.admin.kpiTotal')} value={stats.total_audits} />
+        <KpiCard label={t('dashboard.admin.kpiActive')} value={stats.active_audits} sub={t('dashboard.admin.kpiActiveSub')} />
         <KpiCard
-          label="Critical Findings"
+          label={t('dashboard.admin.kpiCritical')}
           value={stats.critical_findings}
-          sub={stats.critical_findings > 0 ? 'Immediate Action' : undefined}
+          sub={stats.critical_findings > 0 ? t('dashboard.admin.kpiCriticalSub') : undefined}
           accent={stats.critical_findings > 0}
         />
-        <KpiCard label="Total Findings" value={stats.total_findings} />
+        <KpiCard label={t('dashboard.admin.kpiFindings')} value={stats.total_findings} />
       </div>
 
       {/* Evolution + Severity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Findings Evolution</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">{t('dashboard.admin.evolutionTitle')}</h2>
           {hasEvolution ? (
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={stats.findings_evolution}>
@@ -137,7 +141,7 @@ export default function DashboardAdmin() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Severity Distribution</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">{t('dashboard.admin.severityTitle')}</h2>
           {hasSev ? (
             <div className="flex flex-col items-center">
               <ResponsiveContainer width="100%" height={150}>
@@ -166,7 +170,7 @@ export default function DashboardAdmin() {
                         className="h-2 w-2 rounded-full"
                         style={{ background: SEV_COLORS[name] ?? '#6b7280' }}
                       />
-                      <span className="capitalize text-muted-foreground">{name}</span>
+                      <span className="text-muted-foreground">{t(`domain.severity.${name}`)}</span>
                     </div>
                     <span className="text-foreground font-medium">{value}</span>
                   </div>
@@ -181,7 +185,7 @@ export default function DashboardAdmin() {
 
       {/* Findings by Category */}
       <div className="rounded-xl border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Findings by Category</h2>
+        <h2 className="text-sm font-semibold text-foreground mb-4">{t('dashboard.admin.categoryTitle')}</h2>
         {hasCat ? (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={catData} layout="vertical" margin={{ left: 10 }}>
@@ -205,17 +209,17 @@ export default function DashboardAdmin() {
       {/* Recent Audit Execution */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Recent Audit Execution</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('dashboard.admin.recentTitle')}</h2>
         </div>
         {stats.recent_audits.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">No audits yet</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">{t('dashboard.admin.recentEmpty')}</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
-                <th className="px-5 py-3 text-left">Scan Target</th>
-                <th className="px-5 py-3 text-left">Status</th>
-                <th className="px-5 py-3 text-left">Started</th>
+                <th className="px-5 py-3 text-left">{t('dashboard.admin.colTarget')}</th>
+                <th className="px-5 py-3 text-left">{t('dashboard.admin.colStatus')}</th>
+                <th className="px-5 py-3 text-left">{t('dashboard.admin.colStarted')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -226,8 +230,8 @@ export default function DashboardAdmin() {
                     <p className="text-xs text-muted-foreground mt-0.5">{audit.target_address}</p>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize border ${STATUS_STYLES[audit.status] ?? STATUS_STYLES.draft}`}>
-                      {audit.status}
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${STATUS_STYLES[audit.status] ?? STATUS_STYLES.draft}`}>
+                      {t(`domain.auditStatus.${audit.status}`)}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-xs text-muted-foreground">

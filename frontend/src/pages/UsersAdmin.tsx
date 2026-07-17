@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import api from '@/lib/api'
 import type { AppUser, UserRole } from '@/types'
 import { useAuth } from '@/context/AuthContext'
@@ -35,15 +36,16 @@ const inputCls =
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function RoleBadge({ role }: { role: UserRole }) {
+  const { t } = useTranslation()
   return role === 'admin' ? (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
       <ShieldCheck className="h-3 w-3" />
-      Admin
+      {t('domain.userRole.admin')}
     </span>
   ) : (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/15 px-2.5 py-0.5 text-xs font-medium text-blue-400">
       <User className="h-3 w-3" />
-      Operator
+      {t('domain.userRole.operator')}
     </span>
   )
 }
@@ -55,6 +57,7 @@ function RoleSelector({
   value: UserRole
   onChange: (r: UserRole) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className="flex gap-2">
       {(['admin', 'operator'] as UserRole[]).map((r) => (
@@ -62,7 +65,7 @@ function RoleSelector({
           key={r}
           type="button"
           onClick={() => onChange(r)}
-          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium capitalize transition-colors ${
+          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
             value === r
               ? r === 'admin'
                 ? 'border-violet-500 bg-violet-500/15 text-violet-400'
@@ -70,7 +73,7 @@ function RoleSelector({
               : 'border-border text-muted-foreground hover:border-muted-foreground hover:bg-muted/20'
           }`}
         >
-          {r}
+          {t(`domain.userRole.${r}`)}
         </button>
       ))}
     </div>
@@ -112,6 +115,7 @@ function PasswordInput({
 export default function UsersAdmin() {
   const { user: currentUser } = useAuth()
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<AppUser | null>(null)
@@ -141,10 +145,10 @@ export default function UsersAdmin() {
       setNewUsername('')
       setNewPassword('')
       setNewRole('operator')
-      toast.success('User created successfully')
+      toast.success(t('users.toasts.created'))
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.detail ?? 'Failed to create user')
+      toast.error(err?.response?.data?.detail ?? t('users.toasts.createFailed'))
     },
   })
 
@@ -155,10 +159,10 @@ export default function UsersAdmin() {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setEditTarget(null)
       setEditPassword('')
-      toast.success('User updated successfully')
+      toast.success(t('users.toasts.updated'))
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.detail ?? 'Failed to update user')
+      toast.error(err?.response?.data?.detail ?? t('users.toasts.updateFailed'))
     },
   })
 
@@ -167,10 +171,10 @@ export default function UsersAdmin() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setDeleteTarget(null)
-      toast.success('User deleted')
+      toast.success(t('users.toasts.deleted'))
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.detail ?? 'Failed to delete user')
+      toast.error(err?.response?.data?.detail ?? t('users.toasts.deleteFailed'))
     },
   })
 
@@ -206,9 +210,9 @@ export default function UsersAdmin() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">User Management</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t('users.title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Create and manage platform accounts
+            {t('users.subtitle')}
           </p>
         </div>
         <button
@@ -216,7 +220,7 @@ export default function UsersAdmin() {
           className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors"
         >
           <UserPlus className="h-4 w-4" />
-          Add New User
+          {t('users.addUser')}
         </button>
       </div>
 
@@ -224,19 +228,19 @@ export default function UsersAdmin() {
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-xl border border-border bg-card p-5 space-y-1">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Total Users
+            {t('users.kpiTotal')}
           </p>
           <p className="text-3xl font-bold text-foreground">{totalUsers}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-5 space-y-1">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Admins
+            {t('users.kpiAdmins')}
           </p>
           <p className="text-3xl font-bold text-violet-400">{adminCount}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-5 space-y-1">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Operators
+            {t('users.kpiOperators')}
           </p>
           <p className="text-3xl font-bold text-blue-400">{operatorCount}</p>
         </div>
@@ -247,28 +251,28 @@ export default function UsersAdmin() {
         {isLoading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Loading users…
+            {t('users.loading')}
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
             <AlertCircle className="h-8 w-8" />
-            <p className="text-sm">Failed to load users</p>
+            <p className="text-sm">{t('users.error')}</p>
             <button
               onClick={() => refetch()}
               className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted/40 transition-colors"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Retry
+              {t('common.retry')}
             </button>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-4 py-3 text-left">Username</th>
-                <th className="px-4 py-3 text-left">Role</th>
-                <th className="px-4 py-3 text-left">Created</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3 text-left">{t('users.colUsername')}</th>
+                <th className="px-4 py-3 text-left">{t('users.colRole')}</th>
+                <th className="px-4 py-3 text-left">{t('users.colCreated')}</th>
+                <th className="px-4 py-3 text-right">{t('users.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -282,7 +286,7 @@ export default function UsersAdmin() {
                       <span className="font-medium text-foreground">
                         {u.username}
                         {u.id === currentUser?.id && (
-                          <span className="ml-2 text-xs text-muted-foreground font-normal">(you)</span>
+                          <span className="ml-2 text-xs text-muted-foreground font-normal">({t('users.youLabel')})</span>
                         )}
                       </span>
                     </div>
@@ -301,20 +305,20 @@ export default function UsersAdmin() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => openEdit(u)}
-                        title="Edit user"
+                        title={t('users.editTitle')}
                         className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        Edit
+                        {t('users.editBtn')}
                       </button>
                       <button
                         onClick={() => setDeleteTarget(u)}
                         disabled={u.id === currentUser?.id}
-                        title={u.id === currentUser?.id ? 'Cannot delete your own account' : 'Delete user'}
+                        title={u.id === currentUser?.id ? t('users.cannotDelete') : t('users.deleteBtn')}
                         className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        Delete
+                        {t('users.deleteBtn')}
                       </button>
                     </div>
                   </td>
@@ -323,7 +327,7 @@ export default function UsersAdmin() {
               {users?.length === 0 && (
                 <tr>
                   <td colSpan={4} className="text-center text-muted-foreground py-12 text-sm">
-                    No users found.
+                    {t('users.noUsers')}
                   </td>
                 </tr>
               )}
@@ -338,9 +342,9 @@ export default function UsersAdmin() {
           <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
-                <h2 className="font-semibold text-foreground">Add New User</h2>
+                <h2 className="font-semibold text-foreground">{t('users.createModal.title')}</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Create a platform account
+                  {t('users.createModal.subtitle')}
                 </p>
               </div>
               <button
@@ -353,13 +357,13 @@ export default function UsersAdmin() {
             <form onSubmit={handleCreate} className="px-6 py-5 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Username
+                  {t('users.createModal.userLabel')}
                 </label>
                 <input
                   type="text"
                   required
                   autoFocus
-                  placeholder="e.g. john.doe"
+                  placeholder={t('users.createModal.userPlaceholder')}
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   className={inputCls}
@@ -367,13 +371,13 @@ export default function UsersAdmin() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Password
+                  {t('users.createModal.passLabel')}
                 </label>
                 <PasswordInput value={newPassword} onChange={setNewPassword} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Role
+                  {t('users.createModal.roleLabel')}
                 </label>
                 <RoleSelector value={newRole} onChange={setNewRole} />
               </div>
@@ -383,7 +387,7 @@ export default function UsersAdmin() {
                   onClick={() => setCreateOpen(false)}
                   className="flex-1 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -391,7 +395,7 @@ export default function UsersAdmin() {
                   className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
                 >
                   {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Create User
+                  {t('users.createModal.createBtn')}
                 </button>
               </div>
             </form>
@@ -405,7 +409,7 @@ export default function UsersAdmin() {
           <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
-                <h2 className="font-semibold text-foreground">Edit User</h2>
+                <h2 className="font-semibold text-foreground">{t('users.editModal.title')}</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   @{editTarget.username}
                 </p>
@@ -420,20 +424,20 @@ export default function UsersAdmin() {
             <form onSubmit={handleUpdate} className="px-6 py-5 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  New Password
+                  {t('users.editModal.passLabel')}
                 </label>
                 <PasswordInput
                   value={editPassword}
                   onChange={setEditPassword}
-                  placeholder="Leave blank to keep current"
+                  placeholder={t('users.editModal.passPlaceholder')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Leave blank to keep the current password.
+                  {t('users.editModal.passHint')}
                 </p>
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Role
+                  {t('users.editModal.roleLabel')}
                 </label>
                 <RoleSelector value={editRole} onChange={setEditRole} />
               </div>
@@ -443,7 +447,7 @@ export default function UsersAdmin() {
                   onClick={() => setEditTarget(null)}
                   className="flex-1 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -454,7 +458,7 @@ export default function UsersAdmin() {
                   className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
                 >
                   {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Save Changes
+                  {t('users.editModal.saveBtn')}
                 </button>
               </div>
             </form>
@@ -467,11 +471,11 @@ export default function UsersAdmin() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl">
             <div className="px-6 py-5 space-y-3">
-              <h2 className="font-semibold text-foreground">Delete user?</h2>
+              <h2 className="font-semibold text-foreground">{t('users.deleteModal.title')}</h2>
               <p className="text-sm text-muted-foreground">
-                Are you sure you want to delete{' '}
-                <span className="font-medium text-foreground">@{deleteTarget.username}</span>?
-                This action cannot be undone. Their audits and findings will be preserved.
+                {t('users.deleteModal.confirmBefore')}{' '}
+                <span className="font-medium text-foreground">@{deleteTarget.username}</span>
+                {t('users.deleteModal.confirmAfter')}
               </p>
             </div>
             <div className="flex gap-3 border-t border-border px-6 py-4">
@@ -479,7 +483,7 @@ export default function UsersAdmin() {
                 onClick={() => setDeleteTarget(null)}
                 className="flex-1 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => deleteMutation.mutate(deleteTarget.id)}
@@ -487,7 +491,7 @@ export default function UsersAdmin() {
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors disabled:opacity-50"
               >
                 {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Delete User
+                {t('users.deleteModal.deleteBtn')}
               </button>
             </div>
           </div>

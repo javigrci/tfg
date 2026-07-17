@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from 'lucide-react'
 import api from '@/lib/api'
 import type { SeverityLevel } from '@/types'
@@ -57,15 +58,17 @@ const CHIP_FILTER: Record<string, string> = {
 }
 
 function RiskBadge({ level }: { level: string }) {
+  const { t } = useTranslation()
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium uppercase border ${RISK_STYLES[level] ?? RISK_STYLES.info}`}>
-      {level} risk
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${RISK_STYLES[level] ?? RISK_STYLES.info}`}>
+      {t(`domain.severity.${level}`)}
     </span>
   )
 }
 
 function ReportCard({ report }: { report: ReportEntry }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
   const { data: findings = [], isFetching } = useQuery<FindingWithContext[]>({
@@ -103,7 +106,7 @@ function ReportCard({ report }: { report: ReportEntry }) {
               onClick={e => { e.stopPropagation(); navigate(`/audits/${report.audit_id}`) }}
               className="flex items-center gap-1 text-xs text-blue-400 hover:underline"
             >
-              View audit
+              {t('reports.operator.viewAudit')}
               <ExternalLink className="h-3 w-3" />
             </button>
           </div>
@@ -136,18 +139,18 @@ function ReportCard({ report }: { report: ReportEntry }) {
         <div className="border-t border-border">
           {isFetching ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading findings…
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('reports.operator.loadingFindings')}
             </div>
           ) : findings.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">No findings for this audit</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">{t('reports.operator.noFindings')}</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/20 text-xs uppercase tracking-wider text-muted-foreground">
-                  <th className="px-5 py-3 text-left">Finding Title</th>
-                  <th className="px-5 py-3 text-left">Severity</th>
-                  <th className="px-5 py-3 text-left">Category</th>
-                  <th className="px-5 py-3 text-left">Tool</th>
+                  <th className="px-5 py-3 text-left">{t('reports.operator.colTitle')}</th>
+                  <th className="px-5 py-3 text-left">{t('reports.operator.colSeverity')}</th>
+                  <th className="px-5 py-3 text-left">{t('reports.operator.colCategory')}</th>
+                  <th className="px-5 py-3 text-left">{t('reports.operator.colTool')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -155,12 +158,12 @@ function ReportCard({ report }: { report: ReportEntry }) {
                   <tr key={f.id} className="hover:bg-muted/10 transition-colors">
                     <td className="px-5 py-3 font-medium text-foreground">{f.title}</td>
                     <td className="px-5 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize border ${SEV_STYLES[f.severity] ?? SEV_STYLES.info}`}>
-                        {f.severity}
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${SEV_STYLES[f.severity] ?? SEV_STYLES.info}`}>
+                        {t(`domain.severity.${f.severity}`)}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-xs text-muted-foreground capitalize">
-                      {f.category.replace(/_/g, ' ')}
+                    <td className="px-5 py-3 text-xs text-muted-foreground">
+                      {t(`domain.findingCategory.${f.category}`)}
                     </td>
                     <td className="px-5 py-3">
                       <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium uppercase text-muted-foreground">
@@ -180,6 +183,7 @@ function ReportCard({ report }: { report: ReportEntry }) {
 
 export default function ReportsOperator() {
   const [riskFilter, setRiskFilter] = useState<RiskLevel | 'all'>('all')
+  const { t } = useTranslation()
 
   const { data: reports = [], isLoading, isError, refetch } = useQuery<ReportEntry[]>({
     queryKey: ['reports-operator'],
@@ -193,8 +197,8 @@ export default function ReportsOperator() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">My Reports</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Reports from my audits</p>
+        <h1 className="text-2xl font-semibold text-foreground">{t('reports.operator.title')}</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('reports.operator.subtitle')}</p>
       </div>
 
       {/* Filter chips */}
@@ -207,7 +211,7 @@ export default function ReportsOperator() {
               : 'border-border text-muted-foreground hover:text-foreground'
           }`}
         >
-          All <span className="ml-1">{reports.length}</span>
+          {t('reports.operator.allFilter')} <span className="ml-1">{reports.length}</span>
         </button>
         {RISK_LEVELS.map(level => {
           const count = reports.filter(r => r.risk_level === level).length
@@ -216,13 +220,13 @@ export default function ReportsOperator() {
             <button
               key={level}
               onClick={() => setRiskFilter(riskFilter === level ? 'all' : level)}
-              className={`rounded-full px-3 py-1 text-xs font-medium capitalize border transition-colors ${
+              className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
                 riskFilter === level
                   ? RISK_STYLES[level]
                   : `border-border text-muted-foreground ${CHIP_FILTER[level]}`
               }`}
             >
-              {level} <span className="ml-1">{count}</span>
+              {t(`domain.severity.${level}`)} <span className="ml-1">{count}</span>
             </button>
           )
         })}
@@ -231,18 +235,18 @@ export default function ReportsOperator() {
       {/* Cards */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading reports…
+          <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('reports.operator.loading')}
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-          <p className="text-sm">Failed to load reports.</p>
-          <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">Retry</button>
+          <p className="text-sm">{t('reports.operator.error')}</p>
+          <button onClick={() => refetch()} className="text-xs text-blue-400 hover:underline">{t('common.retry')}</button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-20 text-center text-sm text-muted-foreground">
           {reports.length === 0
-            ? 'No reports yet. Run an audit first.'
-            : 'No reports match the current filter.'}
+            ? t('reports.operator.emptyAll')
+            : t('reports.operator.emptyFilter')}
         </div>
       ) : (
         <div className="space-y-3">

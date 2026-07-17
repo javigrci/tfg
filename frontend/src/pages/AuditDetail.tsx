@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft, Play, Loader2, Shield, Terminal,
   ChevronDown, ChevronRight, AlertTriangle, Info, FileDown, ArrowLeftRight, Plus, X, Table2,
@@ -41,21 +42,6 @@ const FINDING_STATUS_STYLES: Record<FindingStatus, string> = {
   in_progress:    'bg-blue-500/10 text-blue-400 border border-blue-500/20',
   resolved:       'bg-green-500/10 text-green-400 border border-green-500/20',
   false_positive: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
-}
-
-const FINDING_STATUS_LABELS: Record<FindingStatus, string> = {
-  open:           'Open',
-  in_progress:    'In Progress',
-  resolved:       'Resolved',       // manual claim — re-run to verify
-  false_positive: 'False Positive',
-}
-
-// Shown in the status selector dropdown and as tooltip hint
-const FINDING_STATUS_HINTS: Record<FindingStatus, string> = {
-  open:           'Vulnerability is confirmed and pending remediation',
-  in_progress:    'Remediation is actively in progress',
-  resolved:       'Marked resolved by analyst — re-run the audit to confirm the scanner no longer detects it',
-  false_positive: 'Analyst determined this is not a real vulnerability in this context',
 }
 
 const SEV_ORDER: Record<SeverityLevel, number> = {
@@ -108,18 +94,20 @@ function CveChips({ vulnerabilities }: { vulnerabilities: Vulnerability[] }) {
 }
 
 function StatusBadge({ status }: { status: FindingStatus }) {
+  const { t } = useTranslation()
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${FINDING_STATUS_STYLES[status]}`}>
-      {FINDING_STATUS_LABELS[status]}
+      {t(`domain.findingStatus.${status}`)}
     </span>
   )
 }
 
 function SeverityBadge({ severity }: { severity: SeverityLevel | RiskLevel }) {
+  const { t } = useTranslation()
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${SEV_STYLES[severity]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${SEV_STYLES[severity]}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${SEV_DOT[severity]}`} />
-      {severity}
+      {t(`domain.severity.${severity}`)}
     </span>
   )
 }
@@ -150,13 +138,6 @@ const COMPLIANCE_DOT: Record<ComplianceStatus, string> = {
   not_assessed: 'bg-slate-500',
 }
 
-const COMPLIANCE_LABEL: Record<ComplianceStatus, string> = {
-  green:        'Compliant',
-  yellow:       'Low risk',
-  red:          'At risk',
-  not_assessed: 'Not assessed',
-}
-
 const COMPLIANCE_TEXT: Record<ComplianceStatus, string> = {
   green:        'text-green-400',
   yellow:       'text-yellow-400',
@@ -165,25 +146,26 @@ const COMPLIANCE_TEXT: Record<ComplianceStatus, string> = {
 }
 
 function ComplianceMapSection({ compliance }: { compliance: ComplianceMap }) {
+  const { t } = useTranslation()
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">OWASP Top 10 — 2021</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Coverage based on current findings</p>
+          <h2 className="text-sm font-semibold text-foreground">{t('auditDetail.complianceTitle')}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('auditDetail.complianceSub')}</p>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-green-400" />
-            {compliance.green_count} compliant
+            {compliance.green_count} {t('auditDetail.complianceCompliant')}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-yellow-400" />
-            {compliance.yellow_count} low risk
+            {compliance.yellow_count} {t('auditDetail.complianceLowRisk')}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-red-400" />
-            {compliance.red_count} at risk
+            {compliance.red_count} {t('auditDetail.complianceAtRisk')}
           </span>
         </div>
       </div>
@@ -200,11 +182,11 @@ function ComplianceMapSection({ compliance }: { compliance: ComplianceMap }) {
             <p className="text-xs font-medium text-foreground leading-tight">{cat.owasp_name}</p>
             <div className="mt-auto pt-1 flex items-center justify-between">
               <span className={`text-[11px] font-medium ${COMPLIANCE_TEXT[cat.status]}`}>
-                {COMPLIANCE_LABEL[cat.status]}
+                {t(`auditDetail.complianceStatus.${cat.status}`)}
               </span>
               {cat.findings_count > 0 && (
                 <span className="text-[11px] text-muted-foreground">
-                  {cat.findings_count} finding{cat.findings_count !== 1 ? 's' : ''}
+                  {t('auditDetail.scanFindings', { count: cat.findings_count })}
                 </span>
               )}
             </div>
@@ -219,16 +201,9 @@ function ComplianceMapSection({ compliance }: { compliance: ComplianceMap }) {
 
 const SEVERITY_OPTIONS = ['info', 'low', 'medium', 'high', 'critical'] as const
 const CATEGORY_OPTIONS = [
-  { value: 'injection',          label: 'Injection' },
-  { value: 'broken_auth',        label: 'Broken Authentication' },
-  { value: 'xss',                label: 'XSS' },
-  { value: 'broken_access',      label: 'Broken Access Control' },
-  { value: 'security_misconfig', label: 'Security Misconfiguration' },
-  { value: 'sensitive_exposure', label: 'Sensitive Data Exposure' },
-  { value: 'outdated_components',label: 'Outdated Components' },
-  { value: 'logging_monitoring', label: 'Logging & Monitoring' },
-  { value: 'other',              label: 'Other' },
-]
+  'injection', 'broken_auth', 'xss', 'broken_access', 'security_misconfig',
+  'sensitive_exposure', 'outdated_components', 'logging_monitoring', 'other',
+] as const
 
 interface ManualFindingForm {
   title: string
@@ -254,17 +229,18 @@ function AddFindingModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [form, setForm] = useState<ManualFindingForm>(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Partial<ManualFindingForm>>({})
 
   function validate(): boolean {
     const e: Partial<ManualFindingForm> = {}
-    if (!form.title.trim())          e.title = 'Required'
-    if (!form.description.trim())    e.description = 'Required'
-    if (!form.recommendation.trim()) e.recommendation = 'Required'
+    if (!form.title.trim())          e.title = t('auditDetail.modal.required')
+    if (!form.description.trim())    e.description = t('auditDetail.modal.required')
+    if (!form.recommendation.trim()) e.recommendation = t('auditDetail.modal.required')
     if (form.cve_id && !/^CVE-\d{4}-\d{4,}$/i.test(form.cve_id)) {
-      e.cve_id = 'Format: CVE-YYYY-NNNNN'
+      e.cve_id = t('auditDetail.modal.cveFormat')
     }
     setErrors(e)
     return Object.keys(e).length === 0
@@ -284,11 +260,11 @@ function AddFindingModal({
         recommendation: form.recommendation.trim(),
         cve_id:         form.cve_id.trim().toUpperCase() || null,
       })
-      toast.success('Manual finding added')
+      toast.success(t('auditDetail.toasts.findingAdded'))
       onCreated()
       onClose()
     } catch {
-      toast.error('Failed to add finding')
+      toast.error(t('auditDetail.toasts.findingFailed'))
     } finally {
       setSubmitting(false)
     }
@@ -316,7 +292,7 @@ function AddFindingModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-violet-400" />
-            <h2 className="text-sm font-semibold text-foreground">Add Manual Finding</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t('auditDetail.modal.title')}</h2>
           </div>
           <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted/40">
             <X className="h-4 w-4" />
@@ -328,26 +304,26 @@ function AddFindingModal({
 
           {/* Title */}
           <div>
-            <label className={labelCls}>Title *</label>
-            <input {...field('title')} placeholder="e.g. Reflected XSS in search parameter" className={inputCls} />
+            <label className={labelCls}>{t('auditDetail.modal.titleLabel')}</label>
+            <input {...field('title')} placeholder={t('auditDetail.modal.titlePlaceholder')} className={inputCls} />
             {errors.title && <p className={errorCls}>{errors.title}</p>}
           </div>
 
           {/* Severity + Category */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Severity *</label>
+              <label className={labelCls}>{t('auditDetail.modal.severityLabel')}</label>
               <select {...field('severity')} className={inputCls}>
                 {SEVERITY_OPTIONS.map(s => (
-                  <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                  <option key={s} value={s}>{t(`domain.severity.${s}`)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className={labelCls}>Category *</label>
+              <label className={labelCls}>{t('auditDetail.modal.categoryLabel')}</label>
               <select {...field('category')} className={inputCls}>
                 {CATEGORY_OPTIONS.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
+                  <option key={c} value={c}>{t(`domain.findingCategory.${c}`)}</option>
                 ))}
               </select>
             </div>
@@ -355,11 +331,11 @@ function AddFindingModal({
 
           {/* Description */}
           <div>
-            <label className={labelCls}>Description *</label>
+            <label className={labelCls}>{t('auditDetail.modal.descLabel')}</label>
             <textarea
               {...field('description')}
               rows={3}
-              placeholder="Describe the vulnerability and its context"
+              placeholder={t('auditDetail.modal.descPlaceholder')}
               className={`${inputCls} resize-none`}
             />
             {errors.description && <p className={errorCls}>{errors.description}</p>}
@@ -367,22 +343,25 @@ function AddFindingModal({
 
           {/* Evidence */}
           <div>
-            <label className={labelCls}>Evidence <span className="text-muted-foreground/60">(optional)</span></label>
+            <label className={labelCls}>
+              {t('auditDetail.modal.evidenceLabel')}{' '}
+              <span className="text-muted-foreground/60">{t('auditDetail.modal.evidenceOptional')}</span>
+            </label>
             <textarea
               {...field('evidence')}
               rows={2}
-              placeholder="HTTP request/response, screenshot reference, PoC payload..."
+              placeholder={t('auditDetail.modal.evidencePlaceholder')}
               className={`${inputCls} resize-none font-mono text-xs`}
             />
           </div>
 
           {/* Recommendation */}
           <div>
-            <label className={labelCls}>Recommendation *</label>
+            <label className={labelCls}>{t('auditDetail.modal.recoLabel')}</label>
             <textarea
               {...field('recommendation')}
               rows={2}
-              placeholder="Describe the remediation steps"
+              placeholder={t('auditDetail.modal.recoPlaceholder')}
               className={`${inputCls} resize-none`}
             />
             {errors.recommendation && <p className={errorCls}>{errors.recommendation}</p>}
@@ -390,10 +369,13 @@ function AddFindingModal({
 
           {/* CVE ID */}
           <div>
-            <label className={labelCls}>CVE ID <span className="text-muted-foreground/60">(optional — triggers NVD lookup)</span></label>
+            <label className={labelCls}>
+              {t('auditDetail.modal.cveLabel')}{' '}
+              <span className="text-muted-foreground/60">{t('auditDetail.modal.cveOptional')}</span>
+            </label>
             <input
               {...field('cve_id')}
-              placeholder="CVE-2021-41773"
+              placeholder={t('auditDetail.modal.cvePlaceholder')}
               className={inputCls}
             />
             {errors.cve_id && <p className={errorCls}>{errors.cve_id}</p>}
@@ -406,7 +388,7 @@ function AddFindingModal({
               onClick={onClose}
               className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
             >
-              Cancel
+              {t('auditDetail.modal.cancelBtn')}
             </button>
             <button
               type="submit"
@@ -414,7 +396,7 @@ function AddFindingModal({
               className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {submitting ? 'Adding...' : 'Add Finding'}
+              {submitting ? t('auditDetail.modal.addingBtn') : t('auditDetail.modal.addBtn')}
             </button>
           </div>
         </form>
@@ -428,15 +410,16 @@ function AddFindingModal({
 function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | undefined }) {
   const [open, setOpen] = useState(false)
   const qc = useQueryClient()
+  const { t } = useTranslation()
 
   const statusMutation = useMutation({
     mutationFn: (newStatus: FindingStatus) =>
       api.patch(`/findings/${finding.id}/status`, { status: newStatus }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['audit', auditId] })
-      toast.success('Status updated')
+      toast.success(t('auditDetail.toasts.statusUpdated'))
     },
-    onError: () => toast.error('Failed to update status'),
+    onError: () => toast.error(t('auditDetail.toasts.statusFailed')),
   })
 
   return (
@@ -452,7 +435,7 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
         </td>
         <td className="px-4 py-3 font-medium text-foreground text-sm">{finding.title}</td>
         <td className="px-4 py-3"><SeverityBadge severity={finding.severity} /></td>
-        <td className="px-4 py-3 text-xs text-muted-foreground capitalize">{finding.category.replace(/_/g, ' ')}</td>
+        <td className="px-4 py-3 text-xs text-muted-foreground">{t(`domain.findingCategory.${finding.category}`)}</td>
         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
           <StatusBadge status={finding.status} />
         </td>
@@ -462,30 +445,30 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
           <td colSpan={5} className="px-6 py-4">
             <div className="space-y-3 text-sm">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Description</p>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{t('auditDetail.descLabel')}</p>
                 <p className="text-foreground">{finding.description}</p>
               </div>
               {finding.evidence && (
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Evidence</p>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{t('auditDetail.evidenceLabel')}</p>
                   <pre className="rounded-lg bg-background border border-border px-3 py-2 text-xs font-mono text-muted-foreground whitespace-pre-wrap">{finding.evidence}</pre>
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Recommendation</p>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{t('auditDetail.recommendLabel')}</p>
                 <p className="text-foreground">{finding.recommendation}</p>
               </div>
               <CveChips vulnerabilities={finding.vulnerabilities} />
               {finding.notes && (
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Analyst Notes</p>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{t('auditDetail.notesLabel')}</p>
                   <p className="text-foreground">{finding.notes}</p>
                 </div>
               )}
               {/* Status control */}
               <div className="flex flex-col gap-2 pt-1 border-t border-border">
                 <div className="flex items-center gap-3">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Status</p>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('auditDetail.statusLabel')}</p>
                   <select
                     value={finding.status}
                     disabled={statusMutation.isPending}
@@ -493,13 +476,13 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
                     className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
                   >
                     {(['open', 'in_progress', 'resolved', 'false_positive'] as FindingStatus[]).map(s => (
-                      <option key={s} value={s}>{FINDING_STATUS_LABELS[s]}</option>
+                      <option key={s} value={s}>{t(`domain.findingStatus.${s}`)}</option>
                     ))}
                   </select>
                   {statusMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
                 </div>
                 <p className="text-[11px] text-muted-foreground/60 italic">
-                  {FINDING_STATUS_HINTS[finding.status]}
+                  {t(`auditDetail.statusHints.${finding.status}`)}
                 </p>
               </div>
             </div>
@@ -516,6 +499,7 @@ export default function AuditDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { t } = useTranslation()
 
   const { data: audit, isLoading, isError } = useQuery<Audit>({
     queryKey: ['audit', id],
@@ -543,13 +527,13 @@ export default function AuditDetail() {
     const prev = prevStatusRef.current
     const curr = audit?.status
     if (prev === 'running' && curr === 'completed') {
-      toast.success('Audit completed successfully')
+      toast.success(t('auditDetail.toasts.completed'))
       qc.invalidateQueries({ queryKey: ['audits'] })
       qc.invalidateQueries({ queryKey: ['delta', id] })
       qc.invalidateQueries({ queryKey: ['compliance', id] })
     }
     if (prev === 'running' && curr === 'failed') {
-      toast.error('Audit execution failed')
+      toast.error(t('auditDetail.toasts.failed'))
     }
     prevStatusRef.current = curr
   }, [audit?.status, id, qc])
@@ -558,9 +542,9 @@ export default function AuditDetail() {
     mutationFn: () => api.post(`/audits/${id}/run`).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['audit', id] })
-      toast.info('Scan started — results will appear automatically')
+      toast.info(t('auditDetail.toasts.started'))
     },
-    onError: () => toast.error('Failed to start audit'),
+    onError: () => toast.error(t('auditDetail.toasts.startFailed')),
   })
 
   const [pdfLoading, setPdfLoading] = useState<'technical' | 'executive' | null>(null)
@@ -587,9 +571,9 @@ export default function AuditDetail() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      toast.success(`${type === 'executive' ? 'Executive' : 'Technical'} report downloaded`)
+      toast.success(type === 'executive' ? t('auditDetail.toasts.pdfExecutive') : t('auditDetail.toasts.pdfTechnical'))
     } catch {
-      toast.error('Failed to generate PDF')
+      toast.error(t('auditDetail.toasts.pdfFailed'))
     } finally {
       setPdfLoading(null)
     }
@@ -609,9 +593,9 @@ export default function AuditDetail() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      toast.success('CSV exported')
+      toast.success(t('auditDetail.toasts.csvSuccess'))
     } catch {
-      toast.error('Failed to export CSV')
+      toast.error(t('auditDetail.toasts.csvFailed'))
     } finally {
       setCsvLoading(false)
     }
@@ -623,9 +607,9 @@ export default function AuditDetail() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
         <AlertTriangle className="h-8 w-8 text-destructive" />
-        <p className="text-sm">Audit not found or failed to load.</p>
+        <p className="text-sm">{t('auditDetail.notFoundMsg')}</p>
         <button onClick={() => navigate('/audits')} className="text-sm text-blue-400 hover:underline">
-          Back to audits
+          {t('auditDetail.backBtn')}
         </button>
       </div>
     )
@@ -652,16 +636,16 @@ export default function AuditDetail() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold text-foreground">{audit.name}</h1>
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[audit.status]}`}>
-                {audit.status}
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[audit.status]}`}>
+                {t(`domain.auditStatus.${audit.status}`)}
               </span>
             </div>
             {audit.description && (
               <p className="text-sm text-muted-foreground mt-1">{audit.description}</p>
             )}
             <p className="text-xs text-muted-foreground mt-1">
-              Target: <span className="font-medium text-foreground font-mono">{audit.target.address}</span>
-              {' · '}Tools: <span className="font-medium text-foreground">{audit.selected_modules.join(', ')}</span>
+              {t('auditDetail.targetLabel')} <span className="font-medium text-foreground font-mono">{audit.target.address}</span>
+              {' · '}{t('auditDetail.toolsLabel')} <span className="font-medium text-foreground">{audit.selected_modules.join(', ')}</span>
             </p>
           </div>
         </div>
@@ -676,7 +660,7 @@ export default function AuditDetail() {
                 {pdfLoading === 'executive'
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <FileDown className="h-4 w-4" />}
-                Executive
+                {t('auditDetail.pdfExecutive')}
               </button>
               <button
                 onClick={() => handleDownloadPdf('technical')}
@@ -686,7 +670,7 @@ export default function AuditDetail() {
                 {pdfLoading === 'technical'
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <FileDown className="h-4 w-4" />}
-                Technical
+                {t('auditDetail.pdfTechnical')}
               </button>
               <button
                 onClick={handleDownloadCsv}
@@ -708,7 +692,7 @@ export default function AuditDetail() {
             {(runMutation.isPending || isRunning)
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <Play className="h-4 w-4" />}
-            {isRunning ? 'Running...' : 'Run Audit'}
+            {isRunning ? t('auditDetail.running') : t('auditDetail.runBtn')}
           </button>
         </div>
       </div>
@@ -717,19 +701,19 @@ export default function AuditDetail() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="col-span-2 sm:col-span-1">
           {report
-            ? <KpiCard label="Risk Level" value={report.risk_level.toUpperCase()} />
-            : <KpiCard label="Risk Level" value="—" sub="Not run yet" />}
+            ? <KpiCard label={t('auditDetail.kpiRiskLevel')} value={report.risk_level.toUpperCase()} />
+            : <KpiCard label={t('auditDetail.kpiRiskLevel')} value="—" sub={t('auditDetail.notRunYet')} />}
         </div>
         <div className="col-span-2 sm:col-span-1">
           {report
-            ? <KpiCard label="Risk Score" value={`${report.risk_score}/10`} sub="DefectDojo model" />
-            : <KpiCard label="Risk Score" value="—" sub="Not run yet" />}
+            ? <KpiCard label={t('auditDetail.kpiRiskScore')} value={`${report.risk_score}/10`} sub={t('auditDetail.kpiRiskScoreSub')} />
+            : <KpiCard label={t('auditDetail.kpiRiskScore')} value="—" sub={t('auditDetail.notRunYet')} />}
         </div>
-        <KpiCard label="Total" value={report?.total_findings ?? 0} sub="findings" />
-        <KpiCard label="Critical" value={report?.critical_count ?? 0} />
-        <KpiCard label="High" value={report?.high_count ?? 0} />
-        <KpiCard label="Medium" value={report?.medium_count ?? 0} />
-        <KpiCard label="Low" value={report?.low_count ?? 0} />
+        <KpiCard label={t('auditDetail.kpiTotal')} value={report?.total_findings ?? 0} sub={t('auditDetail.kpiFindingsSub')} />
+        <KpiCard label={t('auditDetail.kpiCritical')} value={report?.critical_count ?? 0} />
+        <KpiCard label={t('auditDetail.kpiHigh')} value={report?.high_count ?? 0} />
+        <KpiCard label={t('auditDetail.kpiMedium')} value={report?.medium_count ?? 0} />
+        <KpiCard label={t('auditDetail.kpiLow')} value={report?.low_count ?? 0} />
       </div>
 
       {/* Unreachable warning */}
@@ -737,7 +721,7 @@ export default function AuditDetail() {
         <div className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
-            Target is <strong>unreachable</strong>. Verify connectivity before running the audit — the scan will return no findings.
+            {t('auditDetail.unreachablePre')}<strong>{t('auditDetail.unreachableWord')}</strong>{t('auditDetail.unreachablePost')}
           </span>
         </div>
       )}
@@ -753,12 +737,12 @@ export default function AuditDetail() {
             <div className="px-4 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Terminal className="h-4 w-4 text-muted-foreground" />
-                Execution Timeline
+                {t('auditDetail.execTimeline')}
               </h2>
             </div>
             {audit.scans.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No scans yet. Run the audit to start scanning.
+                {t('auditDetail.noScans')}
               </div>
             ) : (
               <div className="divide-y divide-border">
@@ -767,14 +751,14 @@ export default function AuditDetail() {
                     <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium uppercase ${TOOL_COLORS[scan.tool] ?? TOOL_COLORS.bash}`}>
                       {scan.tool}
                     </span>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs capitalize ${STATUS_STYLES[scan.status]}`}>
-                      {scan.status}
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[scan.status]}`}>
+                      {t(`domain.auditStatus.${scan.status}`)}
                     </span>
                     <span className="text-xs font-mono text-muted-foreground truncate flex-1">
                       {scan.command ?? '—'}
                     </span>
                     <span className="text-xs text-muted-foreground shrink-0">
-                      {scan.findings.length} finding{scan.findings.length !== 1 ? 's' : ''}
+                      {t('auditDetail.scanFindings', { count: scan.findings.length })}
                     </span>
                   </div>
                 ))}
@@ -787,7 +771,7 @@ export default function AuditDetail() {
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Shield className="h-4 w-4 text-muted-foreground" />
-                Findings
+                {t('auditDetail.findingsTitle')}
                 {allFindings.length > 0 && (
                   <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     {allFindings.length}
@@ -812,24 +796,24 @@ export default function AuditDetail() {
                     className="flex items-center gap-1.5 rounded-md border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-400 hover:bg-violet-500/20 transition-colors"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Add Finding
+                    {t('auditDetail.addFinding')}
                   </button>
                 )}
               </div>
             </div>
             {allFindings.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No findings yet.
+                {t('auditDetail.noFindings')}
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-2 w-8" />
-                    <th className="px-4 py-2 text-left">Title</th>
-                    <th className="px-4 py-2 text-left">Severity</th>
-                    <th className="px-4 py-2 text-left">Category</th>
-                    <th className="px-4 py-2 text-left">Status</th>
+                    <th className="px-4 py-2 text-left">{t('auditDetail.colTitle')}</th>
+                    <th className="px-4 py-2 text-left">{t('auditDetail.colSeverity')}</th>
+                    <th className="px-4 py-2 text-left">{t('auditDetail.colCategory')}</th>
+                    <th className="px-4 py-2 text-left">{t('auditDetail.colStatus')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -846,9 +830,9 @@ export default function AuditDetail() {
               <div className="px-4 py-3 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
-                  Changes since last run
+                  {t('auditDetail.changesTitle')}
                   <span className="ml-1 text-xs font-normal text-muted-foreground">
-                    +{delta.summary.new} new &middot; {delta.summary.resolved} resolved &middot; {delta.summary.persisting} persisting
+                    {t('auditDetail.changesSummary', { new: delta.summary.new, resolved: delta.summary.resolved, persisting: delta.summary.persisting })}
                   </span>
                 </h2>
               </div>
@@ -858,7 +842,7 @@ export default function AuditDetail() {
                 {delta.new.length > 0 && (
                   <div className="px-4 py-3">
                     <p className="text-xs font-medium uppercase tracking-wider text-green-400 mb-2">
-                      New ({delta.new.length})
+                      {t('auditDetail.deltaNew', { count: delta.new.length })}
                     </p>
                     <div className="space-y-1.5">
                       {sortBySev(delta.new).map(f => (
@@ -876,7 +860,7 @@ export default function AuditDetail() {
                 {delta.resolved.length > 0 && (
                   <div className="px-4 py-3">
                     <p className="text-xs font-medium uppercase tracking-wider text-blue-400 mb-2">
-                      Resolved ({delta.resolved.length})
+                      {t('auditDetail.deltaResolved', { count: delta.resolved.length })}
                     </p>
                     <div className="space-y-1.5">
                       {sortBySev(delta.resolved).map(f => (
@@ -894,7 +878,7 @@ export default function AuditDetail() {
                 {delta.persisting.length > 0 && (
                   <div className="px-4 py-3">
                     <p className="text-xs font-medium uppercase tracking-wider text-yellow-400 mb-2">
-                      Persisting ({delta.persisting.length})
+                      {t('auditDetail.deltaPersisting', { count: delta.persisting.length })}
                     </p>
                     <div className="space-y-1.5">
                       {sortBySev(delta.persisting).map(f => (
@@ -919,19 +903,19 @@ export default function AuditDetail() {
 
           {/* Target info */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-foreground">Target</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t('auditDetail.targetSection')}</h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Name</span>
+                <span className="text-muted-foreground">{t('auditDetail.targetName')}</span>
                 <span className="font-medium text-foreground">{audit.target.name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Address</span>
+                <span className="text-muted-foreground">{t('auditDetail.targetAddress')}</span>
                 <span className="font-mono text-foreground">{audit.target.address}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Connectivity</span>
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+                <span className="text-muted-foreground">{t('auditDetail.targetConnect')}</span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                   audit.target.status === 'reachable'
                     ? 'bg-green-500/10 text-green-400 border border-green-500/20'
                     : audit.target.status === 'unreachable'
@@ -942,7 +926,7 @@ export default function AuditDetail() {
                     audit.target.status === 'reachable' ? 'bg-green-400' :
                     audit.target.status === 'unreachable' ? 'bg-red-400' : 'bg-slate-400'
                   }`} />
-                  {audit.target.status}
+                  {t(`domain.targetStatus.${audit.target.status}`)}
                 </span>
               </div>
             </div>
@@ -952,7 +936,7 @@ export default function AuditDetail() {
           {report ? (
             <div className="rounded-xl border border-border bg-card p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground">Report</h2>
+                <h2 className="text-sm font-semibold text-foreground">{t('auditDetail.reportSection')}</h2>
                 <SeverityBadge severity={report.risk_level} />
               </div>
               {report.summary && (
@@ -960,10 +944,10 @@ export default function AuditDetail() {
               )}
               <div className="grid grid-cols-2 gap-2">
                 {([
-                  ['Critical', report.critical_count, 'text-red-400'],
-                  ['High',     report.high_count,     'text-orange-400'],
-                  ['Medium',   report.medium_count,   'text-yellow-400'],
-                  ['Low',      report.low_count,       'text-blue-400'],
+                  [t('auditDetail.kpiCritical'), report.critical_count, 'text-red-400'],
+                  [t('auditDetail.kpiHigh'),     report.high_count,     'text-orange-400'],
+                  [t('auditDetail.kpiMedium'),   report.medium_count,   'text-yellow-400'],
+                  [t('auditDetail.kpiLow'),      report.low_count,      'text-blue-400'],
                 ] as [string, number, string][]).map(([label, count, color]) => (
                   <div key={label} className="rounded-lg bg-muted/30 px-3 py-2">
                     <p className={`text-lg font-bold ${color}`}>{count}</p>
@@ -972,8 +956,10 @@ export default function AuditDetail() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                Generated {new Date(report.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit', month: 'short', year: 'numeric',
+                {t('auditDetail.reportGenerated', {
+                  date: new Date(report.created_at).toLocaleDateString('en-GB', {
+                    day: '2-digit', month: 'short', year: 'numeric',
+                  })
                 })}
               </p>
             </div>
@@ -981,31 +967,31 @@ export default function AuditDetail() {
             <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
               <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-sm text-muted-foreground">
-                No report yet. Run the audit to generate one.
+                {t('auditDetail.reportEmpty')}
               </p>
             </div>
           )}
 
           {/* Audit metadata */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-2 text-sm">
-            <h2 className="text-sm font-semibold text-foreground mb-3">Audit Info</h2>
+            <h2 className="text-sm font-semibold text-foreground mb-3">{t('auditDetail.auditInfo')}</h2>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Created by</span>
+              <span className="text-muted-foreground">{t('auditDetail.createdBy')}</span>
               <span className="text-foreground">{audit.created_by.username}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Type</span>
-              <span className="capitalize text-foreground">{audit.audit_type.replace(/_/g, ' ')}</span>
+              <span className="text-muted-foreground">{t('auditDetail.auditTypeLabel')}</span>
+              <span className="text-foreground">{t(`domain.auditType.${audit.audit_type}`)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Created</span>
+              <span className="text-muted-foreground">{t('auditDetail.createdLabel')}</span>
               <span className="text-foreground">
                 {new Date(audit.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
               </span>
             </div>
             {audit.started_at && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Last run</span>
+                <span className="text-muted-foreground">{t('auditDetail.lastRunLabel')}</span>
                 <span className="text-foreground">
                   {new Date(audit.started_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </span>

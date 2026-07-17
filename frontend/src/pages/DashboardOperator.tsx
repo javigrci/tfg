@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ChevronRight } from 'lucide-react'
 import { PageLoader } from '@/components/ui/PageLoader'
 import { PageError } from '@/components/ui/PageError'
@@ -58,6 +59,7 @@ function KpiCard({ label, value, sub, accent }: {
 
 export default function DashboardOperator() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const { data: stats, isLoading, isError, refetch } = useQuery<OperatorStats>({
     queryKey: ['dashboard-operator'],
@@ -74,20 +76,20 @@ export default function DashboardOperator() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">My Activity</p>
+        <h1 className="text-2xl font-semibold text-foreground">{t('dashboard.operator.title')}</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('dashboard.operator.subtitle')}</p>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <KpiCard label="My Active Audits" value={stats.active_audits} sub="Running or Pending" />
+        <KpiCard label={t('dashboard.operator.kpiActive')} value={stats.active_audits} sub={t('dashboard.operator.kpiActiveSub')} />
         <KpiCard
-          label="Critical Findings"
+          label={t('dashboard.operator.kpiCritical')}
           value={stats.critical_findings}
-          sub={stats.critical_findings > 0 ? 'Immediate Action' : undefined}
+          sub={stats.critical_findings > 0 ? t('dashboard.operator.kpiCriticalSub') : undefined}
           accent={stats.critical_findings > 0}
         />
-        <KpiCard label="High Findings" value={stats.high_findings} sub="Across all my audits" />
+        <KpiCard label={t('dashboard.operator.kpiHigh')} value={stats.high_findings} sub={t('dashboard.operator.kpiHighSub')} />
       </div>
 
       {/* Severity Distribution + Recent Audits */}
@@ -95,10 +97,10 @@ export default function DashboardOperator() {
 
         {/* Severity donut */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-4">My Severity Distribution</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">{t('dashboard.operator.severityTitle')}</h2>
           {sevData.length === 0 ? (
             <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-              No findings yet
+              {t('dashboard.operator.noFindings')}
             </div>
           ) : (
             <div className="flex flex-col items-center">
@@ -128,7 +130,7 @@ export default function DashboardOperator() {
                         className="h-2 w-2 rounded-full"
                         style={{ background: SEV_COLORS[name] ?? '#6b7280' }}
                       />
-                      <span className="capitalize text-muted-foreground">{name}</span>
+                      <span className="text-muted-foreground">{t(`domain.severity.${name}`)}</span>
                     </div>
                     <span className="text-foreground font-medium">{value}</span>
                   </div>
@@ -141,17 +143,17 @@ export default function DashboardOperator() {
         {/* Recent Audits */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Recent Audits</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t('dashboard.operator.recentTitle')}</h2>
             <button
               onClick={() => navigate('/audits')}
               className="text-xs text-blue-400 hover:underline"
             >
-              View All
+              {t('dashboard.operator.viewAll')}
             </button>
           </div>
           {stats.recent_audits.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              No audits yet
+              {t('dashboard.operator.recentEmpty')}
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -166,8 +168,8 @@ export default function DashboardOperator() {
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">{audit.target_address}</p>
                   </div>
                   <div className="flex items-center gap-3 ml-3 shrink-0">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize border ${STATUS_STYLES[audit.status] ?? STATUS_STYLES.draft}`}>
-                      {audit.status}
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${STATUS_STYLES[audit.status] ?? STATUS_STYLES.draft}`}>
+                      {t(`domain.auditStatus.${audit.status}`)}
                     </span>
                     {audit.started_at && (
                       <span className="text-xs text-muted-foreground hidden sm:block">

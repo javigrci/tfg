@@ -24,7 +24,7 @@ class AuditService:
     def __init__(self, db: Session):
         self.db = db
 
-    def list_audits(self) -> list[Audit]:
+    def list_audits(self, owner_id: int | None = None) -> list[Audit]:
         statement = (
             select(Audit)
             .options(
@@ -37,6 +37,8 @@ class AuditService:
             )
             .order_by(Audit.created_at.desc())
         )
+        if owner_id is not None:
+            statement = statement.where(Audit.created_by_id == owner_id)
         return list(self.db.scalars(statement).unique().all())
 
     def delete_audit(self, audit_id: int) -> bool:
@@ -375,21 +377,29 @@ class AuditService:
             ],
         }
 
-    def get_alert_count(self) -> int:
+    def get_alert_count(self, owner_id: int | None = None) -> int:
         """
         Cuenta findings con severidad critical/high y estado open/in_progress.
         Usado para el badge de notificaciones en el sidebar.
         """
-        count = self.db.scalar(
+        statement = (
             select(func.count(Finding.id))
             .where(
                 Finding.severity.in_([SeverityLevel.CRITICAL, SeverityLevel.HIGH]),
                 Finding.status.in_([FindingStatus.OPEN, FindingStatus.IN_PROGRESS]),
             )
         )
+        if owner_id is not None:
+            statement = (
+                statement
+                .join(Scan, Finding.scan_id == Scan.id)
+                .join(Audit, Scan.audit_id == Audit.id)
+                .where(Audit.created_by_id == owner_id)
+            )
+        count = self.db.scalar(statement)
         return count or 0
 
-    def get_all_findings(self) -> list[dict]:
+    def get_all_findings(self, owner_id: int | None = None) -> list[dict]:
         """Devuelve todos los findings del sistema con contexto de audit y scan."""
         statement = (
             select(Finding, Scan, Audit)
@@ -397,6 +407,8 @@ class AuditService:
             .join(Audit, Scan.audit_id == Audit.id)
             .order_by(Finding.severity.desc())
         )
+        if owner_id is not None:
+            statement = statement.where(Audit.created_by_id == owner_id)
         rows = self.db.execute(statement).all()
         return [
             {
@@ -422,9 +434,22 @@ class AuditService:
         finding_id: int,
         new_status: FindingStatus,
         notes: str | None,
+        owner_id: int | None = None,
     ) -> Finding | None:
-        """Actualiza el estado de un finding y gestiona resolved_at automáticamente."""
-        finding = self.db.scalar(select(Finding).where(Finding.id == finding_id))
+        """Actualiza el estado de un finding y gestiona resolved_at automáticamente.
+
+        Si se pasa owner_id, solo actualiza el finding cuando la auditoria que
+        lo contiene pertenece a ese usuario (operator); admin pasa owner_id=None.
+        """
+        statement = select(Finding).where(Finding.id == finding_id)
+        if owner_id is not None:
+            statement = (
+                statement
+                .join(Scan, Finding.scan_id == Scan.id)
+                .join(Audit, Scan.audit_id == Audit.id)
+                .where(Audit.created_by_id == owner_id)
+            )
+        finding = self.db.scalar(statement)
         if finding is None:
             return None
 
@@ -569,6 +594,7 @@ class AuditService:
         severity_counts = {level: 0 for level in SeverityLevel}
         total_findings = 0
         all_saved_findings: list[Finding] = []
+        raw_results: list[dict] = []
 
         for tool_name in tools:
             try:

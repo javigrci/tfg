@@ -33,7 +33,7 @@ def create_user(
         resource_type="user",
         resource_id=new_user.id,
         resource_name=new_user.username,
-        payload={"role": body.role.value},
+        payload={"role": body.role_name.value},
     )
     return new_user
 

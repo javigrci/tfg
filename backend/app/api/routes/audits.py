@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, require_role
-from app.domain.enums import AuditStatus, UserRole
+from app.domain.enums import AuditStatus, TargetStatus, UserRole
 from app.db.session import get_db
 from app.models.entities import Audit as AuditModel
 from app.models.entities import User
@@ -75,12 +75,13 @@ findings_router = APIRouter(prefix="/findings", tags=["audits"])
         401: {"description": "Token ausente, invalido o expirado."},
     },
 )
-def get_alert_count(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def get_alert_count(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Devuelve el recuento de findings criticos/altos sin resolver.
     Usado por el sidebar para el badge de notificaciones.
     """
-    return {"count": AuditService(db).get_alert_count()}
+    owner_id = None if current_user.role.name == UserRole.ADMIN else current_user.id
+    return {"count": AuditService(db).get_alert_count(owner_id=owner_id)}
 
 
 @findings_router.get(
@@ -91,9 +92,13 @@ def get_alert_count(db: Session = Depends(get_db), _: User = Depends(get_current
         401: {"description": "Token ausente, inválido o expirado."},
     },
 )
-def list_all_findings(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    """Devuelve todos los findings de todas las auditorías, con audit_id, audit_name y scan_tool."""
-    return AuditService(db).get_all_findings()
+def list_all_findings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Devuelve todos los findings de todas las auditorías, con audit_id, audit_name y scan_tool.
+
+    Un operator solo ve los findings de sus propias auditorías (RF-014); admin ve todo.
+    """
+    owner_id = None if current_user.role.name == UserRole.ADMIN else current_user.id
+    return AuditService(db).get_all_findings(owner_id=owner_id)
 
 
 @findings_router.patch(
@@ -119,8 +124,9 @@ def update_finding_status(
     finding_before = db.get(FindingModel, finding_id)
     old_status = finding_before.status.value if finding_before else None
 
+    owner_id = None if current_user.role.name == UserRole.ADMIN else current_user.id
     finding = AuditService(db).update_finding_status(
-        finding_id, payload.status, payload.notes
+        finding_id, payload.status, payload.notes, owner_id=owner_id
     )
     if finding is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
@@ -136,9 +142,16 @@ def update_finding_status(
     return finding
 
 
-def _get_or_404(service: AuditService, audit_id: int) -> AuditRead:
+def _get_or_404(service: AuditService, audit_id: int, current_user: User) -> AuditModel:
+    """Busca la auditoria y aplica ownership: un operator solo accede a las suyas (RF-014).
+
+    Devuelve 404 (no 403) tanto si no existe como si pertenece a otro operator,
+    siguiendo el mismo criterio de "redirect silencioso" ya usado en el frontend.
+    """
     audit = service.get_audit(audit_id)
     if audit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audit not found")
+    if current_user.role.name != UserRole.ADMIN and audit.created_by_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audit not found")
     return audit
 
@@ -151,9 +164,10 @@ def _get_or_404(service: AuditService, audit_id: int) -> AuditRead:
         401: {"description": "Token ausente, inválido o expirado."},
     },
 )
-def list_audits(db: Session = Depends(get_db),_: User = Depends(get_current_user)) -> list[AuditRead]:
-    """Devuelve todas las auditorías del sistema."""
-    return AuditService(db).list_audits()
+def list_audits(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[AuditRead]:
+    """Devuelve las auditorías: admin ve todas, operator solo las suyas (RF-014)."""
+    owner_id = None if current_user.role.name == UserRole.ADMIN else current_user.id
+    return AuditService(db).list_audits(owner_id=owner_id)
 
 
 @router.post(
@@ -217,9 +231,9 @@ def delete_audit(
         404: {"description": "No existe ninguna auditoría con ese ID."},
     },
 )
-def get_audit(audit_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> AuditRead:
+def get_audit(audit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> AuditRead:
     """Devuelve el detalle completo de una auditoría por su ID."""
-    return _get_or_404(AuditService(db), audit_id)
+    return _get_or_404(AuditService(db), audit_id, current_user)
 
 
 @router.post(
@@ -229,6 +243,7 @@ def get_audit(audit_id: int, db: Session = Depends(get_db), _: User = Depends(ge
         200: {"description": "Scan iniciado. La auditoría pasa a estado 'running'; el resultado llega via polling."},
         401: {"description": "Token ausente, inválido o expirado."},
         404: {"description": "No existe ninguna auditoría con ese ID."},
+        409: {"description": "El target de la auditoría está unreachable."},
     },
 )
 def run_audit(
@@ -244,10 +259,18 @@ def run_audit(
     detecta la finalización mediante polling sobre GET /audits/{id}.
     """
     service = AuditService(db)
-    _get_or_404(service, audit_id)
+    db_audit = _get_or_404(service, audit_id, current_user)
+
+    # Antes esto solo se comprobaba en el frontend (AuditDetail.tsx) — un
+    # target unreachable podia ejecutarse igual via API directa. Ver MVP.md,
+    # discrepancias resueltas.
+    if db_audit.target.status == TargetStatus.UNREACHABLE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Target is unreachable. Check connectivity before running the audit.",
+        )
 
     # Marcar RUNNING antes de responder para que la UI lo refleje de inmediato
-    db_audit = db.get(AuditModel, audit_id)
     db_audit.status = AuditStatus.RUNNING
     db_audit.started_at = datetime.now(tz=timezone.utc)
     db.commit()
@@ -273,10 +296,10 @@ def run_audit(
         404: {"description": "No existe ninguna auditoría con ese ID."},
     },
 )
-def get_scans(audit_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> list[ScanRead]:
+def get_scans(audit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[ScanRead]:
     """Devuelve todos los scans de una auditoría con sus findings parseados."""
     service = AuditService(db)
-    _get_or_404(service, audit_id)
+    _get_or_404(service, audit_id, current_user)
     return service.get_scans(audit_id)
 
 
@@ -289,10 +312,10 @@ def get_scans(audit_id: int, db: Session = Depends(get_db), _: User = Depends(ge
         404: {"description": "No existe ninguna auditoría con ese ID."},
     },
 )
-def get_findings(audit_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> list[FindingRead]:
+def get_findings(audit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[FindingRead]:
     """Devuelve todos los findings de todos los scans de una auditoría."""
     service = AuditService(db)
-    _get_or_404(service, audit_id)
+    _get_or_404(service, audit_id, current_user)
     return service.get_findings(audit_id)
 
 
@@ -321,7 +344,7 @@ def create_manual_finding(
     se ejecuta enriquecimiento contra NVD igual que con Nuclei.
     """
     service = AuditService(db)
-    _get_or_404(service, audit_id)
+    _get_or_404(service, audit_id, current_user)
     finding = service.add_manual_finding(audit_id, payload)
     ActionLogService(db).log(
         action="manual_finding_created",
@@ -348,7 +371,7 @@ def create_manual_finding(
 def export_findings_csv(
     audit_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """
     Descarga los findings del último run como CSV.
@@ -358,7 +381,7 @@ def export_findings_csv(
     Compatible con Excel, JIRA y otros sistemas de ticketing.
     """
     service = AuditService(db)
-    audit = _get_or_404(service, audit_id)
+    audit = _get_or_404(service, audit_id, current_user)
     findings = service.get_findings(audit_id)
 
     output = io.StringIO()
@@ -412,10 +435,10 @@ def export_findings_csv(
         404: {"description": "No existe ninguna auditoría con ese ID."},
     },
 )
-def get_scan_logs(audit_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> list[ScanLogRead]:
+def get_scan_logs(audit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[ScanLogRead]:
     """Devuelve los logs crudos (raw output) de cada scan, sin parsear."""
     service = AuditService(db)
-    _get_or_404(service, audit_id)
+    _get_or_404(service, audit_id, current_user)
     return service.get_scan_logs(audit_id)
 
 
@@ -431,7 +454,7 @@ def get_scan_logs(audit_id: int, db: Session = Depends(get_db), _: User = Depend
 def get_delta(
     audit_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Compara las dos ultimas ejecuciones de la auditoria por fingerprint.
@@ -442,7 +465,7 @@ def get_delta(
     from app.services.delta_service import DeltaService
 
     service = AuditService(db)
-    _get_or_404(service, audit_id)
+    _get_or_404(service, audit_id, current_user)
     return DeltaService(db).get_delta(audit_id)
 
 
@@ -460,7 +483,7 @@ def get_delta(
 def download_report_pdf(
     audit_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     """
     Genera y descarga el informe de una auditoría en formato PDF.
@@ -472,7 +495,7 @@ def download_report_pdf(
     from app.services.pdf_service import generate_audit_pdf
 
     service = AuditService(db)
-    audit   = _get_or_404(service, audit_id)
+    audit   = _get_or_404(service, audit_id, current_user)
     if audit.report is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -501,7 +524,7 @@ def download_report_pdf(
 def download_executive_pdf(
     audit_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     """
     Genera y descarga el informe ejecutivo en PDF.
@@ -513,7 +536,7 @@ def download_executive_pdf(
     from app.services.pdf_service import generate_executive_pdf
 
     service = AuditService(db)
-    audit   = _get_or_404(service, audit_id)
+    audit   = _get_or_404(service, audit_id, current_user)
     if audit.report is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -532,7 +555,7 @@ def download_executive_pdf(
     "/{audit_id}/compliance",
     response_model=ComplianceRead,
     responses={
-        200: {"description": "OWASP Top 10 2021 compliance map based on current findings."},
+        200: {"description": "OWASP Top 10 2025 compliance map based on current findings."},
         401: {"description": "Token ausente, invalido o expirado."},
         404: {"description": "Auditoria no encontrada."},
     },
@@ -540,17 +563,17 @@ def download_executive_pdf(
 def get_compliance(
     audit_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> ComplianceRead:
     """
-    Agrupa los findings por categoria OWASP Top 10 2021.
+    Agrupa los findings por categoria OWASP Top 10 2025.
 
     Devuelve semaforo por categoria: green (sin findings), yellow (solo info/low),
     red (medium o superior). Las categorias sin cobertura de herramientas aparecen
     como not_assessed.
     """
     service = AuditService(db)
-    _get_or_404(service, audit_id)
+    _get_or_404(service, audit_id, current_user)
     return service.get_compliance(audit_id)
 
 
@@ -563,7 +586,7 @@ def get_compliance(
         404: {"description": "No existe ninguna auditoría con ese ID, o la auditoría aún no ha sido ejecutada y no tiene report."},
     },
 )
-def get_report(audit_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> ReportRead:
+def get_report(audit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ReportRead:
     """
     Devuelve el report de una auditoría.
 
@@ -571,7 +594,7 @@ def get_report(audit_id: int, db: Session = Depends(get_db), _: User = Depends(g
     Solo está disponible después de ejecutar la auditoría con `/run`.
     """
     service = AuditService(db)
-    _get_or_404(service, audit_id)
+    _get_or_404(service, audit_id, current_user)
     report = service.get_report(audit_id)
     if report is None:
         raise HTTPException(

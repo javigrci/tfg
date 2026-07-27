@@ -14,6 +14,8 @@ from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.models import entities  # noqa: F401
+from app.services.action_log_service import ActionLogService
+from app.services.audit_service import AuditService
 from app.services.bootstrap_service import BootstrapService
 
 settings = get_settings()
@@ -23,6 +25,20 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         BootstrapService(db).seed_defaults()
+
+        # Ver ADR-003 (trabajo futuro): BackgroundTasks no sobrevive a un
+        # reinicio del proceso, asi que cualquier auditoria que quedara en
+        # RUNNING al caer el backend se reconcilia a FAILED aqui, antes de
+        # aceptar trafico.
+        orphaned = AuditService(db).reconcile_orphaned_running_audits()
+        for audit in orphaned:
+            ActionLogService(db).log(
+                action="audit_failed",
+                resource_type="audit",
+                resource_id=audit.id,
+                resource_name=audit.name,
+                payload={"status": "failed", "reason": "backend_restart"},
+            )
     yield
 
 

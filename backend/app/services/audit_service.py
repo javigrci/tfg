@@ -41,6 +41,24 @@ class AuditService:
             statement = statement.where(Audit.created_by_id == owner_id)
         return list(self.db.scalars(statement).unique().all())
 
+    def reconcile_orphaned_running_audits(self) -> list[Audit]:
+        """Marca como FAILED las auditorias que quedaron en RUNNING por una caida
+        del backend a mitad de ejecucion.
+
+        BackgroundTasks no sobrevive a un reinicio del proceso (ver ADR-003):
+        si el backend cae mientras una auditoria esta RUNNING, esa fila queda
+        asi para siempre y bloquea el re-run desde la UI. Se llama una vez en
+        el startup de la app (app/main.py) antes de aceptar trafico.
+        """
+        statement = select(Audit).where(Audit.status == AuditStatus.RUNNING)
+        orphaned = list(self.db.scalars(statement).all())
+        for audit in orphaned:
+            audit.status = AuditStatus.FAILED
+            audit.finished_at = _now()
+        if orphaned:
+            self.db.commit()
+        return orphaned
+
     def delete_audit(self, audit_id: int) -> bool:
         audit = self.db.get(Audit, audit_id)
         if audit is None:

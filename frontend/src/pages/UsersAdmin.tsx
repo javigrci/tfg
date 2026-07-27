@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { AxiosError } from 'axios'
 import { toast } from 'sonner'
 import {
   UserPlus,
@@ -147,7 +148,7 @@ export default function UsersAdmin() {
       setNewRole('operator')
       toast.success(t('users.toasts.created'))
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ detail?: string }>) => {
       toast.error(err?.response?.data?.detail ?? t('users.toasts.createFailed'))
     },
   })
@@ -161,7 +162,7 @@ export default function UsersAdmin() {
       setEditPassword('')
       toast.success(t('users.toasts.updated'))
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ detail?: string }>) => {
       toast.error(err?.response?.data?.detail ?? t('users.toasts.updateFailed'))
     },
   })
@@ -173,7 +174,7 @@ export default function UsersAdmin() {
       setDeleteTarget(null)
       toast.success(t('users.toasts.deleted'))
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ detail?: string }>) => {
       toast.error(err?.response?.data?.detail ?? t('users.toasts.deleteFailed'))
     },
   })

@@ -536,7 +536,7 @@ export default function AuditDetail() {
       toast.error(t('auditDetail.toasts.failed'))
     }
     prevStatusRef.current = curr
-  }, [audit?.status, id, qc])
+  }, [audit?.status, id, qc, t])
 
   const runMutation = useMutation({
     mutationFn: () => api.post(`/audits/${id}/run`).then(r => r.data),

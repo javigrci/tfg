@@ -32,9 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setToken(null)
           setUser(null)
         })
-    } else {
-      setUser(null)
     }
+    // Sin token no hace falta setUser(null): el estado inicial ya es null,
+    // y login()/logout() ya lo resetean explicitamente en cada transicion.
   }, [token])
 
   async function login(username: string, password: string) {
@@ -60,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-localizado con su Provider a proposito
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used inside AuthProvider')

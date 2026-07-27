@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
@@ -321,6 +321,7 @@ export default function AuditNew() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+  const nextNodeId = useRef(0)
 
   // Derived
   const executionOrder = useMemo(() => getExecutionOrder(nodes, edges), [nodes, edges])
@@ -359,7 +360,7 @@ export default function AuditNew() {
       toast.warning(t('auditNew.toasts.alreadyInWorkflow', { tool: TOOL_META[tool].label }))
       return
     }
-    const newId = `tool-${Date.now()}-${tool}`
+    const newId = `tool-${nextNodeId.current++}-${tool}`
 
     setNodes(prev => {
       const endNode = prev.find(n => n.id === 'end')!

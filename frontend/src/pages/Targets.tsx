@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { AxiosError } from 'axios'
 import { Plus, Wifi, Trash2, X, Loader2, AlertTriangle, FlaskConical, RefreshCw, Check, TrendingUp } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -188,7 +189,7 @@ export default function Targets() {
       setToDelete(null)
       setDeleteError('')
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError) => {
       if (err.response?.status === 409) {
         setDeleteError(t('targets.delete.error409'))
       } else {
@@ -685,8 +686,9 @@ export default function Targets() {
                           stroke="#3b82f6"
                           strokeWidth={2}
                           fill="url(#histGrad)"
-                          dot={(props: any) => {
+                          dot={(props: { cx?: number; cy?: number; payload?: { score: number } }) => {
                             const { cx, cy, payload } = props
+                            if (!payload) return <></>
                             return (
                               <circle
                                 key={cx}

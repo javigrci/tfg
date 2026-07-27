@@ -130,7 +130,7 @@ export interface ActionLogEntry {
   resource_type: string | null
   resource_id: number | null
   resource_name: string | null
-  payload: Record<string, any>
+  payload: Record<string, unknown>
   created_at: string
   user: { id: number; username: string; role: { id: number; name: UserRole } } | null
 }

@@ -29,3 +29,5 @@ lerna-debug.log*
 *.sw?
 .claude
 *.db-journal
+.specify/
+.github

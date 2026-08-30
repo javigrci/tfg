@@ -201,12 +201,29 @@ class LogRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+_WEB_TOOLS = {"nikto", "wapiti", "nuclei"}
+
+
 class AuditCreate(BaseModel):
     name: str
     description: Optional[str] = None
     audit_type: AuditType = AuditType.VULNERABILITY_SCAN
     target_id: int
     modules: list[str] = Field(default=["nmap"], description="Herramientas de escaneo")
+
+    @field_validator("modules")
+    @classmethod
+    def _nmap_before_web_tools(cls, modules: list[str]) -> list[str]:
+        web_idx = [i for i, m in enumerate(modules) if m in _WEB_TOOLS]
+        if not web_idx:
+            return modules
+        if "nmap" not in modules or modules.index("nmap") > min(web_idx):
+            raise ValueError(
+                "Nmap debe ejecutarse antes que las herramientas web (Nikto, Wapiti, "
+                "Nuclei) para que el encadenamiento funcione. Añade Nmap o muévelo al "
+                "principio del flujo."
+            )
+        return modules
 
 
 class AuditRead(BaseModel):

@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # aparezca como finding cuando el target comparte host con la app.
     # En producción con Nginx: EXCLUDED_PORTS=80,443
     excluded_ports: str = Field(default="8000,5173", alias="EXCLUDED_PORTS")
+    chain_max_web_targets: int = Field(default=3, alias="CHAIN_MAX_WEB_TARGETS")
 
     model_config = SettingsConfigDict(
         env_file=".env",

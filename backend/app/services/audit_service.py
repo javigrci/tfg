@@ -11,8 +11,11 @@ from app.domain.enums import (
     ScanStatus,
     SeverityLevel,
 )
+from app.core.config import get_settings
+from app.executors.base import ChainContext
 from app.executors.factory import get_executor, get_parser
 from app.models.entities import Audit, Event, Finding, FindingVulnerability, Log, OwaspCategory, Report, Scan, Target, User, Vulnerability
+from app.parsers.nmap_parser import NmapParser, select_web_targets
 from app.schemas.audit import AuditCreate
 from app.services.cve_enrichment import CVEEnrichmentService
 
@@ -625,6 +628,9 @@ class AuditService:
         all_saved_findings: list[Finding] = []
         raw_results: list[dict] = []
 
+        chain_context = ChainContext()
+        chain_limit = get_settings().chain_max_web_targets
+
         for tool_name in tools:
             try:
                 executor = get_executor(tool_name)
@@ -634,7 +640,11 @@ class AuditService:
                 continue
 
             try:
-                raw_results = executor.execute(audit.target.address, details=audit.target.details)
+                raw_results = executor.execute(
+                    audit.target.address,
+                    details=audit.target.details,
+                    chain_context=chain_context,
+                )
                 scan_status = ScanStatus.COMPLETED
             except Exception as exc:
                 raw_results = [
@@ -677,6 +687,23 @@ class AuditService:
                         all_saved_findings.append(f)
                         severity_counts[finding_data["severity"]] += 1
                     total_findings += len(findings)
+
+            if tool_name == "nmap" and scan_status == ScanStatus.COMPLETED and raw_results:
+                discovered = NmapParser.extract_web_targets(
+                    raw_results[0].get("raw_output", ""), audit.target.address
+                )
+                chain_context.web_targets = select_web_targets(discovered, chain_limit)
+                if discovered:
+                    self.db.add(Log(
+                        audit_id=audit.id,
+                        level="INFO",
+                        message=(
+                            f"Tool chaining: {len(discovered)} endpoint(s) web descubierto(s), "
+                            f"{len(chain_context.web_targets)} encadenado(s), "
+                            f"{len(discovered) - len(chain_context.web_targets)} descartado(s) "
+                            f"(limite {chain_limit})"
+                        ),
+                    ))
 
         risk_level = RiskLevel.INFO
         for level in (SeverityLevel.CRITICAL, SeverityLevel.HIGH, SeverityLevel.MEDIUM, SeverityLevel.LOW):

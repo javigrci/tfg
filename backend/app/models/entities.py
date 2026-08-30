@@ -72,7 +72,7 @@ class Audit(Base):
 
     created_by: Mapped["User"] = relationship(back_populates="audits")
     target: Mapped["Target"] = relationship(back_populates="audits")
-    scans: Mapped[list["Scan"]] = relationship(back_populates="audit", cascade="all, delete-orphan")
+    scans: Mapped[list["Scan"]] = relationship(back_populates="audit", cascade="all, delete-orphan", order_by="Scan.id")
     report: Mapped[Optional["Report"]] = relationship(back_populates="audit", cascade="all, delete-orphan", uselist=False)
     events: Mapped[list["Event"]] = relationship(back_populates="audit", cascade="all, delete-orphan")
     logs: Mapped[list["Log"]] = relationship(back_populates="audit", cascade="all, delete-orphan")

@@ -540,8 +540,8 @@
       "disconnectedSingle":  "{{names}} no está conectado a la cadena de ejecución.",
       "disconnectedMultiple":"{{names}} no están conectados a la cadena de ejecución.",
       "branching":           "Bifurcación detectada: solo se ejecutará la primera conexión saliente de cada nodo.",
-      "webNoNmap":           "{{tools}} se benefician de ejecutar Nmap primero para identificar puertos web abiertos.",
-      "nmapLate":            "Nmap está colocado después de las herramientas web. Muévelo antes para un mejor descubrimiento de puertos."
+      "webNoNmap":           "Añade Nmap antes de las herramientas web ({{tools}}). Sin él, las herramientas web no pueden escanear los puertos que Nmap descubriría.",
+      "nmapLate":            "Nmap debe ejecutarse antes que las herramientas web. Muévelo al principio del flujo."
     },
     "toasts": {
       "alreadyInWorkflow": "{{tool}} ya está en el flujo",

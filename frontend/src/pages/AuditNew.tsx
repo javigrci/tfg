@@ -174,11 +174,11 @@ function analyzeWorkflow(
 
   // Web tools without Nmap
   const hasNmap = order.includes('nmap')
-  const webTools = (['nikto', 'wapiti'] as ScanTool[]).filter(wt => order.includes(wt))
+  const webTools = (['nikto', 'wapiti', 'nuclei'] as ScanTool[]).filter(wt => order.includes(wt))
   if (webTools.length > 0 && !hasNmap) {
     warnings.push({
-      id: 'web-no-nmap', severity: 'warning',
-      message: t('auditNew.warnings.webNoNmap', { tools: webTools.map(wt => TOOL_META[wt].label).join(' and ') }),
+      id: 'web-no-nmap', severity: 'error',
+      message: t('auditNew.warnings.webNoNmap', { tools: webTools.map(wt => TOOL_META[wt].label).join(', ') }),
     })
   }
 
@@ -188,7 +188,7 @@ function analyzeWorkflow(
     const firstWeb = Math.min(...webTools.map(wt => order.indexOf(wt)))
     if (nmapIdx > firstWeb) {
       warnings.push({
-        id: 'nmap-late', severity: 'warning',
+        id: 'nmap-late', severity: 'error',
         message: t('auditNew.warnings.nmapLate'),
       })
     }

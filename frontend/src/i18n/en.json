@@ -540,8 +540,8 @@
       "disconnectedSingle":  "{{names}} is not connected to the execution chain.",
       "disconnectedMultiple":"{{names}} are not connected to the execution chain.",
       "branching":           "Branching detected: only the first outgoing connection per node will be executed.",
-      "webNoNmap":           "{{tools}} benefit from Nmap running first to identify open web ports.",
-      "nmapLate":            "Nmap is placed after web tools. Move it earlier for better port discovery."
+      "webNoNmap":           "Add Nmap before the web tools ({{tools}}). Without it, the web tools cannot scan the ports Nmap would discover.",
+      "nmapLate":            "Nmap must run before the web tools. Move it to the start of the flow."
     },
     "toasts": {
       "alreadyInWorkflow": "{{tool}} is already in the workflow",

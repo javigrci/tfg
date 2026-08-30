@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.domain.enums import SeverityLevel
+from app.domain.enums import CveEnrichmentStatus, SeverityLevel
 from app.models.entities import Finding, FindingVulnerability, Vulnerability
 
 logger = logging.getLogger(__name__)
@@ -56,14 +56,20 @@ class CVEEnrichmentService:
 
     def enrich(self, findings: list[Finding]) -> None:
         """
-        Enriquece la lista de findings con datos de CVE de NVD.
-        Opera in-place: añade registros a Vulnerability y FindingVulnerability.
-        Falla silenciosamente si NVD no está disponible.
+        Enriquece la lista de findings con datos de CVE de NVD y fija
+        finding.cve_enrichment_status (done / unavailable) para cada uno.
+        Opera in-place. Falla silenciosamente a nivel de auditoría.
         """
         try:
-            import nvdlib  # noqa: PLC0415 — import diferido para no romper si no está instalado
+            import nvdlib  # noqa: PLC0415
         except ImportError:
-            logger.warning("nvdlib no está instalado. CVE enrichment desactivado.")
+            logger.warning("nvdlib no está instalado. CVE enrichment no disponible.")
+            for finding in findings:
+                finding.cve_enrichment_status = (
+                    CveEnrichmentStatus.DONE if not finding.cpe
+                    else CveEnrichmentStatus.UNAVAILABLE
+                )
+            self.db.flush()
             return
 
         api_key = self.settings.nvd_api_key or None
@@ -71,22 +77,35 @@ class CVEEnrichmentService:
         enriched = 0
         for finding in findings:
             if not finding.cpe:
+                finding.cve_enrichment_status = CveEnrichmentStatus.DONE
                 continue
 
             try:
                 cves = self._fetch_cves(nvdlib, finding.cpe, api_key)
-                if cves:
-                    self._upsert_vulnerabilities(finding, cves)
-                    self._upgrade_severity(finding, cves)
-                    enriched += 1
             except Exception as exc:
+                finding.cve_enrichment_status = CveEnrichmentStatus.UNAVAILABLE
                 logger.warning(
-                    "CVE enrichment falló para finding %s (cpe=%s): %s",
+                    "CVE enrichment no disponible para finding %s (cpe=%s): %s",
                     finding.id,
                     finding.cpe,
                     exc,
                 )
+                continue
 
+            finding.cve_enrichment_status = CveEnrichmentStatus.DONE
+            if cves:
+                try:
+                    self._upsert_vulnerabilities(finding, cves)
+                    self._upgrade_severity(finding, cves)
+                    enriched += 1
+                except Exception as exc:
+                    logger.warning(
+                        "CVE enrichment: fallo al persistir CVEs de finding %s: %s",
+                        finding.id,
+                        exc,
+                    )
+
+        self.db.flush()
         if enriched:
             logger.info("CVE enrichment: %d findings enriquecidos.", enriched)
 

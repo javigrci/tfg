@@ -65,3 +65,9 @@ class FindingStatus(str, Enum): #revisar esto
     IN_PROGRESS    = "in_progress"
     RESOLVED       = "resolved"
     FALSE_POSITIVE = "false_positive"
+
+
+class CveEnrichmentStatus(str, Enum):
+    PENDING     = "pending"
+    DONE        = "done"
+    UNAVAILABLE = "unavailable"

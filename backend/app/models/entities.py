@@ -7,6 +7,7 @@ from app.db.base import Base
 from app.domain.enums import (
     AuditStatus,
     AuditType,
+    CveEnrichmentStatus,
     FindingCategory,
     FindingStatus,
     RiskLevel,
@@ -110,6 +111,12 @@ class Finding(Base):
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     fingerprint: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, index=True)
     cpe: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    cve_enrichment_status: Mapped[CveEnrichmentStatus] = mapped_column(
+        Enum(CveEnrichmentStatus),
+        nullable=False,
+        default=CveEnrichmentStatus.PENDING,
+        server_default=CveEnrichmentStatus.DONE.name,
+    )
 
     scan: Mapped["Scan"] = relationship(back_populates="findings")
     assigned_to: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to_id])

@@ -459,6 +459,12 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
                 <p className="text-foreground">{finding.recommendation}</p>
               </div>
               <CveChips vulnerabilities={finding.vulnerabilities} />
+              {finding.cve_enrichment_status === 'unavailable' && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  {t('auditDetail.cveUnverified')}
+                </p>
+              )}
               {finding.notes && (
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{t('auditDetail.notesLabel')}</p>

@@ -377,8 +377,8 @@ def export_findings_csv(
     Descarga los findings del último run como CSV.
 
     Incluye: id, title, severity, category, status, tool, description,
-    evidence, recommendation, cve_ids, cvss_scores, fingerprint.
-    Compatible con Excel, JIRA y otros sistemas de ticketing.
+    evidence, recommendation, cve_ids, cvss_scores, cve_enrichment_status,
+    fingerprint. Compatible con Excel, JIRA y otros sistemas de ticketing.
     """
     service = AuditService(db)
     audit = _get_or_404(service, audit_id, current_user)
@@ -391,7 +391,7 @@ def export_findings_csv(
     writer.writerow([
         "id", "title", "severity", "category", "status", "tool",
         "description", "evidence", "recommendation",
-        "cve_ids", "cvss_scores", "fingerprint",
+        "cve_ids", "cvss_scores", "cve_enrichment_status", "fingerprint",
     ])
 
     # Build a scan_id → tool mapping from the audit
@@ -414,6 +414,7 @@ def export_findings_csv(
             f.recommendation,
             cve_ids,
             cvss_vals,
+            f.cve_enrichment_status.value,
             f.fingerprint or "",
         ])
 

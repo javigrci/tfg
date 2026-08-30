@@ -34,6 +34,7 @@ get_settings.cache_clear()
 settings = get_settings()
 
 from app.db.base import Base  # noqa: E402
+from app.db.migrations import apply_lightweight_migrations  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services.bootstrap_service import BootstrapService  # noqa: E402
@@ -61,6 +62,7 @@ TestSessionLocal = sessionmaker(
 )
 
 Base.metadata.create_all(bind=engine)
+apply_lightweight_migrations(engine)
 
 with TestSessionLocal() as _seed_db:
     BootstrapService(_seed_db).seed_defaults()

@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.domain.enums import (
     AuditStatus,
     AuditType,
+    CveEnrichmentStatus,
     FindingCategory,
     FindingStatus,
     RiskLevel,
@@ -107,6 +108,7 @@ class FindingRead(BaseModel):
     resolved_at: Optional[datetime] = None
     fingerprint: Optional[str] = None
     cpe: Optional[str] = None
+    cve_enrichment_status: CveEnrichmentStatus = CveEnrichmentStatus.DONE
     vulnerabilities: list[VulnerabilityRead] = []
 
     model_config = {"from_attributes": True}

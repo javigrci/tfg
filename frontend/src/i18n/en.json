@@ -302,6 +302,7 @@
     "descLabel":        "Description",
     "evidenceLabel":    "Evidence",
     "recommendLabel":   "Recommendation",
+    "cveUnverified":    "CVE data could not be verified (external source unavailable)",
     "notesLabel":       "Analyst Notes",
     "statusLabel":      "Status",
     "changesTitle":     "Changes since last run",

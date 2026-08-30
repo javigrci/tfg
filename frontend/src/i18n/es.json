@@ -302,6 +302,7 @@
     "descLabel":        "Descripción",
     "evidenceLabel":    "Evidencia",
     "recommendLabel":   "Recomendación",
+    "cveUnverified":    "No se pudo verificar la información de CVE (fuente externa no disponible)",
     "notesLabel":       "Notas del analista",
     "statusLabel":      "Estado",
     "changesTitle":     "Cambios desde la última ejecución",

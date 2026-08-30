@@ -6,14 +6,16 @@ responde.
 No golpea la red real -- se parchea nvdlib.searchCVE con objetos CVE falsos
 (SimpleNamespace) que imitan la forma que usa CVEEnrichmentService.
 """
+import sys
 from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select
 
-from app.domain.enums import FindingCategory, ScanStatus, SeverityLevel
+from app.domain.enums import CveEnrichmentStatus, FindingCategory, ScanStatus, SeverityLevel
 from app.models.entities import Finding, FindingVulnerability, Scan, Vulnerability
 from app.services.cve_enrichment import CVEEnrichmentService, _cvss_to_severity
+from tests.conftest import finding_data
 
 
 def _fake_cve(cve_id: str, base_score: float, description: str = "desc") -> SimpleNamespace:
@@ -178,3 +180,139 @@ def test_rf008_cve_id_directo_de_nuclei_usa_busqueda_por_cveid(db_session, monke
     CVEEnrichmentService(db_session).enrich([finding])
     assert "cveId" in seen_kwargs
     assert seen_kwargs["cveId"] == "CVE-2023-1234"
+
+
+# ── spec 001: estado de enriquecimiento de CVE (pending / done / unavailable) ──
+
+def test_rf008_estado_inicial_es_pending(finding_with_cpe):
+    """Un finding recién creado por un scan nace 'pending' hasta que enrich() lo procesa."""
+    assert finding_with_cpe.cve_enrichment_status == CveEnrichmentStatus.PENDING
+
+
+def test_rf008_estado_done_tras_consulta_con_cves(db_session, finding_with_cpe, monkeypatch):
+    import nvdlib
+    monkeypatch.setattr(nvdlib, "searchCVE", lambda **kw: [_fake_cve("CVE-2021-41773", 7.5)])
+
+    CVEEnrichmentService(db_session).enrich([finding_with_cpe])
+    assert finding_with_cpe.cve_enrichment_status == CveEnrichmentStatus.DONE
+
+
+def test_rf008_estado_done_tras_consulta_sin_cves(db_session, finding_with_cpe, monkeypatch):
+    """La consulta a NVD respondió pero no había CVEs → 'done', no 'unavailable'."""
+    import nvdlib
+    monkeypatch.setattr(nvdlib, "searchCVE", lambda **kw: [])
+
+    CVEEnrichmentService(db_session).enrich([finding_with_cpe])
+    assert finding_with_cpe.cve_enrichment_status == CveEnrichmentStatus.DONE
+
+
+def test_rf008_estado_done_finding_sin_cpe(db_session, monkeypatch):
+    """Sin `cpe` no hay nada que consultar → 'done' (evaluado, sin CVE legítimamente)."""
+    import nvdlib
+    called = []
+    monkeypatch.setattr(nvdlib, "searchCVE", lambda **kw: called.append(kw) or [])
+
+    aid = _make_audit_id(db_session)
+    scan = Scan(audit_id=aid, tool="nmap", status=ScanStatus.COMPLETED, run_number=1)
+    db_session.add(scan); db_session.flush()
+    finding = Finding(
+        scan_id=scan.id, title="sin cpe", description="d", severity=SeverityLevel.LOW,
+        category=FindingCategory.OTHER, recommendation="r", cpe=None,
+    )
+    db_session.add(finding); db_session.flush()
+
+    CVEEnrichmentService(db_session).enrich([finding])
+    assert finding.cve_enrichment_status == CveEnrichmentStatus.DONE
+    assert called == []
+
+
+def test_rf008_estado_unavailable_si_nvd_no_responde(db_session, finding_with_cpe, monkeypatch):
+    import nvdlib
+
+    def _boom(**kw):
+        raise ConnectionError("NVD no disponible")
+
+    monkeypatch.setattr(nvdlib, "searchCVE", _boom)
+
+    CVEEnrichmentService(db_session).enrich([finding_with_cpe])
+    assert finding_with_cpe.cve_enrichment_status == CveEnrichmentStatus.UNAVAILABLE
+
+
+def test_rf008_estado_unavailable_si_nvdlib_ausente(db_session, finding_with_cpe, monkeypatch):
+    """nvdlib no instalado → los findings con algo que consultar quedan 'unavailable'."""
+    monkeypatch.setitem(sys.modules, "nvdlib", None)
+
+    CVEEnrichmentService(db_session).enrich([finding_with_cpe])
+    assert finding_with_cpe.cve_enrichment_status == CveEnrichmentStatus.UNAVAILABLE
+
+
+def test_rf008_auditoria_se_completa_con_nvd_caido(
+    client, admin_headers, make_target, fake_tool, monkeypatch
+):
+    """SC-003 / FR-003: NVD caído no rompe la auditoría; los findings quedan 'unavailable'."""
+    import nvdlib
+
+    def _boom(**kw):
+        raise ConnectionError("NVD down")
+
+    monkeypatch.setattr(nvdlib, "searchCVE", _boom)
+
+    fake_tool(findings=[
+        finding_data(
+            title="Apache desactualizado",
+            severity=SeverityLevel.LOW,
+            category=FindingCategory.OUTDATED_COMPONENTS,
+            cpe="cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*",
+        ),
+    ])
+    t = make_target()
+    audit = client.post(
+        "/api/v1/audits",
+        json={"name": "nvd caido", "audit_type": "vulnerability_scan",
+              "target_id": t["id"], "modules": ["faketool"]},
+        headers=admin_headers,
+    ).json()
+    run = client.post(f"/api/v1/audits/{audit['id']}/run", headers=admin_headers)
+    assert run.status_code in (200, 202), run.text
+
+    detail = client.get(f"/api/v1/audits/{audit['id']}", headers=admin_headers).json()
+    assert detail["status"] == "completed"
+    assert detail["report"] is not None
+
+    findings = client.get(
+        f"/api/v1/audits/{audit['id']}/scans/findings", headers=admin_headers
+    ).json()
+    assert findings
+    assert all(f["cve_enrichment_status"] == "unavailable" for f in findings)
+
+
+def test_rf008_estado_enrichment_visible_en_api(
+    client, admin_headers, make_target, fake_tool, monkeypatch
+):
+    """US2: el estado es consultable vía API (finding embebido y lista global) sin UI."""
+    import nvdlib
+    monkeypatch.setattr(nvdlib, "searchCVE", lambda **kw: [])
+
+    fake_tool(findings=[
+        finding_data(title="con cpe",
+                     cpe="cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*"),
+        finding_data(title="sin cpe", cpe=None),
+    ])
+    t = make_target()
+    audit = client.post(
+        "/api/v1/audits",
+        json={"name": "api visible", "audit_type": "vulnerability_scan",
+              "target_id": t["id"], "modules": ["faketool"]},
+        headers=admin_headers,
+    ).json()
+    client.post(f"/api/v1/audits/{audit['id']}/run", headers=admin_headers)
+
+    embedded = client.get(
+        f"/api/v1/audits/{audit['id']}/scans/findings", headers=admin_headers
+    ).json()
+    assert embedded
+    assert all(f["cve_enrichment_status"] == "done" for f in embedded)
+
+    global_list = client.get("/api/v1/findings", headers=admin_headers).json()
+    assert global_list
+    assert all("cve_enrichment_status" in f for f in global_list)

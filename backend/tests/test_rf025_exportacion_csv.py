@@ -28,11 +28,12 @@ def test_rf025_csv_contiene_cabecera_y_filas_esperadas(client, admin_headers, ma
     assert header == [
         "id", "title", "severity", "category", "status", "tool",
         "description", "evidence", "recommendation",
-        "cve_ids", "cvss_scores", "fingerprint",
+        "cve_ids", "cvss_scores", "cve_enrichment_status", "fingerprint",
     ]
     assert data_row[header.index("title")] == "SQLi"
     assert data_row[header.index("severity")] == "critical"
     assert data_row[header.index("tool")] == "faketool"
+    assert data_row[header.index("cve_enrichment_status")] == "done"
 
 
 def test_rf025_csv_vacio_si_no_hay_findings(client, admin_headers, make_target, fake_tool):

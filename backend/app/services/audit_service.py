@@ -3,7 +3,14 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
-from app.domain.enums import AuditStatus, FindingStatus, RiskLevel, ScanStatus, SeverityLevel
+from app.domain.enums import (
+    AuditStatus,
+    CveEnrichmentStatus,
+    FindingStatus,
+    RiskLevel,
+    ScanStatus,
+    SeverityLevel,
+)
 from app.executors.factory import get_executor, get_parser
 from app.models.entities import Audit, Event, Finding, FindingVulnerability, Log, OwaspCategory, Report, Scan, Target, User, Vulnerability
 from app.schemas.audit import AuditCreate
@@ -440,6 +447,7 @@ class AuditService:
                 "status": finding.status,
                 "notes": finding.notes,
                 "fingerprint": finding.fingerprint,
+                "cve_enrichment_status": finding.cve_enrichment_status,
                 "audit_id": audit.id,
                 "audit_name": audit.name,
                 "scan_tool": scan.tool,
@@ -564,6 +572,9 @@ class AuditService:
             status=FindingStatus.OPEN,
             fingerprint=fingerprint,
             cpe=data.cve_id,   # igual que Nuclei: CVE ID en campo cpe → enrichment
+            cve_enrichment_status=(
+                CveEnrichmentStatus.PENDING if data.cve_id else CveEnrichmentStatus.DONE
+            ),
         )
         self.db.add(finding)
         self.db.commit()
@@ -724,10 +735,9 @@ class AuditService:
         self.db.commit()
 
         # CVE enrichment — falla silenciosamente, no bloquea el audit
-        findings_with_cpe = [f for f in all_saved_findings if f.cpe]
-        if findings_with_cpe:
+        if all_saved_findings:
             try:
-                CVEEnrichmentService(self.db).enrich(findings_with_cpe)
+                CVEEnrichmentService(self.db).enrich(all_saved_findings)
                 self.db.commit()
             except Exception as exc:
                 self.db.add(
@@ -735,6 +745,23 @@ class AuditService:
                         audit_id=audit.id,
                         level="WARNING",
                         message=f"CVE enrichment falló (no crítico): {exc}",
+                    )
+                )
+                self.db.commit()
+
+            still_pending = [
+                f for f in all_saved_findings
+                if f.cve_enrichment_status == CveEnrichmentStatus.PENDING
+            ]
+            if still_pending:
+                self.db.add(
+                    Log(
+                        audit_id=audit.id,
+                        level="WARNING",
+                        message=(
+                            f"{len(still_pending)} hallazgo(s) quedaron con "
+                            f"cve_enrichment_status='pending' tras run_audit"
+                        ),
                     )
                 )
                 self.db.commit()

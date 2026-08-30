@@ -15,6 +15,7 @@ export type ScanTool      = 'nmap' | 'nikto' | 'wapiti' | 'nuclei' | 'manual'
 export type SeverityLevel = 'info' | 'low' | 'medium' | 'high' | 'critical'
 export type RiskLevel     = 'info' | 'low' | 'medium' | 'high' | 'critical'
 export type TargetStatus  = 'unknown' | 'reachable' | 'unreachable'
+export type CveEnrichmentStatus = 'pending' | 'done' | 'unavailable'
 
 export interface Target {
   id: number
@@ -64,6 +65,7 @@ export interface Finding {
   notes: string | null
   fingerprint: string | null
   cpe: string | null
+  cve_enrichment_status: CveEnrichmentStatus
   resolved_at: string | null
   vulnerabilities: Vulnerability[]
 }

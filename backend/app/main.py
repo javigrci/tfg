@@ -12,6 +12,7 @@ from app.api.routes.targets import router as targets_router
 from app.api.routes.users import router as users_router
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.migrations import apply_lightweight_migrations
 from app.db.session import SessionLocal, engine
 from app.models import entities  # noqa: F401
 from app.services.action_log_service import ActionLogService
@@ -23,6 +24,13 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+
+    try:
+        apply_lightweight_migrations(engine)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Micro-migraciones fallaron: %s", exc)
+
     with SessionLocal() as db:
         BootstrapService(db).seed_defaults()
 

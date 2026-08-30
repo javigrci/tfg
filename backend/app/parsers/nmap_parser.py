@@ -1,6 +1,45 @@
 import xml.etree.ElementTree as ET
+from urllib.parse import urlparse
 
 from app.domain.enums import FindingCategory, SeverityLevel
+
+# ── Tool chaining: descubrimiento de endpoints web ──────────────────────────
+_HTTPS_PORTS = {443, 8443, 9443}
+_HTTPS_SVC_NAMES = {"https", "ssl/http", "https-alt"}
+_WEB_SVC_NAMES = {"http", "https", "http-proxy", "http-alt", "https-alt", "ssl/http", "www"}
+_DEFAULT_SCHEME_PORT = {"http": 80, "https": 443}
+_ADMIN_WEB_PORTS = {8080, 8443, 8000, 8888, 9000, 9090}
+
+
+def normalize_endpoint(url: str) -> tuple[str, str, int]:
+    parsed = urlparse(url if "://" in url else f"http://{url}")
+    scheme = parsed.scheme or "http"
+    port = parsed.port or _DEFAULT_SCHEME_PORT.get(scheme, 80)
+    return scheme, (parsed.hostname or url).lower(), port
+
+
+def _endpoint_priority(url: str) -> tuple[int, int]:
+    _, _, port = normalize_endpoint(url)
+    if port in (80, 443):
+        return (0, port)
+    if port in _ADMIN_WEB_PORTS:
+        return (1, port)
+    return (2, port)
+
+
+def select_web_targets(urls: list[str], limit: int) -> list[str]:
+    """Deduplica, prioriza (80/443 → paneles admin → resto) y recorta al tope."""
+    seen: set[tuple[str, str, int]] = set()
+    unique: list[str] = []
+    for url in urls:
+        key = normalize_endpoint(url)
+        if key not in seen:
+            seen.add(key)
+            unique.append(url)
+    unique.sort(key=_endpoint_priority)
+    if limit is not None and limit >= 0:
+        return unique[:limit]
+    return unique
 
 # ── Clasificación de severidad por puerto ────────────────────────────────────
 HIGH_RISK_PORTS = {
@@ -238,3 +277,52 @@ class NmapParser:
 
         # 3. Any open port is a potential misconfiguration
         return FindingCategory.SECURITY_MISCONFIG
+
+    # ── Tool chaining ───────────────────────────────────────────────────────
+
+    @classmethod
+    def extract_web_targets(cls, raw_output: str, base_address: str) -> list[str]:
+        """URLs web (`http(s)://host:puerto`) de los puertos abiertos con servicio web."""
+        if not raw_output or not raw_output.strip().startswith("<?xml"):
+            return []
+        try:
+            root = ET.fromstring(raw_output)
+        except ET.ParseError:
+            return []
+
+        base_host = urlparse(
+            base_address if "://" in base_address else f"http://{base_address}"
+        ).hostname or base_address
+
+        targets: list[str] = []
+        for host_el in root.findall("host"):
+            addr_el = host_el.find("address[@addrtype='ipv4']")
+            ip = addr_el.get("addr") if addr_el is not None else None
+            host = base_host or ip or ""
+            ports_el = host_el.find("ports")
+            if ports_el is None:
+                continue
+            for port_el in ports_el.findall("port"):
+                state_el = port_el.find("state")
+                if state_el is None or state_el.get("state") != "open":
+                    continue
+                portid = int(port_el.get("portid", 0))
+                service_el = port_el.find("service")
+                name = (service_el.get("name", "") if service_el is not None else "").lower()
+                tunnel = (service_el.get("tunnel", "") if service_el is not None else "").lower()
+
+                is_web = (
+                    name in _WEB_SVC_NAMES
+                    or "http" in name
+                    or portid in WEB_PORTS
+                )
+                if not is_web:
+                    continue
+
+                scheme = (
+                    "https"
+                    if tunnel == "ssl" or name in _HTTPS_SVC_NAMES or portid in _HTTPS_PORTS
+                    else "http"
+                )
+                targets.append(f"{scheme}://{host}:{portid}")
+        return targets

@@ -4,7 +4,7 @@ import subprocess
 import uuid
 from pathlib import Path
 
-from app.executors.base import AuditExecutor
+from app.executors.base import AuditExecutor, ChainContext
 
 WAPITI_TIMEOUT   = 1200  # Python safety net (20 min) -- debe superar scan+attack+procesado de cola
 MAX_SCAN_TIME    = 240   # wapiti crawl limit (4 min)
@@ -52,10 +52,23 @@ class WapitiExecutor(AuditExecutor):
     description  = "Rastreo activo de aplicaciones web: SQLi, XSS, LFI, CSRF y cabeceras de seguridad."
     timeout      = WAPITI_TIMEOUT  # 20 min
 
-    def execute(self, direccion: str, details: dict | None = None) -> list[dict]:
+    def execute(
+        self,
+        direccion: str,
+        details: dict | None = None,
+        chain_context: ChainContext | None = None,
+    ) -> list[dict]:
+        targets = (
+            chain_context.web_targets
+            if chain_context and chain_context.web_targets
+            else [direccion]
+        )
+        return [self._run_one(t, details) for t in targets]
+
+    def _run_one(self, direccion: str, details: dict | None = None) -> dict:
         # Wapiti solo tiene sentido sobre targets web
         if not _is_web_target(direccion):
-            return [{"tool": self.name, "command": "", "raw_output": "{}"}]
+            return {"tool": self.name, "command": "", "raw_output": "{}"}
 
         wapiti_bin  = find_wapiti()
         output_file = Path(f"/tmp/wapiti_{uuid.uuid4().hex[:8]}.json")
@@ -116,10 +129,8 @@ class WapitiExecutor(AuditExecutor):
         finally:
             output_file.unlink(missing_ok=True)
 
-        return [
-            {
-                "tool":       self.name,
-                "command":    comando,
-                "raw_output": raw_output,
-            }
-        ]
+        return {
+            "tool":       self.name,
+            "command":    comando,
+            "raw_output": raw_output,
+        }

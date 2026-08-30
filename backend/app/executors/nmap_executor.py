@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.core.config import get_settings
-from app.executors.base import AuditExecutor
+from app.executors.base import AuditExecutor, ChainContext
 
 timeout = 180
 
@@ -50,7 +50,12 @@ class NmapExecutor(AuditExecutor):
     description = "Enumera los puertos abiertos, servicios y versiones mediante un escaneo."
     timeout = timeout
 
-    def execute(self, direccion: str, details: dict | None = None) -> list[dict]:
+    def execute(
+        self,
+        direccion: str,
+        details: dict | None = None,
+        chain_context: ChainContext | None = None,
+    ) -> list[dict]:
         nmap_bin = find_nmap()
         host, puerto = extraer_host_puerto(direccion)
 

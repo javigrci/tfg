@@ -1,7 +1,8 @@
 import shutil
 import subprocess
 import os
-from app.executors.base import AuditExecutor
+from app.executors.base import AuditExecutor, ChainContext
+from app.parsers.nmap_parser import normalize_endpoint
 
 timeout = 900
 
@@ -32,12 +33,33 @@ class NucleiExecutor(AuditExecutor):
     description = "Detecta vulnerabilidades y malas configuraciones mediante plantillas automatizadas."
     timeout = timeout
 
-    def execute(self, direccion: str, details: dict | None = None) -> list[dict]:
+    def execute(
+        self,
+        direccion: str,
+        details: dict | None = None,
+        chain_context: ChainContext | None = None,
+    ) -> list[dict]:
+        web = (
+            chain_context.web_targets
+            if chain_context and chain_context.web_targets
+            else []
+        )
+        targets = [direccion]
+        seen = {normalize_endpoint(direccion)}
+        for url in web:
+            key = normalize_endpoint(url)
+            if key not in seen:
+                seen.add(key)
+                targets.append(url)
+        return [self._run_one(targets)]
+
+    def _run_one(self, targets: list[str]) -> dict:
         nuclei_bin = find_nuclei()
 
-        cmd_parts = [
-            nuclei_bin,
-            "-u", direccion,
+        cmd_parts = [nuclei_bin]
+        for t in targets:
+            cmd_parts += ["-u", t]
+        cmd_parts += [
             "-jsonl",
             "-silent",
             "-no-color",
@@ -55,10 +77,8 @@ class NucleiExecutor(AuditExecutor):
 
         raw_output = result.stdout if result.stdout.strip() else result.stderr
 
-        return [
-            {
-                "tool": self.name,
-                "command": comando,
-                "raw_output": raw_output,
-            }
-        ]
+        return {
+            "tool": self.name,
+            "command": comando,
+            "raw_output": raw_output,
+        }

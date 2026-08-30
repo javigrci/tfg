@@ -2,7 +2,7 @@ import shutil
 import subprocess
 from urllib.parse import urlparse
 
-from app.executors.base import AuditExecutor
+from app.executors.base import AuditExecutor, ChainContext
 
 timeout = 600
 
@@ -39,7 +39,20 @@ class NiktoExecutor(AuditExecutor):
     description = "Detecta errores de configuración en servidores web, software obsoleto y vulnerabilidades."
     timeout = timeout
 
-    def execute(self, direccion: str, details: dict | None = None) -> list[dict]:
+    def execute(
+        self,
+        direccion: str,
+        details: dict | None = None,
+        chain_context: ChainContext | None = None,
+    ) -> list[dict]:
+        targets = (
+            chain_context.web_targets
+            if chain_context and chain_context.web_targets
+            else [direccion]
+        )
+        return [self._run_one(t) for t in targets]
+
+    def _run_one(self, direccion: str) -> dict:
         nikto_bin = find_nikto()
         host, port, ssl = parsear_direccion(direccion)
 
@@ -64,10 +77,8 @@ class NiktoExecutor(AuditExecutor):
 
         raw_output = result.stdout if result.stdout.strip() else result.stderr
 
-        return [
-            {
-                "tool": self.name,
-                "command": comando,
-                "raw_output": raw_output,
-            }
-        ]
+        return {
+            "tool": self.name,
+            "command": comando,
+            "raw_output": raw_output,
+        }

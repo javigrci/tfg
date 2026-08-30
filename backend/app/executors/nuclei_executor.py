@@ -7,8 +7,7 @@ timeout = 900
 
 
 rutas = [
-    "/home/user_test/go/bin/nuclei",
-    "/root/go/bin/nuclei",
+    os.path.expanduser("~/go/bin/nuclei"),  # instalación local vía `go install` (cualquier usuario)
     "/usr/local/bin/nuclei",
     "/usr/bin/nuclei",
 ]

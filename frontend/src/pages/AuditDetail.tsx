@@ -545,16 +545,19 @@ export default function AuditDetail() {
     prevStatusRef.current = curr
   }, [audit?.status, id, qc, t])
 
+  const [queueDown, setQueueDown] = useState(false)
+
   const runMutation = useMutation({
     mutationFn: () => api.post(`/audits/${id}/run`).then(r => r.data),
     onSuccess: () => {
+      setQueueDown(false)
       qc.invalidateQueries({ queryKey: ['audit', id] })
       toast.info(t('auditDetail.toasts.started'))
     },
     onError: (err) => {
       const status = axios.isAxiosError(err) ? err.response?.status : undefined
       if (status === 409) return toast.error(t('auditDetail.toasts.alreadyRunning'))
-      if (status === 503) return toast.error(t('auditDetail.toasts.queueUnavailable'))
+      if (status === 503) { setQueueDown(true); return }
       toast.error(t('auditDetail.toasts.startFailed'))
     },
   })
@@ -735,6 +738,24 @@ export default function AuditDetail() {
           <span>
             {t('auditDetail.unreachablePre')}<strong>{t('auditDetail.unreachableWord')}</strong>{t('auditDetail.unreachablePost')}
           </span>
+        </div>
+      )}
+
+      {/* Execution queue unavailable (503) */}
+      {queueDown && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-4 text-red-300">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold text-red-200">{t('auditDetail.queueDown.title')}</p>
+            <p className="mt-0.5 text-sm">{t('auditDetail.queueDown.body')}</p>
+          </div>
+          <button
+            onClick={() => runMutation.mutate()}
+            disabled={runMutation.isPending}
+            className="shrink-0 rounded-lg bg-red-500/20 px-3 py-1.5 text-sm font-medium text-red-100 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+          >
+            {t('auditDetail.queueDown.retry')}
+          </button>
         </div>
       )}
 

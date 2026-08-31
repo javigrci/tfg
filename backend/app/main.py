@@ -34,10 +34,11 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as db:
         BootstrapService(db).seed_defaults()
 
-        # Ver ADR-003 (trabajo futuro): BackgroundTasks no sobrevive a un
-        # reinicio del proceso, asi que cualquier auditoria que quedara en
-        # RUNNING al caer el backend se reconcilia a FAILED aqui, antes de
-        # aceptar trafico.
+        # Red de seguridad (ADR-009): con la cola Celery, `acks_late` re-entrega
+        # el trabajo si el worker cae. Pero si el proceso web se reinicia y
+        # queda alguna auditoria en RUNNING sin trabajo detras (mensaje perdido,
+        # Redis reiniciado sin persistencia), se reconcilia a FAILED aqui antes
+        # de aceptar trafico.
         orphaned = AuditService(db).reconcile_orphaned_running_audits()
         for audit in orphaned:
             ActionLogService(db).log(

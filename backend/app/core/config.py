@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     excluded_ports: str = Field(default="8000,5173", alias="EXCLUDED_PORTS")
     chain_max_web_targets: int = Field(default=3, alias="CHAIN_MAX_WEB_TARGETS")
 
+    # Cola Celery + Redis (ADR-009). broker/result_backend caen a redis_url si no se fijan.
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    celery_broker_url: str = Field(default="", alias="CELERY_BROKER_URL")
+    celery_result_backend: str = Field(default="", alias="CELERY_RESULT_BACKEND")
+
+    def broker_url(self) -> str:
+        return self.celery_broker_url or self.redis_url
+
+    def result_backend(self) -> str:
+        return self.celery_result_backend or self.redis_url
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

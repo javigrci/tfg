@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend install
+.PHONY: dev backend frontend worker install
 
 # Detecta OS: en Windows usa Scripts/, en Linux/WSL usa bin/
 ifeq ($(OS),Windows_NT)
@@ -13,14 +13,21 @@ else
     VENV_CMD   = python3 -m venv venv
 endif
 
-# Lanza backend y frontend a la vez
+# Lanza backend (API + worker Celery) y frontend a la vez.
+# Requiere Redis: docker compose up db redis -d
 dev:
+	cd backend && $(PYTHON) -m celery -A app.celery_app worker --loglevel=info --concurrency=1 &
 	cd backend && $(PYTHON) -m uvicorn app.main:app --reload &
 	cd frontend && npm run dev
 
-# Solo el backend
+# API + worker Celery (sin frontend)
 backend:
+	cd backend && $(PYTHON) -m celery -A app.celery_app worker --loglevel=info --concurrency=1 &
 	cd backend && $(PYTHON) -m uvicorn app.main:app --reload
+
+# Solo el worker Celery
+worker:
+	cd backend && $(PYTHON) -m celery -A app.celery_app worker --loglevel=info --concurrency=1
 
 # Solo el frontend
 frontend:

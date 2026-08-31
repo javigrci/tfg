@@ -1,13 +1,19 @@
+amqp==5.3.1
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.13.0
 bcrypt==5.0.0
+billiard==4.2.4
 boolean.py==5.0
 CacheControl==0.14.4
+celery[redis]==5.5.3
 certifi==2026.2.25
 cffi==2.0.0
 charset-normalizer==3.4.7
 click==8.3.1
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
 colorama==0.4.6
 cryptography==46.0.6
 cyclonedx-python-lib==11.7.0
@@ -23,6 +29,7 @@ httpcore==1.0.9
 httpx==0.28.1
 idna==3.11
 iniconfig==2.3.0
+kombu==5.5.4
 license-expression==30.4.4
 markdown-it-py==4.0.0
 mdurl==0.1.2
@@ -35,6 +42,7 @@ pip-requirements-parser==32.0.1
 pip_audit==2.10.0
 platformdirs==4.9.4
 pluggy==1.6.0
+prompt-toolkit==3.0.53
 psycopg==3.2.9
 psycopg-binary==3.2.9
 py-serializable==2.1.0
@@ -47,11 +55,13 @@ Pygments==2.20.0
 PyJWT==2.12.0
 pyparsing==3.3.2
 pytest==9.0.2
+python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-multipart==0.0.22
 nvdlib>=0.7.6
 # wapiti3 se instala en venv aislado (ver Dockerfile / make install)
 # para evitar conflicto: wapiti3==3.1.8 requiere httpx==0.24.1 pero la app usa httpx==0.28.1
+redis==5.2.1
 requests==2.33.1
 rich==14.3.3
 rsa==4.9.1
@@ -66,3 +76,5 @@ typing_extensions==4.15.0
 tzdata==2025.3
 urllib3==2.6.3
 uvicorn==0.35.0
+vine==5.1.0
+wcwidth==0.6.0

@@ -366,6 +366,8 @@
       "failed":       "Audit execution failed",
       "started":      "Scan started — results will appear automatically",
       "startFailed":  "Failed to start audit",
+      "alreadyRunning":   "This audit is already running",
+      "queueUnavailable": "The execution system is unavailable. Try again in a few minutes.",
       "pdfExecutive": "Executive report downloaded",
       "pdfTechnical": "Technical report downloaded",
       "pdfFailed":    "Failed to generate PDF",

@@ -55,10 +55,10 @@ class AuditService:
         """Marca como FAILED las auditorias que quedaron en RUNNING por una caida
         del backend a mitad de ejecucion.
 
-        BackgroundTasks no sobrevive a un reinicio del proceso (ver ADR-003):
-        si el backend cae mientras una auditoria esta RUNNING, esa fila queda
-        asi para siempre y bloquea el re-run desde la UI. Se llama una vez en
-        el startup de la app (app/main.py) antes de aceptar trafico.
+        Red de seguridad de la cola Celery (ver ADR-009): si el proceso web se
+        reinicia y queda una auditoria en RUNNING sin trabajo detras, esa fila
+        quedaria asi para siempre y bloquearia el re-run desde la UI. Se llama
+        una vez en el startup de la app (app/main.py) antes de aceptar trafico.
         """
         statement = select(Audit).where(Audit.status == AuditStatus.RUNNING)
         orphaned = list(self.db.scalars(statement).all())

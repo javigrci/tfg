@@ -18,6 +18,19 @@ services:
       timeout: 5s
       retries: 10
 
+  # ── Cola de tareas (Redis — broker y result backend de Celery, ADR-009) ────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-auditflow}"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-auditflow} ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # ── Backend (FastAPI) ─────────────────────────────────────────────────────
   backend:
     build:
@@ -27,8 +40,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    environment:
+      redis:
+        condition: service_healthy
+    environment: &backend_env
       DATABASE_URL:      postgresql+psycopg://auditflow:auditflow@db:5432/auditflow
+      REDIS_URL:         redis://:${REDIS_PASSWORD:-auditflow}@redis:6379/0
       JWT_SECRET_KEY:    ${JWT_SECRET_KEY:-change-me-in-production}
       NVD_API_KEY:       ${NVD_API_KEY:-}
       EXCLUDED_PORTS:    ${EXCLUDED_PORTS:-80,443}
@@ -39,6 +55,23 @@ services:
       - "8000:8000"
     volumes:
       # Directorio temporal compartido para outputs de herramientas (wapiti, nuclei)
+      - scan_tmp:/tmp
+
+  # ── Worker (Celery — ejecuta las auditorías; misma imagen que backend) ─────
+  # Escalar la concurrencia: docker compose up -d --scale worker=N
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: *backend_env
+    volumes:
       - scan_tmp:/tmp
 
   # ── Frontend (React + nginx) ──────────────────────────────────────────────

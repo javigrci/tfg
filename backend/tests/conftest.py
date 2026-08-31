@@ -68,11 +68,34 @@ with TestSessionLocal() as _seed_db:
     BootstrapService(_seed_db).seed_defaults()
 
 
+@pytest.fixture(autouse=True)
+def celery_eager(monkeypatch):
+    """Celery síncrono para toda la suite, sin Redis (ADR-009 / spec 003).
+
+    - `task_eager_propagates=False`: la tarea traga sus errores y marca FAILED,
+      igual que en producción (no re-lanza en el handler).
+    - `_bump_attempt` → 1: la guarda anti bucle usa Redis; se stubea (los tests
+      que la prueban re-parchean el valor).
+
+    Para assertar el estado `running` intermedio, un test de endpoint debe espiar
+    `run_audit_task.apply_async` para que la tarea NO corra dentro del `POST /run`.
+    """
+    from app.celery_app import celery_app
+
+    monkeypatch.setattr(celery_app.conf, "task_always_eager", True)
+    monkeypatch.setattr(celery_app.conf, "task_eager_propagates", False)
+
+    import app.tasks as tasks_module
+
+    monkeypatch.setattr(tasks_module, "_bump_attempt", lambda audit_id: 1)
+    monkeypatch.setattr(tasks_module, "_clear_attempts", lambda audit_id: None)
+
+
 @pytest.fixture()
 def db_connection(monkeypatch):
     """Conexion + transaccion compartidas por todo el test; se revierte al final.
 
-    _run_audit_background() (audits.py) abre su PROPIA sesion via
+    `run_audit_task` (app/tasks.py), en modo eager, abre su PROPIA sesion via
     `app.db.session.SessionLocal()` -- si usara una conexion nueva del pool,
     con aislamiento MVCC no veria los datos sin commitear de este test (p.ej.
     el audit recien creado). Se parchea para que cualquier sesion nueva
@@ -115,9 +138,9 @@ def client(db_connection):
             # Con join_transaction_mode="create_savepoint", cada sesion vive en
             # su propio SAVEPOINT anidado sobre la conexion compartida. Si no
             # se confirma explicitamente aqui, session.close() revierte ese
-            # SAVEPOINT -- y como los BackgroundTasks de FastAPI corren ANTES
-            # de este cleanup (comprobado empiricamente), sus cambios quedan
-            # anidados dentro de este SAVEPOINT y se revertirian con el.
+            # SAVEPOINT -- y como la tarea Celery en modo eager corre DENTRO del
+            # handler (antes de este cleanup), sus cambios quedan anidados en
+            # este SAVEPOINT y se revertirian con el.
             session.commit()
         except Exception:
             session.rollback()

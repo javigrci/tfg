@@ -3,8 +3,11 @@ import io
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response, StreamingResponse
+from kombu.exceptions import OperationalError as BrokerOperationalError
+from redis.exceptions import ConnectionError as RedisConnectionError
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, require_role
 from app.domain.enums import AuditStatus, TargetStatus, UserRole
@@ -27,41 +30,7 @@ from app.schemas.audit import (
 )
 from app.services.action_log_service import ActionLogService
 from app.services.audit_service import AuditService
-
-
-def _run_audit_background(audit_id: int) -> None:
-    """Ejecuta el scan en segundo plano con su propia sesión de BD."""
-    from app.db.session import SessionLocal
-
-    db = SessionLocal()
-    try:
-        AuditService(db).run_audit(audit_id)
-        audit = db.get(AuditModel, audit_id)
-        ActionLogService(db).log(
-            action="audit_completed",
-            resource_type="audit",
-            resource_id=audit_id,
-            resource_name=audit.name if audit else None,
-            payload={"status": "completed"},
-        )
-    except Exception:
-        # Si algo explota después de marcar RUNNING, dejar el audit en FAILED
-        try:
-            db.rollback()
-            audit = db.get(AuditModel, audit_id)
-            if audit and audit.status == AuditStatus.RUNNING:
-                audit.status = AuditStatus.FAILED
-                db.commit()
-            ActionLogService(db).log(
-                action="audit_failed",
-                resource_type="audit",
-                resource_id=audit_id,
-                resource_name=audit.name if audit else None,
-            )
-        except Exception:
-            pass
-    finally:
-        db.close()
+from app.tasks import run_audit_task
 
 router = APIRouter(prefix="/audits", tags=["audits"])
 findings_router = APIRouter(prefix="/findings", tags=["audits"])
@@ -240,23 +209,22 @@ def get_audit(audit_id: int, db: Session = Depends(get_db), current_user: User =
     "/{audit_id}/run",
     response_model=AuditRead,
     responses={
-        200: {"description": "Scan iniciado. La auditoría pasa a estado 'running'; el resultado llega via polling."},
+        200: {"description": "Ejecución encolada. La auditoría pasa a 'running'; el resultado llega via polling."},
         401: {"description": "Token ausente, inválido o expirado."},
         404: {"description": "No existe ninguna auditoría con ese ID."},
-        409: {"description": "El target de la auditoría está unreachable."},
+        409: {"description": "El target está unreachable, o la auditoría ya está en ejecución."},
+        503: {"description": "La cola de ejecución no está disponible; la auditoría no cambia de estado."},
     },
 )
 def run_audit(
     audit_id: int,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AuditRead:
     """
-    Inicia los módulos de escaneo en segundo plano y devuelve inmediatamente.
-
-    La auditoría pasa a estado 'running' antes de retornar. El frontend
-    detecta la finalización mediante polling sobre GET /audits/{id}.
+    Encola la ejecución de la auditoría en la cola de tareas (Celery + Redis,
+    ADR-009) y devuelve inmediatamente. Un worker separado la ejecuta; el
+    frontend detecta la finalización mediante polling sobre GET /audits/{id}.
     """
     service = AuditService(db)
     db_audit = _get_or_404(service, audit_id, current_user)
@@ -270,20 +238,49 @@ def run_audit(
             detail="Target is unreachable. Check connectivity before running the audit.",
         )
 
-    # Marcar RUNNING antes de responder para que la UI lo refleje de inmediato
-    db_audit.status = AuditStatus.RUNNING
-    db_audit.started_at = datetime.now(tz=timezone.utc)
+    # Para revertir si la cola no acepta el trabajo.
+    prev_status = db_audit.status
+    prev_started_at = db_audit.started_at
+    audit_name = db_audit.name
+
+    # Marcar RUNNING de forma atómica: si ya lo estaba, 0 filas → 409 y ningún
+    # trabajo nuevo (FR-008; resuelve la carrera entre dos POST /run a la vez).
+    now = datetime.now(tz=timezone.utc)
+    result = db.execute(
+        update(AuditModel)
+        .where(AuditModel.id == audit_id, AuditModel.status != AuditStatus.RUNNING)
+        .values(status=AuditStatus.RUNNING, started_at=now)
+    )
     db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La auditoría ya está en ejecución.",
+        )
 
     ActionLogService(db).log(
         action="audit_started",
         user_id=current_user.id,
         resource_type="audit",
         resource_id=audit_id,
-        resource_name=db_audit.name,
+        resource_name=audit_name,
     )
 
-    background_tasks.add_task(_run_audit_background, audit_id)
+    try:
+        run_audit_task.apply_async((audit_id,))
+    except (BrokerOperationalError, RedisConnectionError) as exc:
+        # La cola no está disponible: revertir y devolver 503 (FR-010).
+        db.execute(
+            update(AuditModel)
+            .where(AuditModel.id == audit_id)
+            .values(status=prev_status, started_at=prev_started_at)
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="El sistema de ejecución no está disponible. Inténtalo de nuevo en unos minutos.",
+        ) from exc
+
     return service.get_audit(audit_id)
 
 

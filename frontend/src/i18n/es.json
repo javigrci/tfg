@@ -366,6 +366,8 @@
       "failed":       "Error en la ejecución de la auditoría",
       "started":      "Escaneo iniciado — los resultados aparecerán automáticamente",
       "startFailed":  "Error al iniciar la auditoría",
+      "alreadyRunning":   "Esta auditoría ya está en ejecución",
+      "queueUnavailable": "El sistema de ejecución no está disponible. Inténtalo de nuevo en unos minutos.",
       "pdfExecutive": "Informe ejecutivo descargado",
       "pdfTechnical": "Informe técnico descargado",
       "pdfFailed":    "Error al generar el PDF",

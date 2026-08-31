@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronRight, AlertTriangle, Info, FileDown, ArrowLeftRight, Plus, X, Table2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import axios from 'axios'
 import api from '@/lib/api'
 import { PageLoader } from '@/components/ui/PageLoader'
 import type { Audit, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
@@ -550,7 +551,12 @@ export default function AuditDetail() {
       qc.invalidateQueries({ queryKey: ['audit', id] })
       toast.info(t('auditDetail.toasts.started'))
     },
-    onError: () => toast.error(t('auditDetail.toasts.startFailed')),
+    onError: (err) => {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined
+      if (status === 409) return toast.error(t('auditDetail.toasts.alreadyRunning'))
+      if (status === 503) return toast.error(t('auditDetail.toasts.queueUnavailable'))
+      toast.error(t('auditDetail.toasts.startFailed'))
+    },
   })
 
   const [pdfLoading, setPdfLoading] = useState<'technical' | 'executive' | null>(null)

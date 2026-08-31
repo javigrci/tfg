@@ -52,8 +52,11 @@ function toolLabel(tool: ScanTool): string {
   return tool.charAt(0).toUpperCase() + tool.slice(1)
 }
 
-/** Pasos del plan de ejecución: rama web (Nmap + web), solo Nmap, o vacío. */
-export function buildExecutionPlan(selected: ScanTool[], t: PlanTranslate): PlanStep[] {
+/**
+ * Pasos del plan de ejecución: rama web (Nmap + web), solo Nmap, o vacío.
+ * `cap` = tope de puertos web encadenados (`chain_max_web_targets` del backend).
+ */
+export function buildExecutionPlan(selected: ScanTool[], t: PlanTranslate, cap: number): PlanStep[] {
   const ordered = orderModules(selected)
   if (ordered.length === 0) return []
 
@@ -64,6 +67,6 @@ export function buildExecutionPlan(selected: ScanTool[], t: PlanTranslate): Plan
 
   return [
     { text: t('auditNew.plan.stepNmap') },
-    { text: t('auditNew.plan.stepWeb', { tools: webTools.map(toolLabel).join(', ') }) },
+    { text: t('auditNew.plan.stepWeb', { tools: webTools.map(toolLabel).join(', '), cap }) },
   ]
 }

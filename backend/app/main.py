@@ -7,6 +7,7 @@ from app.api.routes.audits import router as audits_router, findings_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.health import router as health_router
 from app.api.routes.lab import router as lab_router
+from app.api.routes.meta import router as meta_router
 from app.api.routes.reports import router as reports_router
 from app.api.routes.targets import router as targets_router
 from app.api.routes.users import router as users_router
@@ -86,6 +87,7 @@ app.include_router(findings_router, prefix=settings.api_prefix)
 app.include_router(dashboard_router, prefix=settings.api_prefix)
 app.include_router(reports_router, prefix=settings.api_prefix)
 app.include_router(lab_router, prefix=settings.api_prefix)
+app.include_router(meta_router, prefix=settings.api_prefix)
 app.include_router(targets_router, prefix=settings.api_prefix)
 app.include_router(users_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)

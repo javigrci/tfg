@@ -57,9 +57,16 @@ export default function AuditNew() {
   const hasWebTool = useMemo(() => [...selected].some(isWebTool), [selected])
   const nmapAuto   = selected.has('nmap') && hasWebTool && !nmapExplicit
 
+  const { data: config } = useQuery<{ chain_max_web_targets: number }>({
+    queryKey: ['config'],
+    queryFn:  () => api.get('/config').then(r => r.data),
+    staleTime: Infinity,
+  })
+  const webCap = config?.chain_max_web_targets ?? 5
+
   const planSteps = useMemo(
-    () => buildExecutionPlan([...selected], t),
-    [selected, t],
+    () => buildExecutionPlan([...selected], t, webCap),
+    [selected, t, webCap],
   )
 
   const { data: targets = [] } = useQuery<Target[]>({

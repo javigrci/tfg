@@ -55,19 +55,20 @@ describe('orderModules', () => {
 
 describe('buildExecutionPlan', () => {
   it('rama vacía: sin pasos', () => {
-    expect(buildExecutionPlan([], t)).toEqual([])
+    expect(buildExecutionPlan([], t, 5)).toEqual([])
   })
 
   it('rama solo Nmap: un paso', () => {
-    const steps = buildExecutionPlan(['nmap'], t)
+    const steps = buildExecutionPlan(['nmap'], t, 5)
     expect(steps).toHaveLength(1)
     expect(steps[0].text).toBe('auditNew.plan.stepNmapOnly')
   })
 
-  it('rama web: dos pasos, con la lista de herramientas web interpolada', () => {
-    const steps = buildExecutionPlan(['nmap', 'nikto', 'nuclei'], t)
+  it('rama web: dos pasos, con herramientas y tope interpolados', () => {
+    const steps = buildExecutionPlan(['nmap', 'nikto', 'nuclei'], t, 5)
     expect(steps).toHaveLength(2)
     expect(steps[0].text).toBe('auditNew.plan.stepNmap')
     expect(steps[1].text).toContain('Nikto, Nuclei')
+    expect(steps[1].text).toContain('"cap":5')
   })
 })

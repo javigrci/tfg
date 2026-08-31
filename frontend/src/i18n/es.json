@@ -500,14 +500,8 @@
   },
   "auditNew": {
     "title":              "Nueva auditoría",
-    "availableTools":     "Herramientas disponibles",
-    "clickToAdd":         "Haz clic para añadir al flujo.",
-    "workflowEmpty":      "Flujo de trabajo vacío",
-    "addToolsHint":       "Añade herramientas desde el panel izquierdo",
-    "workflowGood":       "El flujo es correcto.",
-    "severityError":      "Error",
-    "severityWarning":    "Advertencia",
-    "removeFromWorkflow": "Eliminar del flujo",
+    "availableTools":     "Herramientas",
+    "toolsHint":          "Elige las herramientas a ejecutar. El sistema decide el orden.",
     "auditDetails":       "Detalles de auditoría",
     "namePlaceholder":    "Ej. Auditoría Web Q2",
     "descPlaceholder":    "Notas opcionales de alcance...",
@@ -516,13 +510,21 @@
     "descriptionLabel":   "Descripción",
     "targetLabel":        "Objetivo",
     "auditTypeLabel":     "Tipo de auditoría",
-    "auditTypeHint":      "Seleccionar un tipo precarga el flujo recomendado.",
-    "custom":             "Personalizado",
-    "customModified":     "Flujo modificado desde la plantilla",
-    "executionOrder":     "Orden de ejecución",
+    "auditTypeHint":      "Se usa para los informes. Los presets de abajo son un atajo que rellena una selección de herramientas.",
+    "presetsLabel":       "Empieza con una configuración recomendada",
+    "nmapAutoHint":       "Añadido automáticamente — las herramientas web lo necesitan para descubrir los puertos.",
     "creating":           "Creando...",
     "createAudit":        "Crear auditoría",
-    "confirmReset":       "¿Restablecer el flujo a los valores de \"{{type}}\"?\nTu flujo personalizado será reemplazado.",
+    "toolScope": {
+      "NET": "RED",
+      "WEB": "WEB"
+    },
+    "plan": {
+      "title":        "Plan de ejecución",
+      "stepNmap":     "Nmap descubre los puertos y servicios abiertos del objetivo.",
+      "stepWeb":      "{{tools}} escanean los puertos web que descubra Nmap (hasta un máximo, 3 por defecto).",
+      "stepNmapOnly": "Nmap descubre los puertos y servicios abiertos. No hay herramientas web configuradas."
+    },
     "tools": {
       "nmap":   { "desc": "Descubrimiento de puertos y servicios" },
       "nikto":  { "desc": "Vulnerabilidades del servidor web" },
@@ -535,22 +537,12 @@
       "penetration_test":   { "label": "Test de penetración",         "desc": "Escaneo orientado a explotación activa" },
       "compliance":         { "label": "Auditoría de conformidad",    "desc": "Verificación de cabeceras y políticas de seguridad" }
     },
-    "warnings": {
-      "empty":               "Añade al menos una herramienta al flujo.",
-      "disconnectedSingle":  "{{names}} no está conectado a la cadena de ejecución.",
-      "disconnectedMultiple":"{{names}} no están conectados a la cadena de ejecución.",
-      "branching":           "Bifurcación detectada: solo se ejecutará la primera conexión saliente de cada nodo.",
-      "webNoNmap":           "Añade Nmap antes de las herramientas web ({{tools}}). Sin él, las herramientas web no pueden escanear los puertos que Nmap descubriría.",
-      "nmapLate":            "Nmap debe ejecutarse antes que las herramientas web. Muévelo al principio del flujo."
-    },
     "toasts": {
-      "alreadyInWorkflow": "{{tool}} ya está en el flujo",
-      "created":           "Auditoría creada",
-      "createFailed":      "Error al crear la auditoría",
-      "nameRequired":      "El nombre de la auditoría es obligatorio",
-      "targetRequired":    "Selecciona un objetivo",
-      "toolRequired":      "Añade al menos una herramienta al flujo",
-      "fixErrors":         "Corrige los errores del flujo antes de crear"
+      "created":        "Auditoría creada",
+      "createFailed":   "Error al crear la auditoría",
+      "nameRequired":   "El nombre de la auditoría es obligatorio",
+      "targetRequired": "Selecciona un objetivo",
+      "toolRequired":   "Selecciona al menos una herramienta"
     }
   }
 }

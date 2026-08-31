@@ -500,14 +500,8 @@
   },
   "auditNew": {
     "title":              "New Audit",
-    "availableTools":     "Available Tools",
-    "clickToAdd":         "Click to add to the workflow.",
-    "workflowEmpty":      "Workflow is empty",
-    "addToolsHint":       "Add tools from the left panel",
-    "workflowGood":       "Workflow looks good.",
-    "severityError":      "Error",
-    "severityWarning":    "Warning",
-    "removeFromWorkflow": "Remove from workflow",
+    "availableTools":     "Tools",
+    "toolsHint":          "Pick the tools to run. The system sets the order.",
     "auditDetails":       "Audit Details",
     "namePlaceholder":    "e.g. Q2 Web Audit",
     "descPlaceholder":    "Optional scope notes...",
@@ -516,13 +510,21 @@
     "descriptionLabel":   "Description",
     "targetLabel":        "Target",
     "auditTypeLabel":     "Audit Type",
-    "auditTypeHint":      "Selecting a type pre-populates the recommended workflow.",
-    "custom":             "Custom",
-    "customModified":     "Workflow modified from preset",
-    "executionOrder":     "Execution order",
+    "auditTypeHint":      "Used for reporting. The presets below are a shortcut that fills in a tool selection.",
+    "presetsLabel":       "Start from a recommended configuration",
+    "nmapAutoHint":       "Added automatically — the web tools need it to discover the ports.",
     "creating":           "Creating...",
     "createAudit":        "Create Audit",
-    "confirmReset":       "Reset workflow to \"{{type}}\" defaults?\nYour custom workflow will be replaced.",
+    "toolScope": {
+      "NET": "NET",
+      "WEB": "WEB"
+    },
+    "plan": {
+      "title":        "Execution plan",
+      "stepNmap":     "Nmap discovers the target's open ports and services.",
+      "stepWeb":      "{{tools}} scan the web ports Nmap discovers (up to a maximum, 3 by default).",
+      "stepNmapOnly": "Nmap discovers open ports and services. No web tools configured."
+    },
     "tools": {
       "nmap":   { "desc": "Port & service discovery" },
       "nikto":  { "desc": "Web server vulnerabilities" },
@@ -535,22 +537,12 @@
       "penetration_test":   { "label": "Penetration Test",   "desc": "Active exploitation-oriented scanning" },
       "compliance":         { "label": "Compliance Audit",   "desc": "Security headers and policy verification" }
     },
-    "warnings": {
-      "empty":               "Add at least one tool to the workflow.",
-      "disconnectedSingle":  "{{names}} is not connected to the execution chain.",
-      "disconnectedMultiple":"{{names}} are not connected to the execution chain.",
-      "branching":           "Branching detected: only the first outgoing connection per node will be executed.",
-      "webNoNmap":           "Add Nmap before the web tools ({{tools}}). Without it, the web tools cannot scan the ports Nmap would discover.",
-      "nmapLate":            "Nmap must run before the web tools. Move it to the start of the flow."
-    },
     "toasts": {
-      "alreadyInWorkflow": "{{tool}} is already in the workflow",
-      "created":           "Audit created",
-      "createFailed":      "Failed to create audit",
-      "nameRequired":      "Audit name is required",
-      "targetRequired":    "Please select a target",
-      "toolRequired":      "Add at least one tool to the workflow",
-      "fixErrors":         "Fix errors in the workflow before creating"
+      "created":        "Audit created",
+      "createFailed":   "Failed to create audit",
+      "nameRequired":   "Audit name is required",
+      "targetRequired": "Please select a target",
+      "toolRequired":   "Select at least one tool"
     }
   }
 }

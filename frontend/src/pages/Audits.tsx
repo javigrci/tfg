@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Search, Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Trash2, ChevronLeft, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react'
 import { PageLoader } from '@/components/ui/PageLoader'
 import { PageError } from '@/components/ui/PageError'
 import { toast } from 'sonner'
@@ -33,9 +33,9 @@ export default function Audits() {
   const isAdmin     = user?.role.name === 'admin'
   const { t }       = useTranslation()
 
-  const [search, setSearch]       = useState('')
-  const [page,   setPage]         = useState(1)
-  const [confirmId, setConfirmId] = useState<number | null>(null)
+  const [search, setSearch]     = useState('')
+  const [page,   setPage]       = useState(1)
+  const [toDelete, setToDelete] = useState<Audit | null>(null)
 
   const { data: audits = [], isLoading, isError, refetch } = useQuery<Audit[]>({
     queryKey: ['audits'],
@@ -47,7 +47,7 @@ export default function Audits() {
     onSuccess: () => {
       toast.success(t('audits.deleted'))
       queryClient.invalidateQueries({ queryKey: ['audits'] })
-      setConfirmId(null)
+      setToDelete(null)
     },
     onError: () => toast.error(t('audits.deleteFailed')),
   })
@@ -116,7 +116,7 @@ export default function Audits() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('audits.columns.startDate')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('audits.columns.duration')}</th>
                   {isAdmin && (
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('audits.columns.actions')}</th>
+                    <th className="w-20 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('audits.columns.actions')}</th>
                   )}
                 </tr>
               </thead>
@@ -149,32 +149,14 @@ export default function Audits() {
                     </td>
                     <td className="px-4 py-3.5 text-muted-foreground">{duration(audit.started_at, audit.finished_at)}</td>
                     {isAdmin && (
-                      <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
-                        {confirmId === audit.id ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => deleteMutation.mutate(audit.id)}
-                              disabled={deleteMutation.isPending}
-                              className="rounded px-2 py-1 text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
-                            >
-                              {deleteMutation.isPending ? '…' : t('common.confirm')}
-                            </button>
-                            <button
-                              onClick={() => setConfirmId(null)}
-                              className="rounded px-2 py-1 text-xs font-medium bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
-                            >
-                              {t('common.cancel')}
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmId(audit.id)}
-                            className="rounded p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            title={t('audits.deleteTitle')}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                      <td className="w-20 px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => setToDelete(audit)}
+                          className="rounded p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          title={t('audits.deleteTitle')}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -225,6 +207,43 @@ export default function Audits() {
             </div>
           )}
         </>
+      )}
+
+      {/* Confirm delete modal */}
+      {toDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+                <AlertTriangle className="h-4 w-4 text-red-400" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-foreground">{t('audits.delete.title')}</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t('audits.delete.confirmBefore')}
+                  <span className="font-medium text-foreground">{toDelete.name}</span>
+                  {t('audits.delete.confirmAfter')}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setToDelete(null)}
+                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(toDelete.id)}
+                disabled={deleteMutation.isPending}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

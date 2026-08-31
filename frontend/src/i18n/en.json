@@ -48,6 +48,11 @@
     "empty":        "No audits yet. Create your first one.",
     "noResults":    "No audits match your search.",
     "deleteTitle":  "Delete audit",
+    "delete": {
+      "title":         "Delete audit",
+      "confirmBefore": "Delete ",
+      "confirmAfter":  " and all its scans, findings and report? This can't be undone."
+    },
     "pagination":   "Showing {{from}}–{{to}} of {{total}} audits",
     "deleted":      "Audit deleted",
     "deleteFailed": "Failed to delete audit"
@@ -287,6 +292,11 @@
     "unreachablePre":   "Target is ",
     "unreachableWord":  "unreachable",
     "unreachablePost":  ". Verify connectivity before running the audit — the scan will return no findings.",
+    "queueDown": {
+      "title":  "Execution system unavailable",
+      "body":   "The task queue is not responding, so the audit could not be started. It has not changed state. Try again in a few minutes, or contact your administrator.",
+      "retry":  "Retry"
+    },
     "notFoundMsg":      "Audit not found or failed to load.",
     "execTimeline":     "Execution Timeline",
     "noScans":          "No scans yet. Run the audit to start scanning.",
@@ -367,7 +377,6 @@
       "started":      "Scan started — results will appear automatically",
       "startFailed":  "Failed to start audit",
       "alreadyRunning":   "This audit is already running",
-      "queueUnavailable": "The execution system is unavailable. Try again in a few minutes.",
       "pdfExecutive": "Executive report downloaded",
       "pdfTechnical": "Technical report downloaded",
       "pdfFailed":    "Failed to generate PDF",
@@ -524,7 +533,7 @@
     "plan": {
       "title":        "Execution plan",
       "stepNmap":     "Nmap discovers the target's open ports and services.",
-      "stepWeb":      "{{tools}} scan the web ports Nmap discovers (up to a maximum, 3 by default).",
+      "stepWeb":      "{{tools}} scan the web ports Nmap discovers (up to {{cap}}).",
       "stepNmapOnly": "Nmap discovers open ports and services. No web tools configured."
     },
     "tools": {

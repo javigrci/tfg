@@ -12,7 +12,13 @@ Desarrollado como Trabajo de Fin de Grado del grado de Ingeniería del Software.
 # 1. Instalar dependencias
 make install
 
-# 2. Arrancar backend y frontend a la vez
+# 2. Configurar el entorno del backend (Redis en dev lleva contraseña)
+cp backend/.env.example backend/.env
+
+# 3. Arrancar PostgreSQL y Redis (la cola de ejecución los necesita)
+docker compose up db redis -d
+
+# 4. Arrancar backend (API + worker Celery) y frontend a la vez
 make dev
 ```
 
@@ -20,6 +26,18 @@ make dev
 |---|---|
 | Aplicación web | http://localhost:5173 |
 | Swagger UI | http://localhost:8000/docs |
+
+### Despliegue con Docker
+
+```bash
+docker compose up -d --build            # db + redis + backend + worker + frontend
+docker compose up -d --scale worker=3   # 3 auditorías en paralelo (RNF-014)
+```
+
+Las auditorías se ejecutan en un **worker** de Celery (misma imagen que el backend) que
+consume una cola en Redis — ver [ADR-009](.claude/ADR.md). Cada worker procesa una auditoría
+a la vez (`worker_prefetch_multiplier=1`); para más concurrencia, más réplicas del servicio
+`worker`.
 
 **Credenciales por defecto:**
 

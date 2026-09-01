@@ -25,8 +25,27 @@ _FINDING_RE = re.compile(
 # Fallback para líneas sin ruta explícita: "+ descripción"
 _SIMPLE_RE = re.compile(r"^\+\s+(?P<desc>.+)$")
 
+# ── Cabeceras presentes (spec 006) ───────────────────────────────────────────
+# Nikto emite "Uncommon header 'X' found, with contents: Y" para cabeceras fuera
+# de su lista conocida: significa que la cabecera ESTÁ, no que falte. Que una
+# cabecera de seguridad esté puesta no es una vulnerabilidad.
+_UNCOMMON_HEADER_RE = re.compile(r"uncommon header '([a-z0-9-]+)' found")
+_SECURITY_HEADERS = {
+    "x-frame-options", "x-content-type-options", "strict-transport-security",
+    "content-security-policy", "content-security-policy-report-only",
+    "referrer-policy", "permissions-policy", "x-xss-protection",
+    "x-permitted-cross-domain-policies", "cross-origin-opener-policy",
+    "cross-origin-embedder-policy", "cross-origin-resource-policy",
+}
+_CORS_HEADERS = {"access-control-allow-origin", "access-control-allow-methods",
+                 "access-control-allow-credentials"}
+_PERMISSIVE_MARKERS = ("contents: *", "unsafe-inline", "unsafe-eval", "allowall", "allow-all")
+
+
 # ── Clasificación por palabras clave ──────────────────────────────────────────
-# Orden importa: los casos más específicos van primero.
+# Orden importa: los casos más específicos van primero. Coincidencia por
+# subcadena literal (`k in desc_lower`) — NO regex (evita que ".orig" case
+# "sam[eorig]in").
 _RULES: list[tuple[list[str], SeverityLevel, FindingCategory]] = [
     # ── CRÍTICO ───────────────────────────────────────────────────────────────
     (["sql injection", "command injection", "remote code execution", " rce "],
@@ -50,7 +69,7 @@ _RULES: list[tuple[list[str], SeverityLevel, FindingCategory]] = [
 
     # Alto — métodos HTTP peligrosos
     (["'put' method", "'delete' method", "put is allowed", "delete is allowed",
-      "http method.*put", "http method.*delete", "webdav"],
+      "http method 'put'", "http method 'delete'", "webdav"],
      SeverityLevel.HIGH, FindingCategory.SECURITY_MISCONFIG),
 
     # Alto — componentes obsoletos / CVEs conocidos
@@ -129,14 +148,12 @@ _RULES: list[tuple[list[str], SeverityLevel, FindingCategory]] = [
      SeverityLevel.LOW, FindingCategory.SENSITIVE_EXPOSURE),
 ]
 
-# ── Recomendaciones por categoría de hallazgo ─────────────────────────────────
+# ── Recomendaciones por palabra clave del hallazgo ───────────────────────────
+# El primer keyword que aparezca como subcadena de la descripción gana. Las
+# cabeceras concretas se resuelven antes por regex en `_recommendation`.
 _RECOMMENDATIONS: dict[str, str] = {
-    "x-frame-options":
-        "Añadir la cabecera 'X-Frame-Options: DENY' o 'SAMEORIGIN' para prevenir ataques de clickjacking.",
     "clickjacking":
         "Añadir la cabecera 'X-Frame-Options: DENY' o 'SAMEORIGIN' para prevenir ataques de clickjacking.",
-    "content-security-policy":
-        "Implementar una Content Security Policy (CSP) restrictiva para prevenir XSS e inyección de contenido.",
     "strict-transport":
         "Habilitar HSTS con 'Strict-Transport-Security: max-age=31536000; includeSubDomains'.",
     "hsts":
@@ -173,7 +190,46 @@ _RECOMMENDATIONS: dict[str, str] = {
         "Eliminar archivos README, CHANGELOG y similares del servidor web de producción.",
     "powered-by":
         "Eliminar la cabecera 'X-Powered-By' para no divulgar la tecnología del servidor.",
+    # Texto por cabecera concreta.
+    "x-frame-options":
+        "Configurar 'X-Frame-Options: DENY' (o 'SAMEORIGIN' si se necesita enmarcado propio) para prevenir clickjacking.",
+    "x-content-type-options":
+        "Añadir 'X-Content-Type-Options: nosniff' para prevenir el MIME sniffing.",
+    "strict-transport-security":
+        "Habilitar HSTS: 'Strict-Transport-Security: max-age=31536000; includeSubDomains'.",
+    "content-security-policy":
+        "Implementar una Content Security Policy restrictiva, sin 'unsafe-inline' ni 'unsafe-eval'.",
+    "access-control-allow-origin":
+        "Restringir 'Access-Control-Allow-Origin' a los orígenes concretos necesarios; evitar el comodín '*'.",
+    "access-control-allow-methods":
+        "Limitar 'Access-Control-Allow-Methods' a los métodos que la API realmente usa; no exponer PUT/DELETE si no procede.",
+    "etag":
+        "Configurar los ETag para no incluir el número de inodo (p. ej. 'FileETag MTime Size' en Apache).",
+    "inode":
+        "Configurar los ETag para no incluir el número de inodo del fichero.",
+    "robots.txt":
+        "Revisar robots.txt: no debe usarse para ocultar rutas sensibles, ya que su contenido es público.",
+    "this might be interesting":
+        "Revisar la ruta descubierta y restringir su acceso si expone información o funcionalidad no destinada al público.",
+    "/ftp/":
+        "Revisar la ruta /ftp/: restringir su acceso si expone ficheros que no deben ser públicos.",
+    "trace method":
+        "Deshabilitar el método HTTP TRACE en la configuración del servidor web.",
 }
+
+# Textos de reserva (spec 006 — reformulados para ser accionables).
+_REC_GENERIC = (
+    "Evaluar la necesidad de exponer este recurso o comportamiento y restringirlo "
+    "si no aporta valor operativo."
+)
+_REC_HEADER_PRESENT = (
+    "Cabecera de seguridad presente. Verificar que su valor es suficientemente "
+    "restrictivo para el contexto de la aplicación."
+)
+_REC_HEADER_CUSTOM = (
+    "Cabecera personalizada de la aplicación. Revisar que no divulga información "
+    "del stack tecnológico."
+)
 
 
 class NiktoParser:
@@ -240,20 +296,52 @@ class NiktoParser:
 
     def _classify(self, description: str) -> tuple[SeverityLevel, FindingCategory]:
         desc_lower = description.lower()
+
+        # 1) Cabecera presente: nunca es un ALTO por estar puesta (spec 006).
+        present = self._classify_present_header(desc_lower)
+        if present is not None:
+            return present
+
+        # 2) Reglas por subcadena literal (no regex).
         for keywords, severity, category in _RULES:
-            if any(re.search(k, desc_lower) for k in keywords):
+            if any(k in desc_lower for k in keywords):
                 return severity, category
+
+        # 3) Fallback prudente — nunca HIGH por defecto.
         return SeverityLevel.LOW, FindingCategory.OTHER
+
+    def _classify_present_header(self, desc_lower: str):
+        m = _UNCOMMON_HEADER_RE.search(desc_lower)
+        if not m:
+            return None
+        header = m.group(1)
+        permissive = any(mk in desc_lower for mk in _PERMISSIVE_MARKERS)
+        if header in _SECURITY_HEADERS:
+            return ((SeverityLevel.LOW if permissive else SeverityLevel.INFO),
+                    FindingCategory.SECURITY_MISCONFIG)
+        if header in _CORS_HEADERS:
+            dangerous_methods = header == "access-control-allow-methods" and (
+                "put" in desc_lower or "delete" in desc_lower
+            )
+            return ((SeverityLevel.LOW if (permissive or dangerous_methods) else SeverityLevel.INFO),
+                    FindingCategory.SECURITY_MISCONFIG)
+        # Cabecera personalizada de la aplicación (x-recruiting, x-powered-by, ...)
+        return SeverityLevel.INFO, FindingCategory.OTHER
 
     def _recommendation(self, description: str) -> str:
         desc_lower = description.lower()
+
+        m = _UNCOMMON_HEADER_RE.search(desc_lower)
+        if m:
+            hdr = m.group(1)
+            if hdr in _SECURITY_HEADERS or hdr in _CORS_HEADERS:
+                return _RECOMMENDATIONS.get(hdr, _REC_HEADER_PRESENT)
+            return _REC_HEADER_CUSTOM
+
         for keyword, rec in _RECOMMENDATIONS.items():
             if keyword in desc_lower:
                 return rec
-        return (
-            "Revisar el hallazgo en el contexto del servidor y aplicar "
-            "las medidas de hardening correspondientes."
-        )
+        return _REC_GENERIC
 
     def _make_title(self, path: str, description: str) -> str:
         """Genera un título conciso a partir de la ruta y la descripción."""

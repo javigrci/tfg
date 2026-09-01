@@ -565,19 +565,31 @@ export default function AuditDetail() {
   const [pdfLoading, setPdfLoading] = useState<'technical' | 'executive' | null>(null)
   const [csvLoading, setCsvLoading] = useState(false)
   const [showAddFinding, setShowAddFinding] = useState(false)
+  const [pdfMenu, setPdfMenu] = useState<'technical' | 'executive' | null>(null)
 
-  const handleDownloadPdf = async (type: 'technical' | 'executive') => {
+  // Cierra el menú de idioma al hacer clic fuera
+  useEffect(() => {
+    if (!pdfMenu) return
+    const close = () => setPdfMenu(null)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [pdfMenu])
+
+  const handleDownloadPdf = async (type: 'technical' | 'executive', lang: 'es' | 'en' | 'both') => {
     if (pdfLoading) return
     setPdfLoading(type)
-    const endpoint = type === 'executive'
+    const base = type === 'executive'
       ? `/audits/${id}/report/pdf/executive`
       : `/audits/${id}/report/pdf`
-    const filename = type === 'executive'
-      ? `audit_executive_${id}.pdf`
-      : `audit_technical_${id}.pdf`
+    const endpoint = `${base}?lang=${lang}`
+    const isZip = lang === 'both'
+    const kind = type === 'executive' ? 'executive' : 'technical'
+    const filename = isZip
+      ? `audit_${kind}_${id}.zip`
+      : `audit_${kind}_${id}_${lang}.pdf`
     try {
       const response = await api.get(endpoint, { responseType: 'blob' })
-      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const blob = new Blob([response.data], { type: isZip ? 'application/zip' : 'application/pdf' })
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
@@ -632,6 +644,10 @@ export default function AuditDetail() {
 
   const allFindings = audit.scans.flatMap(s => s.findings)
   const report = audit.report
+  // El Report no guarda info_count; se deriva del total (coherente con el PDF).
+  const infoCount = report
+    ? Math.max(0, report.total_findings - report.critical_count - report.high_count - report.medium_count - report.low_count)
+    : 0
   const isUnreachable = audit.target.status === 'unreachable'
   const isRunning = audit.status === 'running'
   const canRun = !isRunning && !isUnreachable
@@ -667,26 +683,50 @@ export default function AuditDetail() {
         <div className="flex items-center gap-2 shrink-0">
           {report && (
             <>
-              <button
-                onClick={() => handleDownloadPdf('executive')}
-                disabled={!!pdfLoading || csvLoading}
-                className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {pdfLoading === 'executive'
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <FileDown className="h-4 w-4" />}
-                {t('auditDetail.pdfExecutive')}
-              </button>
-              <button
-                onClick={() => handleDownloadPdf('technical')}
-                disabled={!!pdfLoading || csvLoading}
-                className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {pdfLoading === 'technical'
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <FileDown className="h-4 w-4" />}
-                {t('auditDetail.pdfTechnical')}
-              </button>
+              {(['executive', 'technical'] as const).map(kind => (
+                <div key={kind} className="relative">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      setPdfMenu(m => (m === kind ? null : kind))
+                    }}
+                    disabled={!!pdfLoading || csvLoading}
+                    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      kind === 'technical'
+                        ? 'border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+                        : 'border-border bg-card text-foreground hover:bg-muted/40'
+                    }`}
+                  >
+                    {pdfLoading === kind
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <FileDown className="h-4 w-4" />}
+                    {kind === 'technical' ? t('auditDetail.pdfTechnical') : t('auditDetail.pdfExecutive')}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                  </button>
+                  {pdfMenu === kind && (
+                    <div
+                      onClick={e => e.stopPropagation()}
+                      className="absolute right-0 z-30 mt-1 w-44 overflow-hidden rounded-lg border border-border bg-card shadow-xl"
+                    >
+                      <p className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {t('auditDetail.report.choose')}
+                      </p>
+                      {(['es', 'en', 'both'] as const).map(lg => (
+                        <button
+                          key={lg}
+                          onClick={() => {
+                            setPdfMenu(null)
+                            handleDownloadPdf(kind, lg)
+                          }}
+                          className="block w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted/40"
+                        >
+                          {t(`auditDetail.report.lang.${lg}`)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
               <button
                 onClick={handleDownloadCsv}
                 disabled={!!pdfLoading || csvLoading}
@@ -713,7 +753,7 @@ export default function AuditDetail() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div className="col-span-2 sm:col-span-1">
           {report
             ? <KpiCard label={t('auditDetail.kpiRiskLevel')} value={report.risk_level.toUpperCase()} />
@@ -729,6 +769,7 @@ export default function AuditDetail() {
         <KpiCard label={t('auditDetail.kpiHigh')} value={report?.high_count ?? 0} />
         <KpiCard label={t('auditDetail.kpiMedium')} value={report?.medium_count ?? 0} />
         <KpiCard label={t('auditDetail.kpiLow')} value={report?.low_count ?? 0} />
+        <KpiCard label={t('auditDetail.kpiInfo')} value={report ? infoCount : 0} />
       </div>
 
       {/* Unreachable warning */}
@@ -981,6 +1022,7 @@ export default function AuditDetail() {
                   [t('auditDetail.kpiHigh'),     report.high_count,     'text-orange-400'],
                   [t('auditDetail.kpiMedium'),   report.medium_count,   'text-yellow-400'],
                   [t('auditDetail.kpiLow'),      report.low_count,      'text-blue-400'],
+                  [t('auditDetail.kpiInfo'),     infoCount,             'text-slate-400'],
                 ] as [string, number, string][]).map(([label, count, color]) => (
                   <div key={label} className="rounded-lg bg-muted/30 px-3 py-2">
                     <p className={`text-lg font-bold ${color}`}>{count}</p>

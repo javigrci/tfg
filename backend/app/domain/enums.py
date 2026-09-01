@@ -71,3 +71,10 @@ class CveEnrichmentStatus(str, Enum):
     PENDING     = "pending"
     DONE        = "done"
     UNAVAILABLE = "unavailable"
+
+
+class ReportLanguage(str, Enum):
+    """Idioma del informe PDF (spec 006). `BOTH` devuelve un ZIP con es + en."""
+    ES   = "es"
+    EN   = "en"
+    BOTH = "both"

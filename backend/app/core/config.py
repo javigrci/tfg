@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     def result_backend(self) -> str:
         return self.celery_result_backend or self.redis_url
 
+    # Informes PDF (spec 006).
+    # Marca de clasificación en portada/pie (p. ej. "CONFIDENCIAL"). Vacío = sin marca.
+    report_classification: str = Field(default="", alias="REPORT_CLASSIFICATION")
+    # Idioma del informe cuando el endpoint no recibe ?lang.
+    report_default_language: str = Field(default="es", alias="REPORT_DEFAULT_LANGUAGE")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

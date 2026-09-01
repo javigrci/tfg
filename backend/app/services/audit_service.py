@@ -30,6 +30,25 @@ def _compute_fingerprint(tool: str, category: str, title: str, evidence: str | N
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
+# Bandas de puntuación por nivel de riesgo (spec 006 / contracts/risk-score.md).
+_RISK_FLOOR = {RiskLevel.INFO: 0.0, RiskLevel.LOW: 2.0, RiskLevel.MEDIUM: 4.0,
+               RiskLevel.HIGH: 7.0, RiskLevel.CRITICAL: 9.0}
+_RISK_CEIL = {RiskLevel.INFO: 0.0, RiskLevel.LOW: 3.9, RiskLevel.MEDIUM: 6.9,
+              RiskLevel.HIGH: 8.9, RiskLevel.CRITICAL: 10.0}
+_RISK_K = 12
+
+
+def compute_risk_score(level: RiskLevel, weighted: int) -> float:
+    """Puntuación 0-10 anclada a la banda de `level` (nunca la contradice).
+
+    `weighted` = 10·crit + 5·high + 3·med + 1·low. Monótona creciente en `weighted`.
+    """
+    floor, ceil = _RISK_FLOOR[level], _RISK_CEIL[level]
+    if ceil == floor:
+        return floor
+    return round(floor + (ceil - floor) * weighted / (weighted + _RISK_K), 1)
+
+
 class AuditService:
     def __init__(self, db: Session):
         self.db = db
@@ -591,7 +610,57 @@ class AuditService:
             except Exception:
                 pass
 
+        # El hallazgo manual entra en los contadores del informe (spec 006).
+        self.recompute_report(audit_id)
         return finding
+
+    def recompute_report(self, audit_id: int) -> Report | None:
+        """Recalcula el Report (contadores + risk_level + risk_score) a partir de
+        los hallazgos de la última ejecución.
+
+        Se llama al final de `run_audit` y tras añadir un hallazgo manual, para que
+        los KPIs de la pantalla y la portada del PDF no queden obsoletos (spec 006).
+        Los hallazgos manuales se arrastran al run_number actual, así que entran en
+        el cómputo igual que los de las herramientas.
+        """
+        audit = self.db.get(Audit, audit_id)
+        if audit is None:
+            return None
+
+        findings = self.get_findings(audit_id)
+        counts = {level: 0 for level in SeverityLevel}
+        for f in findings:
+            counts[f.severity] = counts.get(f.severity, 0) + 1
+
+        risk_level = RiskLevel.INFO
+        for level in (SeverityLevel.CRITICAL, SeverityLevel.HIGH, SeverityLevel.MEDIUM, SeverityLevel.LOW):
+            if counts[level] > 0:
+                risk_level = RiskLevel(level.value)
+                break
+
+        weighted = (
+            counts[SeverityLevel.CRITICAL] * 10
+            + counts[SeverityLevel.HIGH]   *  5
+            + counts[SeverityLevel.MEDIUM] *  3
+            + counts[SeverityLevel.LOW]    *  1
+        )
+        risk_score = compute_risk_score(risk_level, weighted)
+
+        report = self.db.scalar(select(Report).where(Report.audit_id == audit_id))
+        if report is None:
+            report = Report(audit_id=audit_id)
+            self.db.add(report)
+
+        report.risk_level = risk_level
+        report.risk_score = risk_score
+        report.total_findings = len(findings)
+        report.critical_count = counts[SeverityLevel.CRITICAL]
+        report.high_count = counts[SeverityLevel.HIGH]
+        report.medium_count = counts[SeverityLevel.MEDIUM]
+        report.low_count = counts[SeverityLevel.LOW]
+        self.db.commit()
+        self.db.refresh(report)
+        return report
 
     def run_audit(self, audit_id: int) -> Audit | None:
         audit = self.get_audit(audit_id)
@@ -623,7 +692,6 @@ class AuditService:
             manual_scan.run_number = new_run_number
             self.db.flush()
 
-        severity_counts = {level: 0 for level in SeverityLevel}
         total_findings = 0
         all_saved_findings: list[Finding] = []
         raw_results: list[dict] = []
@@ -685,7 +753,6 @@ class AuditService:
                         self.db.add(f)
                         self.db.flush()  # obtener ID para enrichment
                         all_saved_findings.append(f)
-                        severity_counts[finding_data["severity"]] += 1
                     total_findings += len(findings)
 
             if tool_name == "nmap" and scan_status == ScanStatus.COMPLETED and raw_results:
@@ -705,44 +772,6 @@ class AuditService:
                         ),
                     ))
 
-        risk_level = RiskLevel.INFO
-        for level in (SeverityLevel.CRITICAL, SeverityLevel.HIGH, SeverityLevel.MEDIUM, SeverityLevel.LOW):
-            if severity_counts[level] > 0:
-                risk_level = RiskLevel(level.value)
-                break
-
-        # Risk score compuesto — modelo DefectDojo (0-10)
-        # (critical×10 + high×5 + medium×3 + low×1) / total_findings
-        if total_findings > 0:
-            weighted = (
-                severity_counts[SeverityLevel.CRITICAL] * 10
-                + severity_counts[SeverityLevel.HIGH]    *  5
-                + severity_counts[SeverityLevel.MEDIUM]  *  3
-                + severity_counts[SeverityLevel.LOW]     *  1
-            )
-            risk_score = round(weighted / total_findings, 1)
-        else:
-            risk_score = 0.0
-
-        # Create or replace the report
-        existing_report = self.db.scalar(select(Report).where(Report.audit_id == audit.id))
-        if existing_report:
-            self.db.delete(existing_report)
-            self.db.flush()
-
-        self.db.add(
-            Report(
-                audit_id=audit.id,
-                risk_level=risk_level,
-                risk_score=risk_score,
-                total_findings=total_findings,
-                critical_count=severity_counts[SeverityLevel.CRITICAL],
-                high_count=severity_counts[SeverityLevel.HIGH],
-                medium_count=severity_counts[SeverityLevel.MEDIUM],
-                low_count=severity_counts[SeverityLevel.LOW],
-            )
-        )
-
         audit.status = AuditStatus.COMPLETED
         audit.finished_at = _now()
         self.db.add(
@@ -760,6 +789,8 @@ class AuditService:
             )
         )
         self.db.commit()
+
+        self.recompute_report(audit.id)
 
         # CVE enrichment — falla silenciosamente, no bloquea el audit
         if all_saved_findings:

@@ -139,14 +139,59 @@ def test_rf007_risk_level_es_el_de_la_severidad_mas_alta_presente(client, admin_
     assert report["risk_level"] == "high"
 
 
-def test_rf007_risk_score_formula_defectdojo(client, admin_headers, make_target, fake_tool):
-    """(critical*10 + high*5 + medium*3 + low*1) / total -- ver PRINCIPLES.md."""
-    fake_tool(findings=[
-        finding_data(severity=SeverityLevel.CRITICAL),  # 10
-        finding_data(severity=SeverityLevel.HIGH),       # 5
-        finding_data(severity=SeverityLevel.LOW),        # 1
-    ])
-    # (10 + 5 + 1) / 3 = 5.33... redondeado a 5.3
+import pytest
+from app.domain.enums import RiskLevel
+from app.services.audit_service import compute_risk_score, _RISK_FLOOR, _RISK_CEIL
+
+# spec 006 / contracts/risk-score.md — 8 ejemplos de referencia
+_RISK_REF = [
+    (RiskLevel.INFO,     0,  0.0),
+    (RiskLevel.LOW,      1,  2.1),
+    (RiskLevel.LOW,     20,  3.2),
+    (RiskLevel.MEDIUM,   3,  4.6),
+    (RiskLevel.HIGH,    20,  8.2),
+    (RiskLevel.HIGH,    25,  8.3),
+    (RiskLevel.CRITICAL, 10, 9.5),
+    (RiskLevel.CRITICAL, 70, 9.9),
+]
+
+
+@pytest.mark.parametrize("level,weighted,expected", _RISK_REF)
+def test_rf007_risk_score_ejemplos_de_referencia(level, weighted, expected):
+    assert compute_risk_score(level, weighted) == pytest.approx(expected, abs=0.2)
+
+
+@pytest.mark.parametrize("level", list(RiskLevel))
+def test_rf007_risk_score_dentro_de_la_banda_del_nivel(level):
+    """Invariante 1-2: 0 <= score <= 10 y FLOOR[level] <= score <= CEIL[level]."""
+    for weighted in (0, 1, 5, 20, 100, 1000):
+        score = compute_risk_score(level, weighted)
+        assert 0.0 <= score <= 10.0
+        assert _RISK_FLOOR[level] <= score <= _RISK_CEIL[level]
+
+
+@pytest.mark.parametrize("level", [RiskLevel.LOW, RiskLevel.HIGH, RiskLevel.CRITICAL])
+def test_rf007_risk_score_es_monotono(level):
+    """Invariante 3: a igualdad de nivel, más weighted => score >=."""
+    prev = -1.0
+    for weighted in range(0, 200, 7):
+        score = compute_risk_score(level, weighted)
+        assert score >= prev
+        prev = score
+
+
+def test_rf007_risk_score_info_es_cero_y_determinista():
+    assert compute_risk_score(RiskLevel.INFO, 0) == 0.0
+    assert compute_risk_score(RiskLevel.INFO, 999) == 0.0
+    assert compute_risk_score(RiskLevel.HIGH, 20) == compute_risk_score(RiskLevel.HIGH, 20)
+
+
+def test_rf007_alto_con_muchos_bajos_no_contradice_el_nivel(client, admin_headers, make_target, fake_tool):
+    """El caso que motivó la spec: 2 altos + 10 bajos -> nivel ALTO, score en la banda alta (no ~1.7)."""
+    fake_tool(findings=(
+        [finding_data(severity=SeverityLevel.HIGH, title=f"h{i}") for i in range(2)]
+        + [finding_data(severity=SeverityLevel.LOW, title=f"l{i}") for i in range(10)]
+    ))
     t = make_target()
     audit = client.post(
         "/api/v1/audits",
@@ -156,7 +201,27 @@ def test_rf007_risk_score_formula_defectdojo(client, admin_headers, make_target,
     client.post(f"/api/v1/audits/{audit['id']}/run", headers=admin_headers)
 
     report = client.get(f"/api/v1/audits/{audit['id']}/report", headers=admin_headers).json()
-    assert report["risk_score"] == 5.3
+    assert report["risk_level"] == "high"
+    assert report["risk_score"] >= 7.0
+
+
+def test_rf007_risk_score_coherente_entre_endpoints(client, admin_headers, make_target, fake_tool):
+    """Invariante 5 / SC-001: el mismo risk_score en /audits/{id}, /report y /targets/{id}/history."""
+    fake_tool(findings=[finding_data(severity=SeverityLevel.HIGH), finding_data(severity=SeverityLevel.LOW)])
+    t = make_target()
+    audit = client.post(
+        "/api/v1/audits",
+        json={"name": "coherencia", "audit_type": "vulnerability_scan", "target_id": t["id"], "modules": ["faketool"]},
+        headers=admin_headers,
+    ).json()
+    client.post(f"/api/v1/audits/{audit['id']}/run", headers=admin_headers)
+
+    from_audit = client.get(f"/api/v1/audits/{audit['id']}", headers=admin_headers).json()
+    from_report = client.get(f"/api/v1/audits/{audit['id']}/report", headers=admin_headers).json()
+    history = client.get(f"/api/v1/targets/{t['id']}/history", headers=admin_headers).json()
+    hist_entry = next(e for e in history["entries"] if e["audit_id"] == audit["id"])
+
+    assert from_report["risk_score"] == from_audit["report"]["risk_score"] == hist_entry["risk_score"]
 
 
 def test_rf007_sin_findings_risk_level_info_y_score_cero(client, admin_headers, make_target, fake_tool):

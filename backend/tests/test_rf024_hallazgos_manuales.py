@@ -68,6 +68,36 @@ def test_rf024_findings_manuales_persisten_entre_reejecuciones(client, admin_hea
     assert "del scanner" in titles
 
 
+def test_rf024_finding_manual_recalcula_el_informe(client, admin_headers, make_target, fake_tool):
+    """Bug spec 006: añadir un hallazgo crítico manual debe actualizar los
+    contadores y el nivel/puntuación de riesgo del informe, no solo la lista."""
+    fake_tool(findings=[finding_data(title="leve", severity=SeverityLevel.LOW)])
+    t = make_target()
+    audit = client.post(
+        "/api/v1/audits",
+        json={"name": "recompute", "audit_type": "vulnerability_scan", "target_id": t["id"], "modules": ["faketool"]},
+        headers=admin_headers,
+    ).json()
+    client.post(f"/api/v1/audits/{audit['id']}/run", headers=admin_headers)
+
+    before = client.get(f"/api/v1/audits/{audit['id']}", headers=admin_headers).json()["report"]
+    assert before["risk_level"] == "low"
+    assert before["critical_count"] == 0
+
+    client.post(
+        f"/api/v1/audits/{audit['id']}/findings",
+        json={"title": "RCE", "description": "d", "severity": "critical",
+              "category": "injection", "recommendation": "parchear"},
+        headers=admin_headers,
+    )
+
+    after = client.get(f"/api/v1/audits/{audit['id']}", headers=admin_headers).json()["report"]
+    assert after["risk_level"] == "critical"
+    assert after["critical_count"] == 1
+    assert after["total_findings"] == before["total_findings"] + 1
+    assert after["risk_score"] >= 9.0
+
+
 def test_rf024_cve_id_con_formato_invalido_devuelve_422(client, admin_headers, make_target):
     audit = _draft_audit(client, admin_headers, make_target)
     resp = client.post(

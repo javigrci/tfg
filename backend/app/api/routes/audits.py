@@ -3,7 +3,7 @@ import io
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response, StreamingResponse
 from kombu.exceptions import OperationalError as BrokerOperationalError
 from redis.exceptions import ConnectionError as RedisConnectionError
@@ -28,9 +28,18 @@ from app.schemas.audit import (
     ScanLogRead,
     ScanRead,
 )
+from app.domain.enums import ReportLanguage
 from app.services.action_log_service import ActionLogService
 from app.services.audit_service import AuditService
+from app.services.target_service import TargetService
 from app.tasks import run_audit_task
+
+
+def _report_artifacts(service: AuditService, db: Session, audit):
+    """(compliance, history) para las gráficas del informe."""
+    compliance = service.get_compliance(audit.id)
+    history = TargetService(db).get_target_history(audit.target_id)
+    return compliance, history
 
 router = APIRouter(prefix="/audits", tags=["audits"])
 findings_router = APIRouter(prefix="/findings", tags=["audits"])
@@ -467,86 +476,73 @@ def get_delta(
     return DeltaService(db).get_delta(audit_id)
 
 
-@router.get(
-    "/{audit_id}/report/pdf",
-    responses={
-        200: {
-            "description": "PDF report downloaded as attachment.",
-            "content": {"application/pdf": {}},
-        },
-        401: {"description": "Token ausente, inválido o expirado."},
-        404: {"description": "Auditoría no encontrada o sin report aún."},
-    },
-)
-def download_report_pdf(
-    audit_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> Response:
-    """
-    Genera y descarga el informe de una auditoría en formato PDF.
+def _pdf_response(db: Session, service: AuditService, audit, *, technical: bool, lang: ReportLanguage) -> Response:
+    from app.services import pdf_service
 
-    El PDF incluye portada, resumen ejecutivo con KPIs y el detalle completo
-    de cada finding (descripción, evidencia y recomendación).
-    Solo disponible después de ejecutar la auditoría con `/run`.
-    """
-    from app.services.pdf_service import generate_audit_pdf
-
-    service = AuditService(db)
-    audit   = _get_or_404(service, audit_id, current_user)
     if audit.report is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Report not available yet. Run the audit first.",
         )
-    pdf_bytes = generate_audit_pdf(audit)
-    filename  = f"audit_technical_{audit_id}.pdf"
+    compliance, history = _report_artifacts(service, db, audit)
+    kind = "technical" if technical else "executive"
+    gen = pdf_service.generate_technical_pdf if technical else pdf_service.generate_executive_pdf
+
+    if lang == ReportLanguage.BOTH:
+        data = pdf_service.report_bundle(audit, technical=technical, compliance=compliance, history=history)
+        return Response(
+            content=data, media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="audit_{kind}_{audit.id}.zip"'},
+        )
+    data = gen(audit, lang.value, compliance=compliance, history=history)
     return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        content=data, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="audit_{kind}_{audit.id}_{lang.value}.pdf"'},
     )
+
+
+@router.get(
+    "/{audit_id}/report/pdf",
+    responses={
+        200: {"description": "PDF (o ZIP si lang=both) descargado como adjunto.",
+              "content": {"application/pdf": {}, "application/zip": {}}},
+        401: {"description": "Token ausente, inválido o expirado."},
+        404: {"description": "Auditoría no encontrada o sin report aún."},
+        422: {"description": "Parámetro `lang` inválido."},
+    },
+)
+def download_report_pdf(
+    audit_id: int,
+    lang: ReportLanguage = Query(default=ReportLanguage.ES),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Informe técnico en PDF (`?lang=es|en|both`; `both` devuelve un ZIP con ambos)."""
+    service = AuditService(db)
+    audit   = _get_or_404(service, audit_id, current_user)
+    return _pdf_response(db, service, audit, technical=True, lang=lang)
 
 
 @router.get(
     "/{audit_id}/report/pdf/executive",
     responses={
-        200: {
-            "description": "Executive PDF report downloaded as attachment.",
-            "content": {"application/pdf": {}},
-        },
+        200: {"description": "PDF ejecutivo (o ZIP si lang=both) descargado como adjunto.",
+              "content": {"application/pdf": {}, "application/zip": {}}},
         401: {"description": "Token ausente, inválido o expirado."},
         404: {"description": "Auditoría no encontrada o sin report aún."},
+        422: {"description": "Parámetro `lang` inválido."},
     },
 )
 def download_executive_pdf(
     audit_id: int,
+    lang: ReportLanguage = Query(default=ReportLanguage.ES),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
-    """
-    Genera y descarga el informe ejecutivo en PDF.
-
-    Incluye narrativa de riesgo, KPIs, distribución OWASP, tabla resumen
-    de findings y top recomendaciones. Sin evidencia técnica.
-    Solo disponible después de ejecutar la auditoría con `/run`.
-    """
-    from app.services.pdf_service import generate_executive_pdf
-
+    """Informe ejecutivo en PDF (`?lang=es|en|both`; `both` devuelve un ZIP con ambos)."""
     service = AuditService(db)
     audit   = _get_or_404(service, audit_id, current_user)
-    if audit.report is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not available yet. Run the audit first.",
-        )
-    pdf_bytes = generate_executive_pdf(audit)
-    filename  = f"audit_executive_{audit_id}.pdf"
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    return _pdf_response(db, service, audit, technical=False, lang=lang)
 
 
 @router.get(

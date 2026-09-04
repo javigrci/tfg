@@ -12,11 +12,12 @@ from app.domain.enums import (
     SeverityLevel,
 )
 from app.core.config import get_settings
-from app.executors.base import ChainContext
+from app.executors.base import ChainContext, ChainFinding, ChainType, _cap_for
 from app.executors.factory import get_executor, get_parser
 from app.models.entities import Audit, Event, Finding, FindingVulnerability, Log, OwaspCategory, Report, Scan, Target, User, Vulnerability
-from app.parsers.nmap_parser import NmapParser, select_web_targets
+from app.parsers.nmap_parser import NmapParser
 from app.schemas.audit import AuditCreate
+from app.services.chain_orchestrator import ChainOrchestrator
 from app.services.cve_enrichment import CVEEnrichmentService
 
 
@@ -89,7 +90,18 @@ class AuditService:
         return orphaned
 
     def delete_audit(self, audit_id: int) -> bool:
-        audit = self.db.get(Audit, audit_id)
+        # Carga explícita del árbol hijo: la cascada ORM (`delete-orphan`) necesita
+        # la colección en la sesión para borrar scans/findings/report/events/logs.
+        audit = self.db.scalar(
+            select(Audit)
+            .where(Audit.id == audit_id)
+            .options(
+                joinedload(Audit.scans).joinedload(Scan.findings),
+                joinedload(Audit.report),
+                joinedload(Audit.events),
+                joinedload(Audit.logs),
+            )
+        )
         if audit is None:
             return False
         self.db.delete(audit)
@@ -697,80 +709,131 @@ class AuditService:
         raw_results: list[dict] = []
 
         chain_context = ChainContext()
-        chain_limit = get_settings().chain_max_web_targets
+        graph = ChainOrchestrator(get_executor).plan(tools)
+        tool_failures: list[str] = []
+        discovered_totals: dict[ChainType, int] = {t: 0 for t in ChainType}
 
-        for tool_name in tools:
+        def _persist_scan_and_findings(tool_name: str, raw_result: dict, scan_status) -> None:
+            nonlocal total_findings
+            scan = Scan(
+                audit_id=audit.id,
+                run_number=new_run_number,
+                tool=raw_result["tool"],
+                command=raw_result.get("command"),
+                status=scan_status,
+                executed_at=_now(),
+                raw_output=raw_result.get("raw_output"),
+            )
+            self.db.add(scan)
+            self.db.flush()
+
+            if scan_status != ScanStatus.COMPLETED:
+                return
+
+            parser = get_parser(tool_name)
+            findings = parser.parse(raw_result)
+            for finding_data in findings:
+                fp = _compute_fingerprint(
+                    tool_name,
+                    finding_data["category"].value,
+                    finding_data["title"],
+                    finding_data.get("evidence"),
+                )
+                f = Finding(scan_id=scan.id, fingerprint=fp, **finding_data)
+                self.db.add(f)
+                self.db.flush()
+                all_saved_findings.append(f)
+            total_findings += len(findings)
+
+            # Hallazgos tipados → contexto de encadenamiento (ADR-010).
+            extractor = getattr(parser, "extract_chain_findings", None)
+            if extractor is not None:
+                for cf in extractor(raw_result, target_base=audit.target.address):
+                    discovered_totals[cf.type] += 1
+                    chain_context.add(cf)
+            elif tool_name == "nmap":
+                for url in NmapParser.extract_web_targets(
+                    raw_result.get("raw_output", ""), audit.target.address
+                ):
+                    discovered_totals[ChainType.WEB_PORT] += 1
+                    chain_context.add(ChainFinding(ChainType.WEB_PORT, url, source_tool="nmap"))
+
+        def _run_tool(tool_name: str, *, context: ChainContext) -> None:
             try:
                 executor = get_executor(tool_name)
-                parser = get_parser(tool_name)
+                get_parser(tool_name)
             except ValueError as exc:
                 self.db.add(Log(audit_id=audit.id, level="WARNING", message=str(exc)))
-                continue
-
+                return
             try:
-                raw_results = executor.execute(
+                results = executor.execute(
                     audit.target.address,
                     details=audit.target.details,
-                    chain_context=chain_context,
+                    chain_context=context,
                 )
                 scan_status = ScanStatus.COMPLETED
             except Exception as exc:
-                raw_results = [
-                    {
-                        "tool": tool_name,
-                        "command": tool_name,
-                        "raw_output": str(exc),
-                    }
-                ]
+                results = [{"tool": tool_name, "command": tool_name, "raw_output": str(exc)}]
                 scan_status = ScanStatus.FAILED
-                self.db.add(
-                    Log(audit_id=audit.id, level="ERROR", message=f"[{tool_name}] {exc}")
-                )
+                tool_failures.append(tool_name)
+                self.db.add(Log(audit_id=audit.id, level="ERROR", message=f"[{tool_name}] {exc}"))
+            for raw_result in results:
+                _persist_scan_and_findings(tool_name, raw_result, scan_status)
+            raw_results.extend(results)
+            scanned = (
+                chain_context.values(ChainType.WEB_PORT)
+                + chain_context.values(ChainType.PATH)
+            )
+            chain_context.mark_scanned(tool_name, scanned)
 
-            for raw_result in raw_results:
-                scan = Scan(
-                    audit_id=audit.id,
-                    run_number=new_run_number,
-                    tool=raw_result["tool"],
-                    command=raw_result.get("command"),
-                    status=scan_status,
-                    executed_at=_now(),
-                    raw_output=raw_result.get("raw_output"),
-                )
-                self.db.add(scan)
-                self.db.flush()
+        # Pasada topológica.
+        for level in graph.order:
+            for tool_name in level:
+                _run_tool(tool_name, context=chain_context)
 
-                if scan_status == ScanStatus.COMPLETED:
-                    findings = parser.parse(raw_result)
-                    for finding_data in findings:
-                        fp = _compute_fingerprint(
-                            tool_name,
-                            finding_data["category"].value,
-                            finding_data["title"],
-                            finding_data.get("evidence"),
-                        )
-                        f = Finding(scan_id=scan.id, fingerprint=fp, **finding_data)
-                        self.db.add(f)
-                        self.db.flush()  # obtener ID para enrichment
-                        all_saved_findings.append(f)
-                    total_findings += len(findings)
+        # Pasadas de re-alimentación de rutas (acotadas — SC-005).
+        refeed_passes_done = 0
+        for _ in range(max(0, get_settings().chain_refeed_passes)):
+            progressed = False
+            for tool_name in graph.refeed:
+                new_paths = chain_context.unscanned(tool_name, ChainType.PATH)
+                if not new_paths:
+                    continue
+                base = audit.target.address
+                urls = [
+                    (base.rstrip("/") + "/" + p.lstrip("/")) for p in new_paths
+                ]
+                _run_tool(tool_name, context=ChainContext(web_targets=urls))
+                chain_context.mark_scanned(tool_name, new_paths)
+                progressed = True
+            if progressed:
+                refeed_passes_done += 1
+            else:
+                break
 
-            if tool_name == "nmap" and scan_status == ScanStatus.COMPLETED and raw_results:
-                discovered = NmapParser.extract_web_targets(
-                    raw_results[0].get("raw_output", ""), audit.target.address
-                )
-                chain_context.web_targets = select_web_targets(discovered, chain_limit)
-                if discovered:
-                    self.db.add(Log(
-                        audit_id=audit.id,
-                        level="INFO",
-                        message=(
-                            f"Tool chaining: {len(discovered)} endpoint(s) web descubierto(s), "
-                            f"{len(chain_context.web_targets)} encadenado(s), "
-                            f"{len(discovered) - len(chain_context.web_targets)} descartado(s) "
-                            f"(limite {chain_limit})"
-                        ),
-                    ))
+        # Registro del grafo realmente ejecutado (FR-010).
+        def _by_type(ct: ChainType) -> dict:
+            disc = discovered_totals[ct]
+            chained = len(chain_context.values(ct))
+            entry = {
+                "discovered": disc,
+                "chained": chained,
+                "discarded": max(0, disc - chained),
+                "cap": _cap_for(ct),
+            }
+            if ct == ChainType.TECHNOLOGY:
+                entry["values"] = chain_context.values(ct)
+            return entry
+
+        chain_graph_payload = {
+            "order": graph.order,
+            "refeed_passes": refeed_passes_done,
+            "by_type": {ct.value: _by_type(ct) for ct in ChainType},
+            "tool_failures": tool_failures,
+        }
+        self.db.add(Event(
+            audit_id=audit.id, event_type="chain_graph", payload=chain_graph_payload,
+        ))
 
         audit.status = AuditStatus.COMPLETED
         audit.finished_at = _now()
@@ -789,8 +852,6 @@ class AuditService:
             )
         )
         self.db.commit()
-
-        self.recompute_report(audit.id)
 
         # CVE enrichment — falla silenciosamente, no bloquea el audit
         if all_saved_findings:
@@ -823,5 +884,9 @@ class AuditService:
                     )
                 )
                 self.db.commit()
+
+        # El informe se calcula DESPUÉS del enrichment: un CVE puede elevar la
+        # severidad de un hallazgo (nunca degradarla) y los contadores deben reflejarlo.
+        self.recompute_report(audit.id)
 
         return self.get_audit(audit.id)

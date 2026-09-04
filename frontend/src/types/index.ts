@@ -23,6 +23,7 @@ export interface Target {
   address: string
   status: TargetStatus
   created_at: string
+  audit_count?: number
 }
 
 export interface TargetHistoryEntry {
@@ -137,6 +138,28 @@ export interface ActionLogEntry {
   user: { id: number; username: string; role: { id: number; name: UserRole } } | null
 }
 
+export interface AuditEvent {
+  id: number
+  event_type: string
+  payload: Record<string, unknown>
+  created_at: string
+}
+
+export interface ChainGraphByType {
+  discovered: number
+  chained: number
+  discarded: number
+  cap: number
+  values?: string[]
+}
+
+export interface ChainGraphPayload {
+  order: string[][]
+  refeed_passes: number
+  by_type: Record<string, ChainGraphByType>
+  tool_failures: string[]
+}
+
 export interface Audit {
   id: number
   name: string
@@ -148,6 +171,7 @@ export interface Audit {
   created_by: { id: number; username: string; role: { id: number; name: string } }
   scans: Scan[]
   report: Report | null
+  events?: AuditEvent[]
   created_at: string
   started_at: string | null
   finished_at: string | null

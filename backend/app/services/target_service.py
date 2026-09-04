@@ -2,8 +2,8 @@ import platform
 import socket
 import subprocess
 from urllib.parse import urlparse
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
 from app.domain.enums import AuditStatus, TargetStatus
 from app.models.entities import Audit, Report, Target
 from app.schemas.audit import TargetCreate, TargetUpdate
@@ -54,7 +54,11 @@ class TargetService:
         self.db = db
 
     def list_targets(self) -> list[Target]:
-        return list(self.db.scalars(select(Target).order_by(Target.created_at.desc())).all())
+        return list(self.db.scalars(
+            select(Target)
+            .options(selectinload(Target.audits))
+            .order_by(Target.created_at.desc())
+        ).unique().all())
 
     def get_target(self, target_id: int) -> Target | None:
         return self.db.scalar(select(Target).where(Target.id == target_id))
@@ -90,13 +94,14 @@ class TargetService:
         return target
 
     def delete_target(self, target: Target) -> None:
+        """Borra el objetivo y, en cascada, sus auditorías completas (RF-019)."""
         self.db.delete(target)
         self.db.commit()
 
-    def has_audits(self, target_id: int) -> bool:
+    def count_audits(self, target_id: int) -> int:
         return self.db.scalar(
-            select(Audit).where(Audit.target_id == target_id)
-        ) is not None
+            select(func.count(Audit.id)).where(Audit.target_id == target_id)
+        ) or 0
 
     def get_target_history(self, target_id: int) -> dict | None:
         """Devuelve el historial de riesgo del target: una entrada por cada auditoría completada."""

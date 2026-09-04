@@ -304,6 +304,10 @@
     },
     "notFoundMsg":      "Audit not found or failed to load.",
     "execTimeline":     "Execution Timeline",
+    "chainTitle":       "Tool chaining",
+    "chainCounts":      "{{discovered}} discovered · {{chained}} chained · {{discarded}} discarded",
+    "chainRefeed":      "Path re-feed: {{count}} pass(es)",
+    "chainFailures":    "Tool failure(s): {{tools}}",
     "noScans":          "No scans yet. Run the audit to start scanning.",
     "scanFindings_one":   "{{count}} finding",
     "scanFindings_other": "{{count}} findings",
@@ -465,7 +469,8 @@
       "title":         "Delete target",
       "confirmBefore": "Are you sure you want to delete",
       "confirmAfter":  "? This action cannot be undone.",
-      "error409":      "This target has associated audits and cannot be deleted.",
+      "cascadeWarning_one":   "Its {{count}} audit, with its findings and report, will also be deleted.",
+      "cascadeWarning_other": "Its {{count}} audits, with their findings and reports, will also be deleted.",
       "errorGeneric":  "An unexpected error occurred."
     },
     "lab": {
@@ -540,6 +545,13 @@
       "stepNmap":     "Nmap discovers the target's open ports and services.",
       "stepWeb":      "{{tools}} scan the web ports Nmap discovers (up to {{cap}}).",
       "stepNmapOnly": "Nmap discovers open ports and services. No web tools configured."
+    },
+    "graph": {
+      "title":       "Execution plan",
+      "single":      "Single tool — no chaining.",
+      "nmapMissing": "Without Nmap, the web tools run in generic mode.",
+      "refeed":      "Web tools re-feed each other discovered paths (1 pass).",
+      "type": { "web_port": "web ports", "technology": "technology", "path": "paths" }
     },
     "tools": {
       "nmap":   { "desc": "Port & service discovery" },

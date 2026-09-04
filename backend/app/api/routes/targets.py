@@ -116,24 +116,16 @@ def check_target(target_id: int, db: Session = Depends(get_db), _: User = Depend
     "/{target_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        204: {"description": "Target eliminado correctamente."},
+        204: {"description": "Target eliminado. Sus auditorías (con hallazgos e informes) se borran en cascada."},
         401: {"description": "Token ausente, inválido o expirado."},
         404: {"description": "No existe ningún target con ese ID."},
-        409: {"description": "El target tiene auditorías asociadas y no puede eliminarse."},
     },
 )
 def delete_target(target_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> None:
     """
-    Elimina un target.
-
-    No se puede eliminar un target que tenga auditorías asociadas.
-    Devuelve 409 Conflict en ese caso.
+    Elimina un target y, en cascada, todas sus auditorías con sus scans, hallazgos,
+    informes, eventos y logs (RF-019). La UI avisa del alcance antes de confirmar.
     """
     service = TargetService(db)
     target = _get_or_404(service, target_id)
-    if service.has_audits(target_id):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Target has associated audits and cannot be deleted.",
-        )
     service.delete_target(target)

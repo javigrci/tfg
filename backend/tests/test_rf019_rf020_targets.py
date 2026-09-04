@@ -45,15 +45,23 @@ def test_rf019_eliminar_target_sin_auditorias(client, admin_headers, make_target
     assert resp.status_code == 204
 
 
-def test_rf019_eliminar_target_con_auditorias_devuelve_409(client, admin_headers, make_target):
+def test_rf019_eliminar_target_borra_sus_auditorias_en_cascada(client, admin_headers, make_target):
     t = make_target(name="Con auditoria", address="127.0.0.1:5436")
-    client.post(
+    audit = client.post(
         "/api/v1/audits",
         json={"name": "audit sobre target", "audit_type": "vulnerability_scan", "target_id": t["id"], "modules": ["nmap"]},
         headers=admin_headers,
-    )
+    ).json()
+
+    # el listado expone el nº de auditorías para el aviso de la UI
+    listed = next(x for x in client.get("/api/v1/targets", headers=admin_headers).json() if x["id"] == t["id"])
+    assert listed["audit_count"] == 1
+
     resp = client.delete(f"/api/v1/targets/{t['id']}", headers=admin_headers)
-    assert resp.status_code == 409
+    assert resp.status_code == 204
+
+    assert client.get(f"/api/v1/targets/{t['id']}", headers=admin_headers).status_code == 404
+    assert client.get(f"/api/v1/audits/{audit['id']}", headers=admin_headers).status_code == 404
 
 
 def test_rf019_targets_no_tienen_restriccion_de_rol(client, operator_headers):

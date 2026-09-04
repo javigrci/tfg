@@ -22,8 +22,11 @@ services:
       MYSQL_DATABASE:      dvwa
       MYSQL_USER:          dvwa
       MYSQL_PASSWORD:      dvwa
-    volumes:
-      - dvwa_db_data:/var/lib/mysql
+    # Sin volumen persistente: el lab es desechable y DVWA se re-siembra sola.
+    # Evita el "Unsupported redo log format" cuando el volumen quedó de una
+    # versión de MariaDB más nueva.
+    tmpfs:
+      - /var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-udvwa", "-pdvwa"]
       interval: 10s
@@ -65,6 +68,3 @@ services:
       - "2121:21"
       - "8180:80"
       - "2222:22"
-
-volumes:
-  dvwa_db_data:

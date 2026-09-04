@@ -51,7 +51,15 @@ class Target(Base):
     status: Mapped[TargetStatus] = mapped_column(Enum(TargetStatus), default=TargetStatus.UNKNOWN, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    audits: Mapped[list["Audit"]] = relationship(back_populates="target")
+    # Al borrar un objetivo se borran sus auditorías (y en cascada scans, findings,
+    # informes, eventos y logs). RF-019.
+    audits: Mapped[list["Audit"]] = relationship(
+        back_populates="target", cascade="all, delete-orphan"
+    )
+
+    @property
+    def audit_count(self) -> int:
+        return len(self.audits)
 
 
 class Audit(Base):

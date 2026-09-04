@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AxiosError } from 'axios'
 import { Plus, Wifi, Trash2, X, Loader2, AlertTriangle, FlaskConical, RefreshCw, Check, TrendingUp } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -186,16 +185,11 @@ export default function Targets() {
     mutationFn: (id: number) => api.delete(`/targets/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['targets'] })
+      qc.invalidateQueries({ queryKey: ['audits'] })
       setToDelete(null)
       setDeleteError('')
     },
-    onError: (err: AxiosError) => {
-      if (err.response?.status === 409) {
-        setDeleteError(t('targets.delete.error409'))
-      } else {
-        setDeleteError(t('targets.delete.errorGeneric'))
-      }
-    },
+    onError: () => setDeleteError(t('targets.delete.errorGeneric')),
   })
 
   const checkMutation = useMutation({
@@ -486,7 +480,7 @@ export default function Targets() {
                 labContainers.map(c => {
                   const s       = LAB_STATUS[c.status] ?? LAB_STATUS.not_found
                   const added   = isAlreadyAdded(c)
-                  const canAdd  = c.status === 'running' && !!c.suggested_address && !added
+                  const canAdd  = c.status !== 'not_found' && !!c.suggested_address && !added
                   const isAdding = addingContainer === c.container
 
                   return (
@@ -729,6 +723,12 @@ export default function Targets() {
                 </p>
               </div>
             </div>
+
+            {!!toDelete.audit_count && toDelete.audit_count > 0 && (
+              <p className="text-sm text-yellow-400 bg-yellow-500/10 rounded-lg px-3 py-2">
+                {t('targets.delete.cascadeWarning', { count: toDelete.audit_count })}
+              </p>
+            )}
 
             {deleteError && (
               <p className="text-sm text-red-400 bg-red-500/10 rounded-lg px-3 py-2">

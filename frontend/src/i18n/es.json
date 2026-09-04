@@ -304,6 +304,10 @@
     "unreachablePost":  ". Verifica la conectividad antes de ejecutar — el escaneo no devolverá hallazgos.",
     "notFoundMsg":      "Auditoría no encontrada o error al cargar.",
     "execTimeline":     "Historial de ejecución",
+    "chainTitle":       "Encadenamiento",
+    "chainCounts":      "{{discovered}} descubierto(s) · {{chained}} encadenado(s) · {{discarded}} descartado(s)",
+    "chainRefeed":      "Re-alimentación de rutas: {{count}} pasada(s)",
+    "chainFailures":    "Herramienta(s) con fallo: {{tools}}",
     "noScans":          "Sin escaneos aún. Ejecuta la auditoría para empezar.",
     "scanFindings_one":   "{{count}} hallazgo",
     "scanFindings_other": "{{count}} hallazgos",
@@ -465,7 +469,8 @@
       "title":         "Eliminar objetivo",
       "confirmBefore": "¿Seguro que quieres eliminar",
       "confirmAfter":  "? Esta acción no se puede deshacer.",
-      "error409":      "Este objetivo tiene auditorías asociadas y no puede eliminarse.",
+      "cascadeWarning_one":   "Se eliminará también su {{count}} auditoría, con sus hallazgos e informes.",
+      "cascadeWarning_other": "Se eliminarán también sus {{count}} auditorías, con sus hallazgos e informes.",
       "errorGeneric":  "Se produjo un error inesperado."
     },
     "lab": {
@@ -540,6 +545,13 @@
       "stepNmap":     "Nmap descubre los puertos y servicios abiertos del objetivo.",
       "stepWeb":      "{{tools}} escanean los puertos web que descubra Nmap (hasta {{cap}}).",
       "stepNmapOnly": "Nmap descubre los puertos y servicios abiertos. No hay herramientas web configuradas."
+    },
+    "graph": {
+      "title":       "Plan de ejecución",
+      "single":      "Una sola herramienta — sin encadenamiento.",
+      "nmapMissing": "Sin Nmap, las herramientas web se ejecutan en modo genérico.",
+      "refeed":      "Las herramientas web se re-alimentan las rutas descubiertas (1 pasada).",
+      "type": { "web_port": "puertos web", "technology": "tecnología", "path": "rutas" }
     },
     "tools": {
       "nmap":   { "desc": "Descubrimiento de puertos y servicios" },

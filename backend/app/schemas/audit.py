@@ -79,6 +79,7 @@ class TargetRead(BaseModel):
     details: dict = Field(default_factory=dict)
     status: TargetStatus
     created_at: datetime
+    audit_count: int = 0
 
     model_config = {"from_attributes": True}
 

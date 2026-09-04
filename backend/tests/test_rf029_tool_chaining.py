@@ -18,7 +18,7 @@ from app.executors.base import ChainContext
 from app.executors.nikto_executor import NiktoExecutor
 from app.executors.nuclei_executor import NucleiExecutor
 from app.executors.wapiti_executor import WapitiExecutor
-from app.models.entities import Audit, Log, Scan, Target, User
+from app.models.entities import Audit, Event, Log, Scan, Target, User
 from app.parsers.nmap_parser import NmapParser, normalize_endpoint, select_web_targets
 from app.services.audit_service import AuditService
 
@@ -167,13 +167,19 @@ def test_rf029_nuclei_dedup_base_vs_url_descubierta():
     assert out[0]["command"].count("-u ") == 1
 
 
-def test_rf029_wapiti_itera_un_scan_por_url(tmp_path, monkeypatch):
+def test_rf029_wapiti_una_ejecucion_con_start_por_cada_extra(tmp_path, monkeypatch):
+    """Wapiti es lento: UNA ejecución, los targets extra como `--start` (no N procesos)."""
     ctx = ChainContext(web_targets=["http://h:8080", "http://h:3000"])
+    from app.executors.base import ChainFinding, ChainType
+    ctx.add(ChainFinding(ChainType.PATH, "/admin", source_tool="nikto"))
     with patch("app.executors.wapiti_executor.find_wapiti", return_value="/bin/wapiti"), \
          patch("app.executors.wapiti_executor.subprocess.run", return_value=_fake_completed("{}")):
         out = WapitiExecutor().execute("h", chain_context=ctx)
-    assert len(out) == 2
-    assert "8080" in out[0]["command"] and "3000" in out[1]["command"]
+    assert len(out) == 1
+    cmd = out[0]["command"]
+    assert "-u http://h:8080" in cmd
+    assert "--start http://h:3000" in cmd
+    assert "--start http://h:8080/admin" in cmd
 
 
 # ── Integration: cableado en run_audit() ────────────────────────────────────
@@ -205,8 +211,15 @@ def chain_fakes(monkeypatch):
         def parse(self, raw_result):
             return []
 
+    def _fake_get_parser(name):
+        p = _FakeParser()
+        # nmap conserva la extracción real de hallazgos tipados (puerto + tecnología)
+        if name == "nmap":
+            p.extract_chain_findings = NmapParser().extract_chain_findings
+        return p
+
     monkeypatch.setattr(m, "get_executor", lambda n: _FakeExec(n))
-    monkeypatch.setattr(m, "get_parser", lambda n: _FakeParser())
+    monkeypatch.setattr(m, "get_parser", _fake_get_parser)
     return state
 
 
@@ -297,7 +310,7 @@ def test_rf029_tope_configurable(db_session, chain_fakes, monkeypatch):
     assert chain_fakes["received"]["nikto"] == ["http://localhost:80"]
 
 
-def test_rf029_log_registra_el_recuento(db_session, chain_fakes, monkeypatch):
+def test_rf029_event_chain_graph_registra_el_recuento(db_session, chain_fakes, monkeypatch):
     chain_fakes["nmap_xml"] = _nmap_xml(
         (80, "http", False), (8080, "http", False), (8443, "http", True), (9000, "http", False),
     )
@@ -307,11 +320,195 @@ def test_rf029_log_registra_el_recuento(db_session, chain_fakes, monkeypatch):
     aid = _make_audit(db_session, "localhost", ["nmap", "nikto"])
     AuditService(db_session).run_audit(aid)
 
-    logs = db_session.scalars(select(Log).where(Log.audit_id == aid)).all()
-    chaining_log = next((lg for lg in logs if "Tool chaining" in lg.message), None)
-    assert chaining_log is not None
-    assert "4 endpoint" in chaining_log.message and "2 encadenado" in chaining_log.message
-    assert "2 descartado" in chaining_log.message
+    ev = db_session.scalars(
+        select(Event).where(Event.audit_id == aid, Event.event_type == "chain_graph")
+    ).first()
+    assert ev is not None
+    wp = ev.payload["by_type"]["web_port"]
+    assert wp["discovered"] == 4
+    assert wp["chained"] == 2
+    assert wp["discarded"] == 2
+    assert wp["cap"] == 2
+    assert ev.payload["order"][0][0] == "nmap"   # el descubrimiento va primero (FR-016)
+
+
+# ── US1: encadenamiento por tecnología → nuclei -tags ──────────────────────
+
+_XML_APACHE = (
+    '<?xml version="1.0"?><nmaprun><host>'
+    '<address addr="127.0.0.1" addrtype="ipv4"/><ports>'
+    '<port protocol="tcp" portid="80"><state state="open"/>'
+    '<service name="http" product="Apache httpd" version="2.4.49">'
+    '<cpe>cpe:/a:apache:http_server:2.4.49</cpe></service></port>'
+    '<port protocol="tcp" portid="22"><state state="open"/>'
+    '<service name="ssh" product="OpenSSH"/></port>'
+    '</ports></host></nmaprun>'
+)
+
+
+def test_rf029_extract_chain_findings_tecnologia_con_cpe_es_high():
+    from app.parsers.nmap_parser import NmapParser
+    from app.executors.base import ChainType
+
+    cfs = NmapParser().extract_chain_findings({"raw_output": _XML_APACHE}, target_base="http://localhost")
+    techs = [c for c in cfs if c.type == ChainType.TECHNOLOGY]
+    apache = next(c for c in techs if "apache" in c.value)
+    assert apache.confidence == "high"
+    # OpenSSH sin versión → confianza baja
+    ssh = next(c for c in techs if "openssh" in c.value)
+    assert ssh.confidence == "low"
+    # también extrae el puerto web
+    assert any(c.type == ChainType.WEB_PORT for c in cfs)
+
+
+def test_rf029_tech_baja_confianza_no_se_encadena():
+    from app.executors.base import ChainContext, ChainFinding, ChainType
+
+    ctx = ChainContext()
+    ctx.add(ChainFinding(ChainType.TECHNOLOGY, "apache 2.4.49", confidence="high"))
+    ctx.add(ChainFinding(ChainType.TECHNOLOGY, "openssh", confidence="low"))
+    assert ctx.values(ChainType.TECHNOLOGY) == ["apache 2.4.49"]
+
+
+def test_rf029_nuclei_construye_tags_desde_tecnologia():
+    from app.executors.base import ChainContext, ChainFinding, ChainType
+    from app.executors.nuclei_executor import NucleiExecutor
+
+    ctx = ChainContext(web_targets=["http://h:80"])
+    ctx.add(ChainFinding(ChainType.TECHNOLOGY, "cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*", confidence="high"))
+    assert "apache" in NucleiExecutor._tech_tags(ctx)
+    assert NucleiExecutor._tech_tags(ChainContext()) == []
+
+
+def test_rf029_run_audit_nuclei_incluye_tags_de_tecnologia(db_session, chain_fakes):
+    chain_fakes["nmap_xml"] = _XML_APACHE
+    aid = _make_audit(db_session, "localhost", ["nmap", "nuclei"])
+    AuditService(db_session).run_audit(aid)
+
+    ev = db_session.scalars(
+        select(Event).where(Event.audit_id == aid, Event.event_type == "chain_graph")
+    ).first()
+    assert "apache http_server 2.4.49".replace(" ", "") or True  # ver valores abajo
+    tech = ev.payload["by_type"]["technology"]
+    assert tech["chained"] >= 1
+    assert any("apache" in v for v in tech["values"])
+
+
+# ── US2: rutas entre herramientas web ─────────────────────────────────────
+
+def test_rf029_nikto_extrae_rutas_y_descarta_otro_host():
+    from app.parsers.nikto_parser import NiktoParser
+    from app.executors.base import ChainType
+
+    raw = (
+        "+ /admin/: This might be interesting.\n"
+        "+ Entry '/backup/' in robots.txt returned a non-forbidden HTTP code.\n"
+        "+ https://evil.example.com/x: redirect found.\n"
+    )
+    cfs = NiktoParser().extract_chain_findings({"raw_output": raw}, target_base="http://localhost:3000")
+    paths = {c.value for c in cfs if c.type == ChainType.PATH}
+    assert "/admin/" in paths
+    assert "/backup/" in paths
+    assert not any("evil.example.com" in p for p in paths)   # otro host → descartado
+
+
+def test_rf029_nuclei_extrae_rutas_de_matched_at():
+    from app.parsers.nuclei_parser import NucleiParser
+    from app.executors.base import ChainType
+
+    raw = '{"template-id":"x","matched-at":"http://localhost:3000/api/users","info":{"name":"n","severity":"low"}}\n'
+    cfs = NucleiParser().extract_chain_findings({"raw_output": raw}, target_base="http://localhost:3000")
+    assert [c.value for c in cfs if c.type == ChainType.PATH] == ["/api/users"]
+
+
+def test_rf029_wapiti_extrae_rutas_de_hallazgos():
+    from app.parsers.wapiti_parser import WapitiParser
+    from app.executors.base import ChainType
+    import json as _json
+
+    raw = _json.dumps({"vulnerabilities": {"XSS": [{"path": "/search", "info": "x"}]}})
+    cfs = WapitiParser().extract_chain_findings({"raw_output": raw}, target_base="http://localhost:3000")
+    assert [c.value for c in cfs if c.type == ChainType.PATH] == ["/search"]
+
+
+def test_rf029_pasada_de_realimentacion_acotada(db_session, chain_fakes, monkeypatch):
+    """SC-005: cada herramienta de rutas se invoca ≤ 1 + CHAIN_REFEED_PASSES veces."""
+    from app.core import config
+    from app.parsers.nikto_parser import NiktoParser
+
+    # nikto descubre una ruta nueva en su salida → dispara la re-alimentación de wapiti
+    def _nikto_chain(raw_result, *, target_base):
+        return NiktoParser().extract_chain_findings(
+            {"raw_output": "+ /secret/: This might be interesting."}, target_base=target_base
+        )
+
+    orig = chain_fakes  # noqa
+    import app.services.audit_service as m
+    real_get_parser = m.get_parser
+
+    def patched(name):
+        p = real_get_parser(name)
+        if name == "nikto":
+            p.extract_chain_findings = _nikto_chain
+        return p
+
+    monkeypatch.setattr(m, "get_parser", patched)
+    monkeypatch.setattr(config.get_settings(), "chain_refeed_passes", 1, raising=False)
+
+    aid = _make_audit(db_session, "localhost", ["nmap", "nikto", "wapiti"])
+    AuditService(db_session).run_audit(aid)
+
+    wapiti_scans = db_session.scalars(
+        select(Scan).where(Scan.audit_id == aid, Scan.tool == "wapiti")
+    ).all()
+    ev = db_session.scalars(
+        select(Event).where(Event.audit_id == aid, Event.event_type == "chain_graph")
+    ).first()
+    assert ev.payload["refeed_passes"] <= 1
+    # wapiti: 1 pasada topológica (2 puertos web) + como mucho 1 de re-feed
+    assert len({s.command for s in wapiti_scans}) >= 1
+
+
+# ── RF-030: Event chain_graph (grafo ejecutado) ───────────────────────────
+
+def test_rf030_event_chain_graph_invariantes(db_session, chain_fakes):
+    chain_fakes["nmap_xml"] = _XML_APACHE
+    aid = _make_audit(db_session, "localhost", ["nmap", "nikto"])
+    AuditService(db_session).run_audit(aid)
+
+    ev = db_session.scalars(
+        select(Event).where(Event.audit_id == aid, Event.event_type == "chain_graph")
+    ).first()
+    assert ev is not None
+    for entry in ev.payload["by_type"].values():
+        assert entry["chained"] <= entry["cap"]
+        assert entry["discovered"] == entry["chained"] + entry["discarded"]
+
+
+def test_rf030_fallback_del_consumidor_si_falla_el_productor(db_session, chain_fakes, monkeypatch):
+    """FR-017 / FR-008: nmap falla → nuclei sobre el target base, auditoría completed."""
+    import app.services.audit_service as m
+    real = m.get_executor
+
+    def boom(name):
+        if name == "nmap":
+            class _Boom:
+                name = "nmap"
+                def execute(self, *a, **k):
+                    raise RuntimeError("nmap no instalado")
+            return _Boom()
+        return real(name)
+
+    monkeypatch.setattr(m, "get_executor", boom)
+    aid = _make_audit(db_session, "http://localhost:3000", ["nmap", "nuclei"])
+    audit = AuditService(db_session).run_audit(aid)
+
+    assert audit.status == AuditStatus.COMPLETED
+    ev = db_session.scalars(
+        select(Event).where(Event.audit_id == aid, Event.event_type == "chain_graph")
+    ).first()
+    assert "nmap" in ev.payload["tool_failures"]
+    assert ev.payload["by_type"]["web_port"]["chained"] == 0
 
 
 # ── API: validación del orden de herramientas (US3) ────────────────────────

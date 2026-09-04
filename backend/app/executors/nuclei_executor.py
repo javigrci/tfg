@@ -1,7 +1,7 @@
 import shutil
 import subprocess
 import os
-from app.executors.base import AuditExecutor, ChainContext
+from app.executors.base import AuditExecutor, ChainContext, ChainType
 from app.parsers.nmap_parser import normalize_endpoint
 
 timeout = 900
@@ -32,6 +32,8 @@ class NucleiExecutor(AuditExecutor):
     display_name = "Nuclei Template Scanner"
     description = "Detecta vulnerabilidades y malas configuraciones mediante plantillas automatizadas."
     timeout = timeout
+    consumes = frozenset({ChainType.WEB_PORT, ChainType.TECHNOLOGY, ChainType.PATH})
+    produces = frozenset({ChainType.PATH})
 
     def execute(
         self,
@@ -40,9 +42,8 @@ class NucleiExecutor(AuditExecutor):
         chain_context: ChainContext | None = None,
     ) -> list[dict]:
         web = (
-            chain_context.web_targets
-            if chain_context and chain_context.web_targets
-            else []
+            chain_context.values(ChainType.WEB_PORT)
+            if chain_context else []
         )
         targets = [direccion]
         seen = {normalize_endpoint(direccion)}
@@ -51,14 +52,45 @@ class NucleiExecutor(AuditExecutor):
             if key not in seen:
                 seen.add(key)
                 targets.append(url)
-        return [self._run_one(targets)]
 
-    def _run_one(self, targets: list[str]) -> dict:
+        # Rutas descubiertas por otras herramientas web (ADR-010).
+        if chain_context:
+            base = targets[0].rstrip("/")
+            for path in chain_context.values(ChainType.PATH):
+                targets.append(base + "/" + path.lstrip("/"))
+
+        # Encadenamiento por tecnología (ADR-010): Nmap detectó el software →
+        # nuclei ejecuta también las plantillas de ese producto vía -tags.
+        tags = self._tech_tags(chain_context)
+        return [self._run_one(targets, tags)]
+
+    @staticmethod
+    def _tech_tags(chain_context: ChainContext | None) -> list[str]:
+        if chain_context is None:
+            return []
+        seen: list[str] = []
+        for tech in chain_context.values(ChainType.TECHNOLOGY):
+            # tech = "cpe:2.3:a:apache:http_server:2.4.49:..." o "apache 2.4.49"
+            if tech.startswith("cpe:2.3:"):
+                parts = tech.split(":")
+                candidates = [parts[3] if len(parts) > 3 else "",   # vendor: apache
+                              parts[4] if len(parts) > 4 else ""]    # product: http_server
+            else:
+                candidates = [tech.split(" ", 1)[0]]
+            for c in candidates:
+                c = c.replace("_", "-").strip().lower()
+                if c and c not in ("a", "o", "h", "*", "") and c not in seen:
+                    seen.append(c)
+        return seen
+
+    def _run_one(self, targets: list[str], tags: list[str] | None = None) -> dict:
         nuclei_bin = find_nuclei()
 
         cmd_parts = [nuclei_bin]
         for t in targets:
             cmd_parts += ["-u", t]
+        if tags:
+            cmd_parts += ["-tags", ",".join(tags)]
         cmd_parts += [
             "-jsonl",
             "-silent",

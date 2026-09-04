@@ -10,6 +10,7 @@ from app.api.routes.lab import router as lab_router
 from app.api.routes.meta import router as meta_router
 from app.api.routes.reports import router as reports_router
 from app.api.routes.targets import router as targets_router
+from app.api.routes.tools import router as tools_router
 from app.api.routes.users import router as users_router
 from app.core.config import get_settings
 from app.db.base import Base
@@ -89,5 +90,6 @@ app.include_router(reports_router, prefix=settings.api_prefix)
 app.include_router(lab_router, prefix=settings.api_prefix)
 app.include_router(meta_router, prefix=settings.api_prefix)
 app.include_router(targets_router, prefix=settings.api_prefix)
+app.include_router(tools_router, prefix=settings.api_prefix)
 app.include_router(users_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)

@@ -134,6 +134,31 @@ class WapitiParser:
 
         return findings
 
+    def extract_chain_findings(self, raw_result: dict, *, target_base: str):
+        """Rutas del árbol de rastreo de Wapiti (ADR-010)."""
+        from app.executors.base import ChainFinding, ChainType, normalize_path_value
+
+        raw_output = raw_result.get("raw_output", "") if isinstance(raw_result, dict) else ""
+        try:
+            data = json.loads(raw_output)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+        raw_paths: set[str] = set()
+        for section_key in ("vulnerabilities", "anomalies"):
+            for _vt, items in (data.get(section_key) or {}).items():
+                for item in items or []:
+                    p = item.get("path")
+                    if p:
+                        raw_paths.add(p)
+
+        out = []
+        for r in raw_paths:
+            norm = normalize_path_value(target_base, r)
+            if norm and norm != "/":
+                out.append(ChainFinding(ChainType.PATH, norm, source_tool="wapiti"))
+        return out
+
     # -- Helpers --------------------------------------------------------------
 
     def _build_finding(

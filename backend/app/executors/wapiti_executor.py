@@ -4,7 +4,7 @@ import subprocess
 import uuid
 from pathlib import Path
 
-from app.executors.base import AuditExecutor, ChainContext
+from app.executors.base import AuditExecutor, ChainContext, ChainType
 
 WAPITI_TIMEOUT   = 1200  # Python safety net (20 min) -- debe superar scan+attack+procesado de cola
 MAX_SCAN_TIME    = 240   # wapiti crawl limit (4 min)
@@ -51,6 +51,8 @@ class WapitiExecutor(AuditExecutor):
     display_name = "Wapiti Web Scanner"
     description  = "Rastreo activo de aplicaciones web: SQLi, XSS, LFI, CSRF y cabeceras de seguridad."
     timeout      = WAPITI_TIMEOUT  # 20 min
+    consumes     = frozenset({ChainType.WEB_PORT, ChainType.PATH})
+    produces     = frozenset({ChainType.PATH})
 
     def execute(
         self,
@@ -58,14 +60,22 @@ class WapitiExecutor(AuditExecutor):
         details: dict | None = None,
         chain_context: ChainContext | None = None,
     ) -> list[dict]:
-        targets = (
-            chain_context.web_targets
-            if chain_context and chain_context.web_targets
-            else [direccion]
-        )
-        return [self._run_one(t, details) for t in targets]
+        # Wapiti es lento (crawl + ataque, ~8 min/run). En vez de una ejecución por
+        # ruta descubierta, hace UNA ejecución con las rutas extra como `--start`
+        # (wapiti las añade como puntos de entrada del mismo rastreo).
+        if chain_context is None:
+            return [self._run_one(direccion, details)]
 
-    def _run_one(self, direccion: str, details: dict | None = None) -> dict:
+        web = list(chain_context.values(ChainType.WEB_PORT)) or [direccion]
+        primary = web[0]
+        extra = web[1:] + [
+            primary.rstrip("/") + "/" + p.lstrip("/")
+            for p in chain_context.values(ChainType.PATH)
+        ]
+        return [self._run_one(primary, details, extra_starts=extra)]
+
+    def _run_one(self, direccion: str, details: dict | None = None,
+                 extra_starts: list[str] | None = None) -> dict:
         # Wapiti solo tiene sentido sobre targets web
         if not _is_web_target(direccion):
             return {"tool": self.name, "command": "", "raw_output": "{}"}
@@ -86,6 +96,11 @@ class WapitiExecutor(AuditExecutor):
             "--max-scan-time",  str(MAX_SCAN_TIME),
             "--max-attack-time", str(MAX_ATTACK_TIME),
         ]
+
+        # Puntos de entrada extra (otros puertos web + rutas descubiertas por Nikto),
+        # todos dentro de la misma ejecución.
+        for start in (extra_starts or []):
+            cmd.extend(["--start", start])
 
         # Autenticacion automatica por formulario via details del target (ej. DVWA)
         form_user: str | None = None

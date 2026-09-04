@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     # aparezca como finding cuando el target comparte host con la app.
     # En producción con Nginx: EXCLUDED_PORTS=80,443
     excluded_ports: str = Field(default="8000,5173", alias="EXCLUDED_PORTS")
+    # Encadenamiento por grafo tipado (ADR-010). Tope de valores por tipo de hallazgo
+    # + nº de pasadas de re-alimentación entre herramientas web (0 = solo topológica).
     chain_max_web_targets: int = Field(default=5, alias="CHAIN_MAX_WEB_TARGETS")
+    chain_max_technologies: int = Field(default=10, alias="CHAIN_MAX_TECHNOLOGIES")
+    chain_max_paths: int = Field(default=20, alias="CHAIN_MAX_PATHS")
+    chain_refeed_passes: int = Field(default=1, alias="CHAIN_REFEED_PASSES")
 
     # Cola Celery + Redis (ADR-009). broker/result_backend caen a redis_url si no se fijan.
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")

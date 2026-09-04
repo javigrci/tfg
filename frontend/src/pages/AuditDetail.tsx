@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import axios from 'axios'
 import api from '@/lib/api'
 import { PageLoader } from '@/components/ui/PageLoader'
-import type { Audit, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
+import type { Audit, AuditEvent, ChainGraphPayload, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -500,6 +500,45 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
   )
 }
 
+// ── Chaining graph (grafo de encadenamiento ejecutado) ───────────────────────
+
+function ChainGraphCard({ audit }: { audit: Audit }) {
+  const { t } = useTranslation()
+  const ev = (audit.events ?? []).find((e: AuditEvent) => e.event_type === 'chain_graph')
+  if (!ev) return null
+  const p = ev.payload as unknown as ChainGraphPayload
+  const rows = Object.entries(p.by_type).filter(([, v]) => v.discovered > 0)
+  if (rows.length === 0 && p.tool_failures.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+          {t('auditDetail.chainTitle')}
+          <span className="ml-1 text-xs font-normal text-muted-foreground">
+            {p.order.map(lvl => lvl.join(' + ')).join(' → ')}
+          </span>
+        </h2>
+      </div>
+      <div className="p-4 space-y-1.5 text-sm">
+        {rows.map(([type, v]) => (
+          <div key={type} className="flex items-center gap-2 text-muted-foreground">
+            <span className="w-24 shrink-0 text-foreground">{t(`auditNew.graph.type.${type}`)}</span>
+            <span>{t('auditDetail.chainCounts', { discovered: v.discovered, chained: v.chained, discarded: v.discarded })}</span>
+          </div>
+        ))}
+        {p.refeed_passes > 0 && (
+          <p className="text-xs text-muted-foreground pt-1">{t('auditDetail.chainRefeed', { count: p.refeed_passes })}</p>
+        )}
+        {p.tool_failures.length > 0 && (
+          <p className="text-xs text-red-400 pt-1">{t('auditDetail.chainFailures', { tools: p.tool_failures.join(', ') })}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AuditDetail() {
@@ -839,6 +878,8 @@ export default function AuditDetail() {
               </div>
             )}
           </div>
+
+          <ChainGraphCard audit={audit} />
 
           {/* Findings table */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">

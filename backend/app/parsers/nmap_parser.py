@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
 from app.domain.enums import FindingCategory, SeverityLevel
+from app.executors.base import ChainFinding, ChainType
 
 # ── Tool chaining: descubrimiento de endpoints web ──────────────────────────
 _HTTPS_PORTS = {443, 8443, 9443}
@@ -279,6 +280,59 @@ class NmapParser:
         return FindingCategory.SECURITY_MISCONFIG
 
     # ── Tool chaining ───────────────────────────────────────────────────────
+
+    def extract_chain_findings(self, raw_result: dict, *, target_base: str) -> list["ChainFinding"]:
+        """Hallazgos tipados que Nmap aporta al contexto (ADR-010): puertos web y
+        tecnología/versión de cada servicio. No persiste nada."""
+        raw_output = raw_result.get("raw_output", "") if isinstance(raw_result, dict) else ""
+        out: list[ChainFinding] = []
+
+        for url in self.extract_web_targets(raw_output, target_base):
+            out.append(ChainFinding(ChainType.WEB_PORT, url, source_tool="nmap"))
+
+        if not raw_output or not raw_output.strip().startswith("<?xml"):
+            return out
+        try:
+            root = ET.fromstring(raw_output)
+        except ET.ParseError:
+            return out
+
+        for host_el in root.findall("host"):
+            ports_el = host_el.find("ports")
+            if ports_el is None:
+                continue
+            for port_el in ports_el.findall("port"):
+                state_el = port_el.find("state")
+                if state_el is None or state_el.get("state") != "open":
+                    continue
+                svc = port_el.find("service")
+                if svc is None:
+                    continue
+                product = (svc.get("product") or "").strip()
+                version = (svc.get("version") or "").strip()
+                cpe_el = svc.find("cpe")
+                cpe = _cpe_uri_to_23(cpe_el.text or "") if cpe_el is not None and cpe_el.text else ""
+
+                if cpe:
+                    value = cpe
+                    confidence = "high"
+                elif product and version:
+                    value = f"{product} {version}".strip().lower()
+                    confidence = "high"
+                elif product:
+                    value = product.strip().lower()
+                    confidence = "low"
+                else:
+                    continue
+
+                out.append(ChainFinding(
+                    ChainType.TECHNOLOGY, value, source_tool="nmap", confidence=confidence,
+                    metadata={
+                        "product": product.lower(), "version": version,
+                        "port": int(port_el.get("portid", 0)),
+                    },
+                ))
+        return out
 
     @classmethod
     def extract_web_targets(cls, raw_output: str, base_address: str) -> list[str]:

@@ -1,6 +1,9 @@
 import re
 
 from app.domain.enums import FindingCategory, SeverityLevel
+from app.executors.base import ChainFinding, ChainType, normalize_path_value
+
+_ROBOTS_ENTRY_RE = re.compile(r"entry '([^']+)' in robots\.txt", re.IGNORECASE)
 
 # ── Filtros de líneas a ignorar ───────────────────────────────────────────────
 # Líneas que empiezan por '+' pero NO son findings (cabecera, estadísticas, etc.)
@@ -263,6 +266,27 @@ class NiktoParser:
             })
 
         return findings
+
+    def extract_chain_findings(self, raw_result: dict, *, target_base: str) -> list["ChainFinding"]:
+        """Rutas descubiertas por Nikto (ADR-010): rutas de los hallazgos + entradas
+        de robots.txt. Se normalizan contra el host del objetivo; las de otro host
+        se descartan (no se devuelven)."""
+        raw_output = raw_result.get("raw_output", "") if isinstance(raw_result, dict) else ""
+        if not raw_output:
+            return []
+        raw: list[str] = []
+        for path, desc in self._extract_finding_lines(raw_output):
+            if path:
+                raw.append(path)
+            m = _ROBOTS_ENTRY_RE.search(desc)
+            if m:
+                raw.append(m.group(1))
+        out: list[ChainFinding] = []
+        for r in raw:
+            norm = normalize_path_value(target_base, r)
+            if norm and norm != "/":
+                out.append(ChainFinding(ChainType.PATH, norm, source_tool="nikto"))
+        return out
 
     # ── Helpers privados ──────────────────────────────────────────────────────
 

@@ -51,6 +51,8 @@ def list_tools() -> list[dict]:
             "name":         cls.name,
             "display_name": cls.display_name,
             "description":  cls.description,
+            "consumes":     sorted(t.value for t in cls.consumes),
+            "produces":     sorted(t.value for t in cls.produces),
         }
         for cls in _EXECUTOR_CLASSES
     ]

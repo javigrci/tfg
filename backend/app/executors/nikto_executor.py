@@ -2,7 +2,7 @@ import shutil
 import subprocess
 from urllib.parse import urlparse
 
-from app.executors.base import AuditExecutor, ChainContext
+from app.executors.base import AuditExecutor, ChainContext, ChainType
 
 timeout = 600
 
@@ -38,6 +38,10 @@ class NiktoExecutor(AuditExecutor):
     display_name = "Nikto Web Scanner"
     description = "Detecta errores de configuración en servidores web, software obsoleto y vulnerabilidades."
     timeout = timeout
+    # Nikto escanea el servidor completo (hace su propia lista de rutas); no consume
+    # PATH para no multiplicar ejecuciones. Sí las produce para alimentar a nuclei/wapiti.
+    consumes = frozenset({ChainType.WEB_PORT})
+    produces = frozenset({ChainType.PATH})
 
     def execute(
         self,
@@ -46,8 +50,8 @@ class NiktoExecutor(AuditExecutor):
         chain_context: ChainContext | None = None,
     ) -> list[dict]:
         targets = (
-            chain_context.web_targets
-            if chain_context and chain_context.web_targets
+            chain_context.values(ChainType.WEB_PORT)
+            if chain_context and chain_context.values(ChainType.WEB_PORT)
             else [direccion]
         )
         return [self._run_one(t) for t in targets]

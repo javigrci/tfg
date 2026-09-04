@@ -52,6 +52,32 @@ def test_rf006_finding_sin_hallazgos_produce_scan_vacio_pero_completado(client, 
     assert detail["report"]["total_findings"] == 0
 
 
+def test_rf029_una_sola_herramienta_no_encadena_y_registra_grafo_trivial(
+    client, admin_headers, make_target, fake_tool
+):
+    """SC-003 / FR-009: una auditoría de 1 herramienta produce el mismo resultado
+    que antes del grafo; el Event chain_graph es trivial."""
+    fake_tool(findings=[finding_data(title="hallazgo único", severity=SeverityLevel.MEDIUM)])
+    t = make_target()
+    audit = client.post(
+        "/api/v1/audits",
+        json={"name": "una herramienta", "audit_type": "vulnerability_scan",
+              "target_id": t["id"], "modules": ["faketool"]},
+        headers=admin_headers,
+    ).json()
+    client.post(f"/api/v1/audits/{audit['id']}/run", headers=admin_headers)
+
+    detail = client.get(f"/api/v1/audits/{audit['id']}", headers=admin_headers).json()
+    assert detail["status"] == "completed"
+    assert [f["title"] for f in detail["scans"][0]["findings"]] == ["hallazgo único"]
+    assert detail["report"]["risk_level"] == "medium"
+
+    graph_ev = next(e for e in detail["events"] if e["event_type"] == "chain_graph")
+    assert graph_ev["payload"]["order"] == [["faketool"]]
+    assert graph_ev["payload"]["refeed_passes"] == 0
+    assert all(v["chained"] == 0 for v in graph_ev["payload"]["by_type"].values())
+
+
 def test_rf005_herramienta_no_registrada_se_ignora_con_warning_pero_no_rompe_la_auditoria(
     client, admin_headers, make_target, fake_tool
 ):
@@ -137,6 +163,40 @@ def test_rf007_risk_level_es_el_de_la_severidad_mas_alta_presente(client, admin_
 
     report = client.get(f"/api/v1/audits/{audit['id']}/report", headers=admin_headers).json()
     assert report["risk_level"] == "high"
+
+
+def test_rf007_informe_refleja_la_elevacion_de_severidad_por_cve(
+    client, admin_headers, make_target, fake_tool, monkeypatch
+):
+    """El informe se calcula DESPUÉS del enrichment: si un CVE eleva un hallazgo
+    LOW→CRITICAL, los contadores y el nivel de riesgo lo reflejan."""
+    import nvdlib
+    from types import SimpleNamespace
+    monkeypatch.setattr(nvdlib, "searchCVE", lambda **kw: [SimpleNamespace(
+        id="CVE-2099-0001",
+        descriptions=[SimpleNamespace(lang="en", value="x")],
+        metrics=SimpleNamespace(
+            cvssMetricV31=[SimpleNamespace(cvssData=SimpleNamespace(baseScore=9.8))],
+            cvssMetricV30=[], cvssMetricV2=[],
+        ),
+    )])
+    fake_tool(findings=[finding_data(
+        severity=SeverityLevel.LOW,
+        cpe="cpe:2.3:a:apache:http_server:2.2.8:*:*:*:*:*:*:*",
+    )])
+    t = make_target()
+    audit = client.post(
+        "/api/v1/audits",
+        json={"name": "cve elevation", "audit_type": "vulnerability_scan",
+              "target_id": t["id"], "modules": ["faketool"]},
+        headers=admin_headers,
+    ).json()
+    client.post(f"/api/v1/audits/{audit['id']}/run", headers=admin_headers)
+
+    report = client.get(f"/api/v1/audits/{audit['id']}/report", headers=admin_headers).json()
+    assert report["risk_level"] == "critical"
+    assert report["critical_count"] == 1
+    assert report["low_count"] == 0
 
 
 import pytest

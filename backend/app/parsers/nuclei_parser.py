@@ -157,6 +157,30 @@ class NucleiParser:
 
         return findings
 
+    def extract_chain_findings(self, raw_result: dict, *, target_base: str):
+        """Rutas de los `matched-at` de Nuclei que no sean la raíz (ADR-010)."""
+        from app.executors.base import ChainFinding, ChainType, normalize_path_value
+
+        raw_output = (raw_result.get("raw_output") or "").strip() if isinstance(raw_result, dict) else ""
+        out = []
+        seen: set[str] = set()
+        for line in raw_output.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            matched = data.get("matched-at") or data.get("matched_at") or ""
+            if not matched:
+                continue
+            norm = normalize_path_value(target_base, matched)
+            if norm and norm != "/" and norm not in seen:
+                seen.add(norm)
+                out.append(ChainFinding(ChainType.PATH, norm, source_tool="nuclei"))
+        return out
+
     # ── Helpers privados ──────────────────────────────────────────────────────
 
     def _parse_finding(self, data: dict) -> dict | None:

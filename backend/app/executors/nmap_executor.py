@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.core.config import get_settings
-from app.executors.base import AuditExecutor, ChainContext
+from app.executors.base import AuditExecutor, ChainContext, ChainType
 
 timeout = 180
 
@@ -49,6 +49,8 @@ class NmapExecutor(AuditExecutor):
     display_name = "Nmap Port Scanner"
     description = "Enumera los puertos abiertos, servicios y versiones mediante un escaneo."
     timeout = timeout
+    consumes = frozenset()
+    produces = frozenset({ChainType.WEB_PORT, ChainType.TECHNOLOGY})
 
     def execute(
         self,

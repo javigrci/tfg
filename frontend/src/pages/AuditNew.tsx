@@ -15,7 +15,9 @@ import {
 import api from '@/lib/api'
 import type { Target, AuditType, ScanTool } from '@/types'
 import { useTranslation } from 'react-i18next'
-import { ensureNmap, orderModules, buildExecutionPlan, isWebTool } from '@/lib/auditPlan'
+import { ensureNmap, orderModules, isWebTool } from '@/lib/auditPlan'
+import { ExecutionGraph } from '@/components/ExecutionGraph'
+import type { ChainGraphResponse } from '@/lib/chainGraph'
 
 const SELECTABLE_TOOLS: ScanTool[] = ['nmap', 'nikto', 'nuclei', 'wapiti']
 
@@ -57,17 +59,14 @@ export default function AuditNew() {
   const hasWebTool = useMemo(() => [...selected].some(isWebTool), [selected])
   const nmapAuto   = selected.has('nmap') && hasWebTool && !nmapExplicit
 
-  const { data: config } = useQuery<{ chain_max_web_targets: number }>({
-    queryKey: ['config'],
-    queryFn:  () => api.get('/config').then(r => r.data),
-    staleTime: Infinity,
-  })
-  const webCap = config?.chain_max_web_targets ?? 5
+  const orderedModules = useMemo(() => orderModules([...selected]), [selected])
 
-  const planSteps = useMemo(
-    () => buildExecutionPlan([...selected], t, webCap),
-    [selected, t, webCap],
-  )
+  const { data: chainGraph } = useQuery<ChainGraphResponse>({
+    queryKey: ['chain-graph', orderedModules],
+    queryFn: () =>
+      api.get(`/tools/chain-graph?modules=${orderedModules.join(',')}`).then(r => r.data),
+    enabled: orderedModules.length > 0,
+  })
 
   const { data: targets = [] } = useQuery<Target[]>({
     queryKey: ['targets'],
@@ -289,21 +288,12 @@ export default function AuditNew() {
             </div>
           </section>
 
-          {planSteps.length > 0 && (
+          {chainGraph && orderedModules.length > 0 && (
             <section className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {t('auditNew.plan.title')}
+                {t('auditNew.graph.title')}
               </p>
-              <ol className="flex flex-col gap-2">
-                {planSteps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-sm text-foreground">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold">
-                      {i + 1}
-                    </span>
-                    <span className="leading-snug">{step.text}</span>
-                  </li>
-                ))}
-              </ol>
+              <ExecutionGraph graph={chainGraph} />
             </section>
           )}
 

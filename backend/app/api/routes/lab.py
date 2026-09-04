@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 from fastapi import APIRouter, Depends
@@ -9,9 +10,11 @@ from app.models.entities import User
 router = APIRouter(prefix="/lab", tags=["lab"])
 
 # Máquinas del laboratorio. Detección por **imagen** Docker (robusta ante el prefijo
-# de proyecto de compose, p. ej. `tfg-juice-shop-1`). Las direcciones usan
-# `localhost:<puerto-mapeado>` porque las IPs internas de Docker no son enrutables
-# desde WSL2. Metasploitable: 8180→HTTP, 2121→FTP, 2222→SSH.
+# de proyecto de compose, p. ej. `tfg-juice-shop-1`).
+#   - `address`  : desde el host (`make dev`) — `localhost:<puerto-mapeado>`.
+#   - `service`  : desde dentro de un contenedor (full-Docker) — nombre de servicio
+#                  de compose en la red `tfg_default`; `localhost` allí no vale.
+# Metasploitable: HTTP en :8180 (host) / :80 (interno); FTP :2121, SSH :2222.
 _LAB_CONTAINERS = [
     {
         "key":                 "lab-metasploitable",
@@ -22,6 +25,7 @@ _LAB_CONTAINERS = [
         # encadenamiento. FTP y SSH están en localhost:2121 / localhost:2222 si se
         # quiere un escaneo más completo (editar la dirección o añadir puertos).
         "address":             "http://localhost:8180",
+        "service":             "http://metasploitable",
         "environment":         "lab",
         "recommended_modules": ["nmap", "nuclei"],
         "details":             {},
@@ -33,6 +37,7 @@ _LAB_CONTAINERS = [
         "aliases":             ("lab-dvwa", "dvwa"),
         "suggested_name":      "DVWA",
         "address":             "http://localhost:8080",
+        "service":             "http://dvwa",
         "environment":         "lab",
         "recommended_modules": ["nikto", "wapiti", "nuclei"],
         "details": {
@@ -49,12 +54,22 @@ _LAB_CONTAINERS = [
         "aliases":             ("lab-juice-shop", "juice-shop"),
         "suggested_name":      "Juice Shop",
         "address":             "http://localhost:3000",
+        "service":             "http://juice-shop:3000",
         "environment":         "lab",
         "recommended_modules": ["nikto", "nuclei"],
         "details":             {},
         "description":          "OWASP benchmark app -- modern web vulnerabilities",
     },
 ]
+
+
+def _in_docker() -> bool:
+    """El backend corre dentro de un contenedor (full-Docker) vs. en el host (`make dev`)."""
+    return os.path.exists("/.dockerenv")
+
+
+def _suggested_address(meta: dict) -> str:
+    return meta["service"] if _in_docker() else meta["address"]
 
 
 class LabContainerStatus(BaseModel):
@@ -110,8 +125,10 @@ def detect_lab_containers(_: User = Depends(get_current_user)) -> list[LabContai
     """
     Detecta el estado de las máquinas del laboratorio por imagen Docker (Metasploitable,
     DVWA, Juice Shop), independientemente del prefijo de proyecto de docker compose.
-    Devuelve la dirección `localhost:<puerto>` aunque el contenedor esté parado, para
-    poder añadir el objetivo y verlo como `unreachable` hasta arrancarlo.
+    La dirección sugerida se adapta al modo de ejecución: `localhost:<puerto>` si el
+    backend corre en el host (`make dev`), o el nombre de servicio de compose si corre
+    dentro de un contenedor. Se devuelve aunque el contenedor esté parado, para poder
+    añadir el objetivo y verlo como `unreachable` hasta arrancarlo.
     """
     containers = _docker_ps()
     results = []
@@ -121,7 +138,7 @@ def detect_lab_containers(_: User = Depends(get_current_user)) -> list[LabContai
             LabContainerStatus(
                 container=meta["key"],
                 status=status,
-                suggested_address=meta["address"] if status != "not_found" else None,
+                suggested_address=_suggested_address(meta) if status != "not_found" else None,
                 suggested_name=meta["suggested_name"],
                 environment=meta["environment"],
                 recommended_modules=meta["recommended_modules"],

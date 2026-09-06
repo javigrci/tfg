@@ -1,0 +1,32 @@
+{# Portada — fija (fuera del bucle de secciones). RF-031: subtítulo con el perfil. #}
+<div class="cover" id="section-cover">
+  <div class="brand-logo">
+    <svg class="glyph" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2 3 6v6c0 5 3.8 8.5 9 10 5.2-1.5 9-5 9-10V6l-9-4z"
+            fill="none" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M8.5 12l2.5 2.5 4.5-5" fill="none" stroke="#2563EB" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="name">AuditFlow</span>
+  </div>
+
+  <p class="cover-title" style="margin-top:24pt;">{{ audit.name }}</p>
+  <p class="cover-subtitle">{{ profile_label }} · {{ t.report_kind_technical if technical else t.report_kind_executive }}</p>
+
+  {% if report %}
+  <span class="badge badge-{{ report.risk_level.value }}">
+    {{ t.cover_overall_risk }}: {{ t['sev_' ~ report.risk_level.value] }} — {{ '%.1f'|format(report.risk_score) }} / 10
+  </span>
+  {% endif %}
+
+  <table class="cover-table">
+    <tbody>
+      <tr><td><strong>{{ t.cover_target }}</strong></td><td>{{ audit.target.name }} ({{ audit.target.address }})</td></tr>
+      <tr class="alt-row"><td><strong>{{ t.cover_type }}</strong></td><td>{{ audit.audit_type.value|replace('_',' ')|title }}</td></tr>
+      <tr><td><strong>{{ t.cover_user }}</strong></td><td>{{ audit.created_by.username if audit.created_by else '—' }}</td></tr>
+      <tr class="alt-row"><td><strong>{{ t.cover_date }}</strong></td><td>{{ now }}</td></tr>
+      <tr><td><strong>{{ t.cover_report_id }}</strong></td><td class="report-id">{{ report_id }}</td></tr>
+    </tbody>
+  </table>
+  <p class="cover-note">{{ t.generated_with }}</p>
+</div>

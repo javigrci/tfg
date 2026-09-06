@@ -1,0 +1,15 @@
+{# Resumen ejecutivo (técnico) / Postura de riesgo (ejecutivo) — fija. #}
+<div class="page-break" id="section-summary">
+  <p class="section-heading">{{ t.section_summary if technical else t.section_risk_posture }}</p>
+  <p style="margin-bottom:8pt;">{{ narrative }}</p>
+
+  {% if report %}
+  <div class="kpi-row">
+    <div class="kpi-box kpi-total"><div class="kpi-value">{{ report.total_findings }}</div><div class="kpi-label">{{ t.kpi_total }}</div></div>
+    <div class="kpi-box kpi-critical"><div class="kpi-value">{{ report.critical_count }}</div><div class="kpi-label">{{ t.kpi_critical }}</div></div>
+    <div class="kpi-box kpi-high"><div class="kpi-value">{{ report.high_count }}</div><div class="kpi-label">{{ t.kpi_high }}</div></div>
+    <div class="kpi-box kpi-medium"><div class="kpi-value">{{ report.medium_count }}</div><div class="kpi-label">{{ t.kpi_medium }}</div></div>
+    <div class="kpi-box kpi-low"><div class="kpi-value">{{ report.low_count }}</div><div class="kpi-label">{{ t.kpi_low }}</div></div>
+  </div>
+  {% endif %}
+</div>

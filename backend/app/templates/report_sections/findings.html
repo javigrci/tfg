@@ -1,0 +1,78 @@
+{# Hallazgos (núcleo). Agrupación: profile.grouping (severity | owasp). Detalle: full = fichas,
+   condensed = tabla. En el informe ejecutivo → solo críticos/altos (findings_display). #}
+{% set _detail = s.detail if s is defined else 'full' %}
+<div class="page-break" id="section-findings">
+  <p class="section-heading">{{ (t.section_findings if technical else t.section_key_findings) }} ({{ findings_display|length }})</p>
+
+  {% if findings_display %}
+    {% for group_label, items in findings_grouped %}
+    <p class="subsection-heading">{{ group_label }} ({{ items|length }})</p>
+
+      {% if _detail == 'full' %}
+        {% for f in items %}
+        <div class="finding">
+          <div class="finding-header">
+            <span class="badge badge-{{ f.severity.value }}">{{ t['sev_' ~ f.severity.value] }}</span>
+            <span class="finding-title">{{ f.title }}</span>
+          </div>
+          <div class="finding-meta">
+            {{ finding_origin(f) }}
+            &nbsp;|&nbsp; {{ t.finding_category }}: {{ cat_labels.get(f.category.value, f.category.value) }}
+            &nbsp;|&nbsp; {{ t.finding_status }}: {{ f.status.value|replace('_',' ')|title }}
+          </div>
+
+          <p class="label">{{ t.finding_description }}</p>
+          <p style="margin-bottom:6pt;">{{ f.description }}</p>
+
+          {% if f.evidence %}
+          <p class="label">{{ t.finding_evidence }}</p>
+          <div class="code-block">{{ f.evidence[:1200] }}</div>
+          {% endif %}
+
+          <p class="label">{{ t.finding_recommendation }}</p>
+          <p style="margin-bottom:6pt;">{{ f.recommendation }}</p>
+
+          {% if f.vulnerabilities %}
+          <p class="label">{{ t.finding_cve }} / {{ t.finding_cvss }}</p>
+          <ul style="margin:0 0 4pt 12pt; font-size:8.5pt;">
+            {% for v in f.vulnerabilities %}
+            <li>
+              {{ v.reference or v.name }}
+              {% if v.cvss_score is not none %} — CVSS {{ '%.1f'|format(v.cvss_score) }}{% endif %}
+              {% if v.reference and 'CVE-' in (v.reference or '') %}
+                — <a href="https://nvd.nist.gov/vuln/detail/{{ v.reference }}">NVD</a>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          {% if f.cpe %}<p class="finding-meta">{{ t.finding_affected }}: {{ f.cpe }}</p>{% endif %}
+        </div>
+        {% endfor %}
+
+      {% else %}
+        <table>
+          <thead>
+            <tr>
+              <th style="width:14%">{{ t.col_severity }}</th>
+              <th>{{ t.col_finding }}</th>
+              <th style="width:26%">{{ t.finding_category }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in items %}
+            <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+              <td><span class="badge badge-{{ f.severity.value }}">{{ t['sev_' ~ f.severity.value] }}</span></td>
+              <td>{{ f.title }}<br><span style="font-size:7.5pt; color:var(--c-text-muted);">{{ finding_origin(f) }}</span></td>
+              <td style="font-size:8pt;">{{ cat_labels.get(f.category.value, f.category.value) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+
+    {% endfor %}
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">{{ t.chart_no_data }}</p>
+  {% endif %}
+</div>

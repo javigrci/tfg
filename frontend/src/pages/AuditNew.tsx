@@ -35,11 +35,18 @@ const TOOL_META: Record<Exclude<ScanTool, 'manual'>, {
 
 const AUDIT_TYPES: AuditType[] = ['vulnerability_scan', 'penetration_test', 'compliance']
 
-// Punto de partida por tipo, ajustable. Todos incluyen Nmap para no dejar una
-// selección que `ensureNmap` modificaría acto seguido.
+// Punto de partida por tipo, ajustable. Alineado con lo que el perfil de informe de
+// cada tipo necesita (spec 007 / RF-031): el preset debe producir los datos de la
+// sección característica del perfil (pentest → cadena de ataque; compliance → mapa
+// OWASP). Todos incluyen Nmap para no dejar una selección que `ensureNmap` tocaría
+// acto seguido. El usuario ajusta libremente; el tipo nunca fuerza ni bloquea nada.
 const PRESETS: Record<AuditType, ScanTool[]> = {
+  // Inventario CVE (nmap CPE + nuclei) + amplitud web. Propuesta pendiente de la
+  // tutora: reducirlo a ['nmap', 'nuclei'] para un escaneo de inventario más rápido.
   vulnerability_scan: ['nmap', 'nikto', 'nuclei', 'wapiti'],
-  penetration_test:   ['nmap', 'nuclei', 'wapiti'],
+  // +nikto (spec 007): produce las rutas que alimentan el encadenamiento nmap→web,
+  // sin las cuales el perfil pentest se queda sin la sección de cadena de ataque.
+  penetration_test:   ['nmap', 'nikto', 'nuclei', 'wapiti'],
   compliance:         ['nmap', 'nikto', 'nuclei'],
 }
 

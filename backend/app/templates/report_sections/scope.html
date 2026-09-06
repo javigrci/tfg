@@ -1,0 +1,40 @@
+{# Alcance y metodología + Cobertura (FR-005). `s.detail`: full | condensed. #}
+{% set _detail = s.detail if s is defined else 'full' %}
+<div class="flow-section{% if s is defined and s.featured %} section-featured{% endif %}" id="section-scope">
+  <p class="section-heading">{{ t.section_scope }}</p>
+
+  {% if _detail == 'full' %}
+  <p style="margin-bottom:6pt;">{{ t.scope_intro.format(target=audit.target.address) }}</p>
+  <ul style="margin:0 0 8pt 14pt;">
+    {% for tool in tools_used %}
+      {% set key = 'scope_tool_' ~ tool|lower %}
+      {% if key in t %}<li>{{ t[key] }}</li>{% endif %}
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <table>
+    <tbody>
+      <tr><td style="width:28%"><strong>{{ t.scope_environment }}</strong></td><td>{{ audit.target.environment|title }}</td></tr>
+      <tr class="alt-row"><td><strong>{{ t.scope_tools }}</strong></td><td>{{ tools_used|join(', ') or '—' }}</td></tr>
+      <tr><td><strong>{{ t.scope_date }}</strong></td><td>{{ now }}</td></tr>
+    </tbody>
+  </table>
+
+  {% if _detail == 'full' %}
+  <p style="margin-top:6pt; font-style:italic; color:var(--c-text-muted); font-size:8pt;">{{ t.scope_limitations }}</p>
+  {% endif %}
+
+  {# ── Cobertura de esta evaluación (FR-005) ── #}
+  <p class="label" style="margin-top:10pt;">{{ t.coverage_title }}</p>
+  <ul style="margin:0 0 0 14pt; font-size:8.5pt; color:#334155;">
+    {% for c in coverage %}
+      <li>{{ c.tool }} — {% if c.ok %}{{ t.coverage_tool_ok }}{% elif c.failed %}{{ t.coverage_tool_failed }}{% else %}{{ t.coverage_tool_missing }}{% endif %}</li>
+    {% else %}
+      <li>{{ t.coverage_tool_missing }}</li>
+    {% endfor %}
+    {% for o in profile.omitted %}
+      <li style="color:var(--c-text-muted);">{{ t[o.reason_key] }}</li>
+    {% endfor %}
+  </ul>
+</div>

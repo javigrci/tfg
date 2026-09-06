@@ -1,0 +1,21 @@
+{# Análisis de riesgo (gráficas SVG). `s.detail`: full = las 4; condensed = destacada + severidad. #}
+{% set _detail = s.detail if s is defined else 'full' %}
+{% if report and report.total_findings > 0 %}
+<div class="flow-section{% if s is defined and s.featured %} section-featured{% endif %}" id="section-charts">
+  <p class="section-heading">{{ t.section_charts }}</p>
+  {% if _detail == 'condensed' %}
+    {% set _keys = [profile.featured_chart] %}
+    {% if 'severity' not in _keys %}{% set _keys = _keys + ['severity'] %}{% endif %}
+  {% else %}
+    {% set _keys = chart_order %}
+  {% endif %}
+  {% for k in _keys %}
+    {% if charts[k] %}
+    <div class="chart-block">
+      <p class="chart-title">{{ chart_titles[k] }}</p>
+      {{ charts[k]|safe }}
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}

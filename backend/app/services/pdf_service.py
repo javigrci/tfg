@@ -17,6 +17,7 @@ from weasyprint import HTML
 from app.core.i18n import report_strings
 from app.models.entities import Audit
 from app.services import report_charts
+from app.services import report_profiles
 
 _TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 _jinja = Environment(
@@ -81,6 +82,53 @@ def _findings_by_severity(findings: list) -> list[tuple[str, list]]:
     for f in findings:
         buckets.get(_get_sev(f), buckets["info"]).append(f)
     return [(s, buckets[s]) for s in _SEV_ORDER if buckets[s]]
+
+
+def _findings_by_category(findings: list, cat_labels: dict) -> list[tuple[str, list]]:
+    """[(label OWASP, [findings]), ...] ordenado por la peor severidad del grupo (RF-031)."""
+    groups: dict[str, list] = {}
+    for f in findings:
+        groups.setdefault(_get_cat(f), []).append(f)
+    ordered = sorted(groups.items(), key=lambda kv: min(_sev_index(x) for x in kv[1]))
+    return [(cat_labels.get(cat, cat.replace("_", " ").title()), items) for cat, items in ordered]
+
+
+def _normalize_chain(facts) -> dict | None:
+    """Payload del Event `chain_graph` (spec 005) → dict listo para chain_attack.html."""
+    cg = facts.chain_graph
+    if not cg:
+        return None
+    by_type = cg.get("by_type") or {}
+
+    def _n(key: str, field: str) -> int:
+        try:
+            return int((by_type.get(key) or {}).get(field, 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    rows = [
+        {"type": key, "discovered": _n(key, "discovered"),
+         "chained": _n(key, "chained"), "discarded": _n(key, "discarded")}
+        for key in ("web_port", "technology", "path")
+    ]
+    return {
+        "web_ports": _n("web_port", "chained"),
+        "technologies": (by_type.get("technology") or {}).get("values") or [],
+        "paths_chained": _n("path", "chained"),
+        "refeed_passes": int(cg.get("refeed_passes", 0) or 0),
+        "tool_failures": cg.get("tool_failures") or [],
+        "rows": rows,
+    }
+
+
+def _build_coverage(facts, resolved) -> list[dict]:
+    """Constancia de cobertura para scope.html (FR-005): herramientas ejecutadas + estado."""
+    tools = sorted(facts.tools_succeeded | facts.tools_failed)
+    return [
+        {"tool": tool.upper(), "ok": tool in facts.tools_succeeded,
+         "failed": tool in facts.tools_failed}
+        for tool in tools
+    ]
 
 
 def _finding_origin(f, t) -> str:
@@ -201,9 +249,23 @@ def _group_by_tier(groups: list[dict]) -> dict[str, list[dict]]:
     return tiers
 
 
-def _build_narrative(audit: Audit, report, findings: list, t) -> str:
-    """Resumen ejecutivo por plantilla (spec 006, sin IA). Cubre los escenarios:
-    0 hallazgos / solo bajos / con medios / con altos / con críticos / con CVEs."""
+_NARRATIVE_INTRO = {
+    "pentest": "narrative_pentest_intro",
+    "vulnscan": "narrative_vulnscan_intro",
+    "compliance": "narrative_compliance_intro",
+}
+_NARRATIVE_OUTRO = {
+    "pentest": "narrative_pentest_outro",
+    "vulnscan": "narrative_vulnscan_outro",
+    "compliance": "narrative_compliance_outro",
+}
+
+
+def _build_narrative(audit: Audit, report, findings: list, t, *, angle: str = "generic",
+                     omitted_keys=frozenset(), compliance: dict | None = None) -> str:
+    """Resumen ejecutivo por plantilla (spec 006, sin IA). El `angle` (RF-031) cambia la
+    frase de intro y de cierre; la narrativa solo menciona secciones que se renderizaron.
+    Con `angle="generic"` la salida es idéntica a la de la spec 006."""
     target = audit.target.address
     n = len(findings)
 
@@ -213,12 +275,22 @@ def _build_narrative(audit: Audit, report, findings: list, t) -> str:
     crit, high = report.critical_count, report.high_count
     med, low = report.medium_count, report.low_count
     rest = med + low + max(0, n - crit - high - med - low)
+    level = t[f"sev_{report.risk_level.value}"]
+    score = f"{report.risk_score:.1f}"
 
-    parts = [t["narrative_intro"].format(
-        target=target, n=n,
-        level=t[f"sev_{report.risk_level.value}"],
-        score=f"{report.risk_score:.1f}",
-    )]
+    if angle == "compliance" and "owasp_map" in omitted_keys:
+        parts = [t["narrative_compliance_nocoverage"].format(target=target, level=level, score=score)]
+    elif angle == "compliance":
+        assessed = (compliance or {}).get("assessed_count", 0)
+        red = (compliance or {}).get("red_count", 0)
+        parts = [t["narrative_compliance_intro"].format(
+            target=target, assessed=assessed, red=red, level=level, score=score)]
+    else:
+        intro_key = _NARRATIVE_INTRO.get(angle, "narrative_intro")
+        parts = [t[intro_key].format(target=target, n=n, level=level, score=score)]
+
+    if angle == "pentest" and "chain_attack" not in omitted_keys:
+        parts.append(t["narrative_pentest_chain"])
 
     top = [f.title for f in sorted(findings, key=_sev_index)[:3]]
     if top and (crit or high):
@@ -235,7 +307,7 @@ def _build_narrative(audit: Audit, report, findings: list, t) -> str:
     if cves:
         parts.append(t["narrative_cve"].format(cves=cves))
 
-    parts.append(t["narrative_outro"])
+    parts.append(t[_NARRATIVE_OUTRO.get(angle, "narrative_outro")])
     return "".join(parts)
 
 
@@ -252,9 +324,14 @@ def render_report_html(audit: Audit, *, technical: bool, lang: str = "es",
                        compliance=None, history=None) -> str:
     """HTML del informe antes de renderizar a PDF — para tests de contenido."""
     ctx = _base_ctx(audit, lang, technical=technical, compliance=compliance, history=history)
-    if not technical:
-        ctx["crit_high"] = [f for f in ctx["all_finds"] if _get_sev(f) in ("critical", "high")]
     return _render_html("pdf_technical.html" if technical else "pdf_executive.html", ctx)
+
+
+_CHART_TITLE_KEY = {
+    "severity": "chart_severity_title", "owasp": "chart_owasp_title",
+    "semaphore": "chart_semaphore_title", "trend": "chart_trend_title",
+}
+_OWASP_STATUS_BADGE = {"green": "pass", "yellow": "warn", "red": "fail", "not_assessed": "na"}
 
 
 def _base_ctx(audit: Audit, lang: str, *, technical: bool, compliance=None, history=None):
@@ -275,9 +352,29 @@ def _base_ctx(audit: Audit, lang: str, *, technical: bool, compliance=None, hist
     groups = _build_remediation_groups(all_finds, t_dict)
     tools = sorted({_tool_name(s) for s in audit.scans})
 
+    # ── Perfil de informe (RF-031) ──────────────────────────────────────────
+    facts = report_profiles.build_audit_facts(audit, history=history)
+    profile = report_profiles.resolve_profile(facts, technical=technical)
+
+    display_finds = (all_finds if technical
+                     else [f for f in all_finds if _get_sev(f) in ("critical", "high")])
+    grouping = profile.grouping_for(report_profiles.FINDINGS, "severity")
+    if grouping == "owasp":
+        findings_grouped = _findings_by_category(display_finds, cat_labels)
+    else:
+        findings_grouped = [
+            (t_dict[f"sev_{sev}"], items) for sev, items in _findings_by_severity(display_finds)
+        ]
+
+    charts = _build_charts(report, all_finds, compliance, history, cat_labels)
+    chart_order = [profile.featured_chart] + [
+        k for k in ("severity", "owasp", "semaphore", "trend") if k != profile.featured_chart
+    ]
+
     return {
         "t":            t_dict,
         "lang":         lang,
+        "technical":    technical,
         "report_type":  t_dict["report_kind_technical" if technical else "report_kind_executive"],
         "report_id":    _report_id(audit, technical=technical),
         "audit":        audit,
@@ -288,12 +385,27 @@ def _base_ctx(audit: Audit, lang: str, *, technical: bool, compliance=None, hist
         ],
         "finding_origin": lambda f: _finding_origin(f, t_dict),
         "tools_used":   tools,
-        "charts":       _build_charts(report, all_finds, compliance, history, cat_labels),
-        "narrative":    _build_narrative(audit, report, all_finds, t_dict),
+        "charts":       charts,
+        "chart_order":  chart_order,
+        "chart_titles": {k: t_dict[v] for k, v in _CHART_TITLE_KEY.items()},
+        "narrative":    _build_narrative(
+            audit, report, all_finds, t_dict,
+            angle=profile.narrative_angle, omitted_keys=profile.omitted_keys,
+            compliance=compliance,
+        ),
         "tiers":        _group_by_tier(groups),
         "tiers_meta":   [(k, t_dict.get(tk, k)) for k, tk in _TIER_KEYS],
         "cat_labels":   cat_labels,
         "now":          _now_str(),
+        # ── Perfil ──
+        "profile":       profile,
+        "profile_label": t_dict[profile.profile_label_key],
+        "coverage":      _build_coverage(facts, profile),
+        "chain":         _normalize_chain(facts),
+        "compliance":    compliance,
+        "findings_grouped": findings_grouped,
+        "findings_display": display_finds,
+        "owasp_status_badge": _OWASP_STATUS_BADGE,
     }
 
 
@@ -305,9 +417,9 @@ def generate_technical_pdf(audit: Audit, lang: str = "es", *, compliance=None, h
 
 
 def generate_executive_pdf(audit: Audit, lang: str = "es", *, compliance=None, history=None) -> bytes:
-    """Informe ejecutivo: portada · veredicto · hallazgos clave · gráficas · hoja de ruta."""
+    """Informe ejecutivo: portada · veredicto · hallazgos clave · gráficas · hoja de ruta.
+    Orden y énfasis de secciones según el perfil del `audit_type` (RF-031)."""
     ctx = _base_ctx(audit, lang, technical=False, compliance=compliance, history=history)
-    ctx["crit_high"] = [f for f in ctx["all_finds"] if _get_sev(f) in ("critical", "high")]
     return _render("pdf_executive.html", ctx)
 
 

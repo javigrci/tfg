@@ -1,0 +1,36 @@
+{# Mapa de cumplimiento OWASP Top 10 (RF-031, perfil compliance). Datos: get_compliance(). #}
+{% set _detail = s.detail if s is defined else 'full' %}
+{% if compliance %}
+<div class="flow-section{% if s is defined and s.featured %} section-featured{% endif %}" id="section-owasp-map">
+  <p class="section-heading">{{ t.section_owasp_map }}</p>
+  <p style="margin-bottom:6pt;">{{ t.owasp_summary.format(assessed=compliance.assessed_count, green=compliance.green_count, yellow=compliance.yellow_count, red=compliance.red_count) }}</p>
+
+  {% if _detail == 'full' %}
+  <table>
+    <thead>
+      <tr>
+        <th>{{ t.owasp_col_category }}</th>
+        <th style="width:16%">{{ t.owasp_col_status }}</th>
+        <th class="text-center" style="width:14%">{{ t.col_findings }}</th>
+        <th style="width:16%">{{ t.owasp_col_max_sev }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in compliance.categories %}
+      <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+        <td>{{ c.owasp_id }} · {{ c.owasp_name }}</td>
+        <td><span class="badge badge-{{ owasp_status_badge.get(c.status, 'na') }}">{{ t['owasp_status_' ~ c.status] }}</span></td>
+        <td style="text-align:center;">{{ c.findings_count }}</td>
+        <td>{% if c.max_severity %}{{ t['sev_' ~ c.max_severity] }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  {% set reds = compliance.categories | selectattr('status', 'equalto', 'red') | list %}
+  {% if reds %}
+  <p class="finding-meta">{{ t.owasp_reds }}: {{ reds | map(attribute='owasp_name') | join(', ') }}</p>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}

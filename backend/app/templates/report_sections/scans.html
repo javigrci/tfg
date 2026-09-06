@@ -1,0 +1,33 @@
+{# Escaneos ejecutados. `s.detail`: full = tabla completa; condensed = sin comando. #}
+{% set _detail = s.detail if s is defined else 'full' %}
+<div class="flow-section" id="section-scans">
+  <p class="section-heading">{{ t.section_scans }}</p>
+  {% if audit.scans %}
+    <table>
+      <thead>
+        <tr>
+          <th style="width:16%">{{ t.col_tool }}</th>
+          <th style="width:16%">{{ t.col_status }}</th>
+          <th style="width:8%" class="text-center">{{ t.col_run }}</th>
+          <th style="width:10%" class="text-center">{{ t.col_findings }}</th>
+          {% if _detail == 'full' %}<th>{{ t.col_command }}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for scan in audit.scans %}
+        <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+          <td><strong>{{ scan.tool|string|upper }}</strong></td>
+          <td>{{ scan.status.value|title }}</td>
+          <td style="text-align:center;">{{ scan.run_number }}</td>
+          <td style="text-align:center;">{{ scan.findings|length }}</td>
+          {% if _detail == 'full' %}
+          <td style="font-family:monospace; font-size:7.5pt; word-break:break-all;">{{ (scan.command or '—')[:110] }}</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">—</p>
+  {% endif %}
+</div>

@@ -1,0 +1,37 @@
+{# Cadena de ataque / explotabilidad (RF-031, perfil pentest). Datos: Event chain_graph (spec 005). #}
+{% set _detail = s.detail if s is defined else 'full' %}
+{% if chain %}
+<div class="flow-section{% if s is defined and s.featured %} section-featured{% endif %}" id="section-chain-attack">
+  <p class="section-heading">{{ t.section_chain_attack }}</p>
+  <p style="margin-bottom:6pt;">{{ t.chain_summary.format(web=chain.web_ports, tech=chain.technologies|length, paths=chain.paths_chained, passes=chain.refeed_passes) }}</p>
+
+  {% if _detail == 'full' %}
+  <table>
+    <thead>
+      <tr>
+        <th>{{ t.chain_col_type }}</th>
+        <th class="text-center" style="width:20%">{{ t.chain_col_discovered }}</th>
+        <th class="text-center" style="width:20%">{{ t.chain_col_chained }}</th>
+        <th class="text-center" style="width:20%">{{ t.chain_col_discarded }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in chain.rows %}
+      <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+        <td>{{ t['chain_type_' ~ row.type] }}</td>
+        <td style="text-align:center;">{{ row.discovered }}</td>
+        <td style="text-align:center;">{{ row.chained }}</td>
+        <td style="text-align:center;">{{ row.discarded }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if chain.technologies %}
+  <p class="finding-meta" style="margin-top:6pt;">{{ t.chain_technologies }}: {{ chain.technologies|join(', ') }}</p>
+  {% endif %}
+  {% if chain.tool_failures %}
+  <p class="finding-meta">{{ t.chain_tool_failures }}: {{ chain.tool_failures|join(', ') }}</p>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}

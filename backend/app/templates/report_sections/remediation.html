@@ -1,0 +1,75 @@
+{# Plan de remediación (técnico) / Hoja de ruta (ejecutivo) — núcleo. #}
+<div class="flow-section" id="section-remediation">
+  <p class="section-heading">{{ t.section_remediation }}</p>
+
+  {% if all_finds %}
+  {% if technical %}
+    {% for tier_key, tier_label in tiers_meta %}
+      {% set tier_groups = tiers[tier_key] %}
+      {% if tier_groups %}
+      <div class="tier-header tier-{{ tier_key }}">{{ tier_label }}</div>
+      <div class="tier-body">
+        {% for g in tier_groups %}
+        <div class="rem-group">
+          <p class="rem-group-title">{{ g.cat_label }} &nbsp;
+            <span style="font-weight:normal; font-size:8.5pt; color:var(--c-text-muted);">[{{ t.col_effort }}: {{ g.effort }}]</span></p>
+          <p class="rem-guidance">{{ g.tech_guide }}</p>
+          <table>
+            <thead><tr><th style="width:20%">{{ t.col_severity }}</th><th>{{ t.col_finding }}</th></tr></thead>
+            <tbody>
+              {% for f in g.findings|sort(attribute='severity_index') %}
+              <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+                <td><span class="badge badge-{{ f.severity.value }}">{{ t['sev_' ~ f.severity.value] }}</span></td>
+                <td>{{ f.title[:120] }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endfor %}
+
+  {% else %}
+    <table class="exec-table">
+      <thead>
+        <tr>
+          <th style="width:30%">{{ t.col_area }}</th>
+          <th style="width:10%; text-align:center;">{{ t.col_findings }}</th>
+          <th style="width:14%; text-align:center;">{{ t.col_effort }}</th>
+          <th>{{ t.col_impact }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tier_key, tier_label_short in tiers_meta %}
+          {% set tier_groups = tiers[tier_key] %}
+          {% if tier_groups %}
+          <tr class="tier-row tier-row-{{ tier_key }}"><td colspan="4">{{ tier_label_short }}</td></tr>
+            {% for g in tier_groups %}
+            <tr {% if loop.index is even %}class="alt-row"{% endif %}>
+              <td>{{ g.cat_label }}</td>
+              <td style="text-align:center;">{{ g.findings|length }}</td>
+              <td style="text-align:center;">{{ g.effort }}</td>
+              <td style="font-size:8pt;">{{ g.exec_impact[:160] }}{% if g.exec_impact|length > 160 %}…{% endif %}</td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="timeline-box">
+      <strong>{{ t.remediation_timeline_title }}</strong>
+      {{ t.remediation_immediate }} &nbsp;|&nbsp; {{ t.remediation_shortterm }} &nbsp;|&nbsp;
+      {{ t.remediation_mediumterm }} &nbsp;|&nbsp; {{ t.remediation_maintenance }}
+    </div>
+  {% endif %}
+
+  {% else %}
+  <p style="color:var(--c-text-muted); font-style:italic;">—</p>
+  {% endif %}
+
+  <p style="margin-top:14pt; color:var(--c-text-muted); font-size:8pt;">
+    {{ t.generated_auto.format(date=now, run=(audit.scans[0].run_number if audit.scans else 1)) }}
+  </p>
+</div>

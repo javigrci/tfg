@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { useAuth } from '@/context/AuthContext'
 import api from '@/lib/api'
-import type { Audit, AuditType } from '@/types'
+import type { Audit, AuditType, Target } from '@/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +41,12 @@ export default function Audits() {
     queryKey: ['audits'],
     queryFn: () => api.get('/audits').then(r => r.data),
   })
+
+  const { data: targets = [] } = useQuery<Target[]>({
+    queryKey: ['targets'],
+    queryFn: () => api.get('/targets').then(r => r.data),
+  })
+  const canCreateAudit = targets.length > 0
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/audits/${id}`),
@@ -79,7 +85,9 @@ export default function Audits() {
         </div>
         <button
           onClick={() => navigate('/audits/new')}
-          className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors"
+          disabled={!canCreateAudit}
+          title={canCreateAudit ? undefined : t('audits.newAuditNoTargets')}
+          className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Plus className="h-4 w-4" />
           {t('audits.newAudit')}

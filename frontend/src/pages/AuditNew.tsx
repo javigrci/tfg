@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Check,
   Info,
+  Crosshair,
 } from 'lucide-react'
 import api from '@/lib/api'
 import type { Target, AuditType, ScanTool } from '@/types'
@@ -75,10 +76,11 @@ export default function AuditNew() {
     enabled: orderedModules.length > 0,
   })
 
-  const { data: targets = [] } = useQuery<Target[]>({
+  const { data: targets = [], isLoading: targetsLoading } = useQuery<Target[]>({
     queryKey: ['targets'],
     queryFn:  () => api.get('/targets').then(r => r.data),
   })
+  const noTargets = !targetsLoading && targets.length === 0
 
   const createMutation = useMutation({
     mutationFn: (payload: object) => api.post('/audits', payload),
@@ -143,6 +145,21 @@ export default function AuditNew() {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
+        {noTargets ? (
+          <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-8 py-24 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <Crosshair className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">{t('auditNew.noTargets.title')}</h2>
+            <p className="text-sm text-muted-foreground">{t('auditNew.noTargets.body')}</p>
+            <button
+              onClick={() => navigate('/targets')}
+              className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              {t('auditNew.noTargets.cta')}
+            </button>
+          </div>
+        ) : (
         <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
 
           <section className="flex flex-col gap-4">
@@ -174,59 +191,56 @@ export default function AuditNew() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-foreground">
-                  {t('auditNew.targetLabel')} <span className="text-destructive">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={targetId}
-                    onChange={e => setTargetId(e.target.value)}
-                    className="w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    <option value="">{t('auditNew.selectTarget')}</option>
-                    {targets.map(tgt => (
-                      <option key={tgt.id} value={tgt.id}>{tgt.name} — {tgt.address}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-foreground">{t('auditNew.auditTypeLabel')}</label>
-                <div className="relative">
-                  <select
-                    value={auditType}
-                    onChange={e => setAuditType(e.target.value as AuditType)}
-                    className="w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    {AUDIT_TYPES.map(type => (
-                      <option key={type} value={type}>{t(`auditNew.auditTypes.${type}.label`)}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-foreground">
+                {t('auditNew.targetLabel')} <span className="text-destructive">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  value={targetId}
+                  onChange={e => setTargetId(e.target.value)}
+                  className="w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">{t('auditNew.selectTarget')}</option>
+                  {targets.map(tgt => (
+                    <option key={tgt.id} value={tgt.id}>{tgt.name} — {tgt.address}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               </div>
             </div>
           </section>
 
           <section className="flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t('auditNew.presetsLabel')}
+              {t('auditNew.auditTypeLabel')} <span className="text-destructive">*</span>
             </p>
-            <div className="flex flex-wrap gap-2">
-              {AUDIT_TYPES.map(type => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => applyPreset(type)}
-                  className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  {t(`auditNew.auditTypes.${type}.label`)}
-                </button>
-              ))}
+            <p className="text-xs text-muted-foreground/70">{t('auditNew.auditTypeHint')}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {AUDIT_TYPES.map(type => {
+                const active = auditType === type
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => applyPreset(type)}
+                    aria-pressed={active}
+                    className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-all ${
+                      active
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : 'border-input bg-background hover:bg-muted'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                      {active && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {t(`auditNew.auditTypes.${type}.label`)}
+                    </span>
+                    <span className="text-[11px] leading-snug text-muted-foreground">
+                      {t(`auditNew.auditTypes.${type}.desc`)}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </section>
 
@@ -312,6 +326,7 @@ export default function AuditNew() {
             {createMutation.isPending ? t('auditNew.creating') : t('auditNew.createAudit')}
           </button>
         </div>
+        )}
       </div>
     </div>
   )

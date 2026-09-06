@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import axios from 'axios'
 import api from '@/lib/api'
 import { PageLoader } from '@/components/ui/PageLoader'
-import type { Audit, AuditEvent, ChainGraphPayload, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
+import type { Audit, AuditEvent, ChainGraphPayload, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, ScanTool, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -408,7 +408,7 @@ function AddFindingModal({
 
 // ── FindingRow ────────────────────────────────────────────────────────────────
 
-function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | undefined }) {
+function FindingRow({ finding, auditId }: { finding: Finding & { tool?: ScanTool }; auditId: string | undefined }) {
   const [open, setOpen] = useState(false)
   const qc = useQueryClient()
   const { t } = useTranslation()
@@ -435,6 +435,13 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
             : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
         </td>
         <td className="px-4 py-3 font-medium text-foreground text-sm">{finding.title}</td>
+        <td className="px-4 py-3">
+          {finding.tool && (
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium uppercase ${TOOL_COLORS[finding.tool] ?? TOOL_COLORS.bash}`}>
+              {finding.tool === 'manual' ? t('auditDetail.originManual') : finding.tool}
+            </span>
+          )}
+        </td>
         <td className="px-4 py-3"><SeverityBadge severity={finding.severity} /></td>
         <td className="px-4 py-3 text-xs text-muted-foreground">{t(`domain.findingCategory.${finding.category}`)}</td>
         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
@@ -443,7 +450,7 @@ function FindingRow({ finding, auditId }: { finding: Finding; auditId: string | 
       </tr>
       {open && (
         <tr className="bg-muted/10">
-          <td colSpan={5} className="px-6 py-4">
+          <td colSpan={6} className="px-6 py-4">
             <div className="space-y-3 text-sm">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{t('auditDetail.descLabel')}</p>
@@ -681,7 +688,7 @@ export default function AuditDetail() {
     )
   }
 
-  const allFindings = audit.scans.flatMap(s => s.findings)
+  const allFindings = audit.scans.flatMap(s => s.findings.map(f => ({ ...f, tool: s.tool })))
   const report = audit.report
   // El Report no guarda info_count; se deriva del total (coherente con el PDF).
   const infoCount = report
@@ -926,6 +933,7 @@ export default function AuditDetail() {
                   <tr className="border-b border-border bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-2 w-8" />
                     <th className="px-4 py-2 text-left">{t('auditDetail.colTitle')}</th>
+                    <th className="px-4 py-2 text-left">{t('auditDetail.colTool')}</th>
                     <th className="px-4 py-2 text-left">{t('auditDetail.colSeverity')}</th>
                     <th className="px-4 py-2 text-left">{t('auditDetail.colCategory')}</th>
                     <th className="px-4 py-2 text-left">{t('auditDetail.colStatus')}</th>

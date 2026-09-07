@@ -51,7 +51,7 @@ lanza los tres procesos de desarrollo con hot-reload. **Un solo `Ctrl+C` los par
 | Fichero | Contenido | Cuándo |
 |---|---|---|
 | `docker-compose.yml` | La aplicación: `db`, `redis`, `backend`, `worker`, `frontend` | Despliegue (VPS) o probar el modo producción en local |
-| `docker-compose.lab.yml` | Máquinas vulnerables: DVWA, Juice Shop, Metasploitable 2 | Solo para tener objetivos contra los que escanear |
+| `docker-compose.lab.yml` | Máquinas vulnerables: Juice Shop, OWASP VulnerableApp, 3 entornos de vulhub, weak-creds | Solo para tener objetivos contra los que escanear |
 
 Están separados a propósito: el laboratorio es **desechable** (se tira y se vuelve a
 levantar sin tocar la aplicación) y **nunca** debe desplegarse junto a la app en un
@@ -74,23 +74,43 @@ a la vez (`worker_prefetch_multiplier=1`); para más concurrencia, más réplica
 ### Laboratorio de máquinas vulnerables
 
 ```bash
-make lab            # o: docker compose -f docker-compose.lab.yml up -d
+make lab            # docker compose -f docker-compose.lab.yml up -d --build
+make lab-down       # para y elimina todo el laboratorio
 ```
 
-| Máquina | URL | Para qué |
-|---|---|---|
-| DVWA | http://localhost:8080 | Vulns web clásicas (SQLi, XSS…) — `admin` / `password` |
-| Juice Shop | http://localhost:3000 | SPA Angular moderna, OWASP Top 10 |
-| Metasploitable 2 | http://localhost:8180 | Apache 2.2.8 / vsftpd 2.3.4 / OpenSSH 4.7 → **CVEs reales** para el enrichment |
+Máquinas pensadas para ser **escaneadas por un escáner remoto sin autenticar** (no
+boot2root de explotación manual): dan hallazgos ricos, CVEs reales para el enriquecimiento
+NVD y tecnología/versión para el encadenamiento nmap→web.
+
+| Máquina | URL (host) | Vulnerabilidad / CVE | Módulos recomendados |
+|---|---|---|---|
+| OWASP Juice Shop | http://localhost:3000 | SPA Angular moderna, OWASP Top 10, sin login de entrada | nikto, nuclei |
+| OWASP VulnerableApp | http://localhost:9090/VulnerableApp | Benchmark de escáneres: inyección, XSS, XXE, subida de ficheros, SSRF, path traversal (context path `/VulnerableApp`) | nikto, nuclei, wapiti |
+| Apache httpd 2.4.49 | http://localhost:8081 | **CVE-2021-41773** — path traversal → RCE; Nmap fingerprintea la versión (CPE) → enrichment CVE (vulhub, se construye desde `lab/`) | nmap, nikto, nuclei |
+| Apache Tomcat 9.0.30 | http://localhost:8082 (+ AJP :8009) | **CVE-2020-1938** (Ghostcat) — lectura de ficheros / RCE vía conector AJP (vulhub) | nmap, nuclei |
+| Joomla 4.2.7 | http://localhost:8083 | **CVE-2023-23752** — divulgación de credenciales de BD vía API REST sin auth; multi-contenedor (vulhub) | nmap, nikto, nuclei |
+| weak-creds (SSH/FTP) | ssh `localhost:2222` · ftp `localhost:2121` | OpenSSH + vsftpd con credenciales triviales (`root:root` / `admin:admin` / `test:test`); objetivo del ataque de credenciales (spec 011) | nmap |
+
+> ⚠️ **El laboratorio son máquinas deliberadamente vulnerables con servicios y credenciales
+> triviales.** Levántalo solo en el entorno de desarrollo local, **nunca en un host expuesto
+> a redes no confiables**. Vive en un fichero compose separado y no se despliega con la app.
 
 > **Direccionamiento de los objetivos según el modo de ejecución:**
-> - `make dev` — el worker corre en el host: usa `http://localhost:8080`, `:3000`, `:8180`.
+> - `make dev` — el worker corre en el host: usa `http://localhost:<puerto>`.
 > - full-Docker (`docker compose up`) — dentro del contenedor `localhost` es el propio
->   contenedor. Usa el **nombre de servicio**: `http://dvwa`, `http://juice-shop:3000`,
->   `http://metasploitable`.
+>   contenedor. Usa el **nombre de servicio** de la red compartida `tfg_default`:
+>   `http://juice-shop:3000`, `http://owasp-vulnerableapp:9090`, `http://vulhub-httpd`, etc.
 >
 > La pantalla "Configurar laboratorio" detecta las máquinas **por imagen Docker** y
-> autocompleta la dirección correcta.
+> autocompleta la dirección correcta para el modo actual.
+
+> **DockerLabs / BunkerLabs** ([dockerlabs.es](https://dockerlabs.es)) — ~230 máquinas
+> vulnerables *boot2root* para explotación **manual** (CTF). **No forman parte de este
+> laboratorio**: se distribuyen como `.zip` por máquina (`auto_deploy.sh` + `.tar`), sin
+> licencia de redistribución clara, y un escáner automático encuentra su superficie de
+> entrada pero no las "resuelve". Para una demo manual más rica: descarga una máquina de
+> dockerlabs.es, `bash auto_deploy.sh <maquina>.tar`, mira su IP (`docker inspect`) y crea
+> un objetivo en AuditFlow apuntándole.
 
 ---
 

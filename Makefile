@@ -71,11 +71,17 @@ stop:
 # Limpieza + relanzado: la forma correcta de recoger cambios del worker.
 restart: stop dev
 
-# Máquinas vulnerables de laboratorio (fichero compose aparte, desechable)
+# Máquinas vulnerables de laboratorio (fichero compose aparte, desechable).
+# `--build`: vulhub-httpd y weak-creds se construyen desde `lab/`; el lab es
+# desechable, así que reconstruir siempre lo deja al día sin coste real.
+#   juice-shop :3000 · owasp-vulnerableapp :9090 · vulhub-httpd :8081
+#   vulhub-tomcat :8082 (+AJP :8009) · vulhub-joomla :8083
+#   weak-creds  ssh :2222 / ftp :2121   (root:root / admin:admin / test:test)
 lab:
-	docker compose -f docker-compose.lab.yml up -d
-	@echo "DVWA http://localhost:8080 · Juice Shop http://localhost:3000 · Metasploitable http://localhost:8180"
+	docker compose -f docker-compose.lab.yml up -d --build
+	@echo "juice-shop :3000 · vulnerableapp :9090 · httpd :8081 · tomcat :8082 · joomla :8083 · weak-creds ssh:2222 ftp:2121"
 
+# Para y ELIMINA todo el laboratorio (contenedores; no hay volúmenes persistentes).
 lab-down:
 	docker compose -f docker-compose.lab.yml down
 

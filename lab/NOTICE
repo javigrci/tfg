@@ -1,0 +1,63 @@
+AuditFlow — Laboratorio de máquinas vulnerables
+================================================
+
+Este directorio y `docker-compose.lab.yml` reúnen máquinas deliberadamente
+vulnerables usadas SOLO como objetivos de escaneo en el entorno de desarrollo
+local de AuditFlow. No forman parte de la aplicación y nunca se despliegan con
+ella.
+
+Componentes de terceros y su atribución:
+
+--------------------------------------------------------------------------------
+vulhub (https://github.com/vulhub/vulhub)
+--------------------------------------------------------------------------------
+Los entornos `vulhub-httpd-cve-2021-41773/` (copiado a este repo), y los
+servicios `vulhub-tomcat` (imagen `vulhub/tomcat:9.0.30`) y `vulhub-joomla`
+(imagen `vulhub/joomla:4.2.7`) de `docker-compose.lab.yml` provienen del
+proyecto vulhub, distribuido bajo licencia MIT:
+
+    MIT License
+
+    Copyright (c) 2017-present phith0n and Vulhub Contributors (vulhub.org)
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+El `Dockerfile` de `vulhub-httpd-cve-2021-41773/` conserva su `LABEL maintainer`
+original. Referencia del entorno:
+https://github.com/vulhub/vulhub/tree/master/httpd/CVE-2021-41773
+
+--------------------------------------------------------------------------------
+OWASP VulnerableApp (https://github.com/SasanLabs/VulnerableApp)
+--------------------------------------------------------------------------------
+Servicio `owasp-vulnerableapp` (imagen `sasanlabs/owasp-vulnerableapp`).
+Distribuido por SasanLabs / OWASP bajo licencia Apache-2.0.
+Aplicación pensada explícitamente para validar y comparar escáneres de
+seguridad.
+
+--------------------------------------------------------------------------------
+OWASP Juice Shop (https://github.com/juice-shop/juice-shop)
+--------------------------------------------------------------------------------
+Servicio `juice-shop` (imagen `bkimminich/juice-shop`). Licencia MIT.
+
+--------------------------------------------------------------------------------
+weak-creds/
+--------------------------------------------------------------------------------
+Imagen propia de AuditFlow (Alpine + OpenSSH + vsftpd) con credenciales
+triviales a propósito. No redistribuye software de terceros más allá de los
+paquetes de Alpine Linux.

@@ -9,45 +9,17 @@ from app.models.entities import User
 
 router = APIRouter(prefix="/lab", tags=["lab"])
 
-# Máquinas del laboratorio. Detección por **imagen** Docker (robusta ante el prefijo
-# de proyecto de compose, p. ej. `tfg-juice-shop-1`).
+# Máquinas del laboratorio (`docker-compose.lab.yml` + `lab/`). Detección por
+# **imagen** Docker (robusta ante el prefijo de proyecto de compose, p. ej.
+# `tfg-juice-shop-1`).
 #   - `address`  : desde el host (`make dev`) — `localhost:<puerto-mapeado>`.
 #   - `service`  : desde dentro de un contenedor (full-Docker) — nombre de servicio
 #                  de compose en la red `tfg_default`; `localhost` allí no vale.
-# Metasploitable: HTTP en :8180 (host) / :80 (interno); FTP :2121, SSH :2222.
+# Conjunto (spec 008): juice-shop · owasp-vulnerableapp · vulhub-httpd (CVE-2021-41773)
+# · vulhub-tomcat (CVE-2020-1938 Ghostcat) · vulhub-joomla (CVE-2023-23752) · weak-creds.
+# Las imágenes construidas llevan `image: auditflow-lab/<x>` fijo en el compose.
+# El `mysql:5.7` auxiliar de Joomla no está aquí → no se detecta como máquina.
 _LAB_CONTAINERS = [
-    {
-        "key":                 "lab-metasploitable",
-        "image":               "tleemcjr/metasploitable2",
-        "aliases":             ("lab-metasploitable", "metasploitable"),
-        "suggested_name":      "Metasploitable 2",
-        # El servicio HTTP (Apache 2.2.8) es el que produce CPE/versión para el
-        # encadenamiento. FTP y SSH están en localhost:2121 / localhost:2222 si se
-        # quiere un escaneo más completo (editar la dirección o añadir puertos).
-        "address":             "http://localhost:8180",
-        "service":             "http://metasploitable",
-        "environment":         "lab",
-        "recommended_modules": ["nmap", "nuclei"],
-        "details":             {},
-        "description":         "Vulnerable Linux VM -- Apache 2.2.8 / vsftpd 2.3.4 / OpenSSH (CPEs y CVEs reales)",
-    },
-    {
-        "key":                 "lab-dvwa",
-        "image":               "ghcr.io/digininja/dvwa",
-        "aliases":             ("lab-dvwa", "dvwa"),
-        "suggested_name":      "DVWA",
-        "address":             "http://localhost:8080",
-        "service":             "http://dvwa",
-        "environment":         "lab",
-        "recommended_modules": ["nikto", "wapiti", "nuclei"],
-        "details": {
-            "wapiti_form_url":     "http://localhost:8080/login.php",
-            "wapiti_auth_user":    "admin",
-            "wapiti_auth_pass":    "password",
-            "dvwa_security_level": "low",
-        },
-        "description":          "Damn Vulnerable Web App -- injection, XSS, broken auth",
-    },
     {
         "key":                 "lab-juice-shop",
         "image":               "bkimminich/juice-shop",
@@ -58,7 +30,74 @@ _LAB_CONTAINERS = [
         "environment":         "lab",
         "recommended_modules": ["nikto", "nuclei"],
         "details":             {},
-        "description":          "OWASP benchmark app -- modern web vulnerabilities",
+        "description":          "OWASP Juice Shop -- SPA Angular, OWASP Top 10, sin login de entrada",
+    },
+    {
+        "key":                 "lab-vulnerableapp",
+        "image":               "sasanlabs/owasp-vulnerableapp",
+        "aliases":             ("lab-vulnerableapp", "owasp-vulnerableapp"),
+        "suggested_name":      "OWASP VulnerableApp",
+        # La app se sirve bajo el context path `/VulnerableApp` (Spring Boot);
+        # `/` devuelve 404. Los escáneres web deben apuntar a la ruta completa.
+        "address":             "http://localhost:9090/VulnerableApp",
+        "service":             "http://owasp-vulnerableapp:9090/VulnerableApp",
+        "environment":         "lab",
+        "recommended_modules": ["nikto", "nuclei", "wapiti"],
+        "details":             {},
+        "description":          "OWASP VulnerableApp -- benchmark de escáneres: inyección, XSS, XXE, subida de ficheros, SSRF, path traversal",
+    },
+    {
+        "key":                 "lab-vulhub-httpd",
+        "image":               "auditflow-lab/vulhub-httpd",
+        "aliases":             ("lab-vulhub-httpd", "vulhub-httpd"),
+        "suggested_name":      "Apache httpd 2.4.49 (CVE-2021-41773)",
+        "address":             "http://localhost:8081",
+        "service":             "http://vulhub-httpd",
+        "environment":         "lab",
+        # nikto además de nmap+nuclei: Apache 2.4.49 vanilla sirve poco, y nikto
+        # destapa versión obsoleta, cabeceras ausentes, TRACE, cgi-bin, etc.
+        "recommended_modules": ["nmap", "nikto", "nuclei"],
+        "details":             {},
+        "description":          "vulhub -- Apache httpd 2.4.49, path traversal -> RCE. Nmap fingerprintea la version (CPE) -> enrichment CVE. CVE-2021-41773.",
+    },
+    {
+        "key":                 "lab-vulhub-tomcat",
+        "image":               "vulhub/tomcat",
+        "aliases":             ("lab-vulhub-tomcat", "vulhub-tomcat"),
+        "suggested_name":      "Apache Tomcat 9.0.30 (CVE-2020-1938 Ghostcat)",
+        "address":             "http://localhost:8082",
+        "service":             "http://vulhub-tomcat:8080",
+        "environment":         "lab",
+        "recommended_modules": ["nmap", "nuclei"],
+        "details":             {},
+        "description":          "vulhub -- Apache Tomcat 9.0.30, Ghostcat (lectura de ficheros / RCE via conector AJP :8009). Nmap -> CPE. CVE-2020-1938.",
+    },
+    {
+        "key":                 "lab-vulhub-joomla",
+        "image":               "vulhub/joomla",
+        "aliases":             ("lab-vulhub-joomla", "vulhub-joomla"),
+        "suggested_name":      "Joomla 4.2.7 (CVE-2023-23752)",
+        "address":             "http://localhost:8083",
+        "service":             "http://vulhub-joomla",
+        "environment":         "lab",
+        "recommended_modules": ["nmap", "nikto", "nuclei"],
+        "details":             {},
+        "description":          "vulhub -- Joomla 4.2.7, divulgacion de informacion via API REST sin auth. Multi-contenedor (MySQL auxiliar no se detecta). CVE-2023-23752.",
+    },
+    {
+        "key":                 "lab-weak-creds",
+        "image":               "auditflow-lab/weak-creds",
+        "aliases":             ("lab-weak-creds", "weak-creds"),
+        "suggested_name":      "Servicios con credenciales débiles (SSH/FTP)",
+        # Sin esquema ni puerto: Nmap -sV descubre SSH (:2222) y FTP (:2121) con
+        # su version; `Verificar` hace ping. La spec 011 (hydra) fijara puertos
+        # explicitos por servicio.
+        "address":             "localhost",
+        "service":             "weak-creds",
+        "environment":         "lab",
+        "recommended_modules": ["nmap"],
+        "details":             {},
+        "description":          "Alpine + OpenSSH (:2222) + vsftpd (:2121) con credenciales triviales (root:root / admin:admin / test:test). Objetivo de descubrimiento de servicios y del ataque de credenciales (spec 011).",
     },
 ]
 
@@ -123,8 +162,9 @@ def _resolve(meta: dict, containers: list[tuple[str, str, str]]) -> str:
 )
 def detect_lab_containers(_: User = Depends(get_current_user)) -> list[LabContainerStatus]:
     """
-    Detecta el estado de las máquinas del laboratorio por imagen Docker (Metasploitable,
-    DVWA, Juice Shop), independientemente del prefijo de proyecto de docker compose.
+    Detecta el estado de las máquinas del laboratorio por imagen Docker (Juice Shop,
+    OWASP VulnerableApp, los entornos de vulhub, weak-creds), independientemente del
+    prefijo de proyecto de docker compose.
     La dirección sugerida se adapta al modo de ejecución: `localhost:<puerto>` si el
     backend corre en el host (`make dev`), o el nombre de servicio de compose si corre
     dentro de un contenedor. Se devuelve aunque el contenedor esté parado, para poder

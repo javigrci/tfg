@@ -1,70 +1,108 @@
 # AuditFlow — Entorno de laboratorio (máquinas vulnerables)
 #
-# Uso:
-#   docker compose -f docker-compose.lab.yml up -d
-#   docker compose -f docker-compose.lab.yml down
+# Máquinas deliberadamente vulnerables usadas SOLO como objetivos de escaneo en
+# desarrollo local. Fichero SEPARADO de docker-compose.yml (la app) — nunca se
+# despliega junto a ella. Comparte la red del proyecto (`tfg_default`, mismo
+# COMPOSE_PROJECT_NAME) para que en full-Docker la app alcance las máquinas por
+# nombre de servicio. Todo desechable: sin volúmenes persistentes.
 #
-# Puertos expuestos:
-#   DVWA:           http://localhost:8080   (admin / password)
-#   Juice Shop:     http://localhost:3000
-#   Metasploitable: http://localhost:8180   SSH: localhost:2222
+# Uso:
+#   make lab           # docker compose -f docker-compose.lab.yml up -d --build
+#   make lab-down      # docker compose -f docker-compose.lab.yml down
+#
+# Puertos (host -> contenedor):
+#   juice-shop           http://localhost:3000   -> 3000   OWASP Top 10, SPA, sin login
+#   owasp-vulnerableapp  http://localhost:9090/VulnerableApp -> 9090  benchmark de escáneres (context path /VulnerableApp)
+#   vulhub-httpd         http://localhost:8081   -> 80     Apache httpd 2.4.49  (CVE-2021-41773, path traversal/RCE)
+#   vulhub-tomcat        http://localhost:8082   -> 8080   Apache Tomcat 9.0.30 (CVE-2020-1938 Ghostcat)
+#                              localhost:8009    -> 8009   conector AJP (Ghostcat)
+#   vulhub-joomla        http://localhost:8083   -> 80     Joomla 4.2.7 (CVE-2023-23752, info disclosure API)
+#   weak-creds           ssh  localhost:2222     -> 22     credenciales triviales root:root / admin:admin / test:test
+#                        ftp  localhost:2121     -> 21     vsftpd + rango PASV 30000-30009
+#
+# Atribución de terceros (vulhub MIT, OWASP): ver lab/NOTICE.
 
 services:
 
-  # ── DVWA (Damn Vulnerable Web Application) ────────────────────────────────
-  # La imagen oficial ghcr.io/digininja/dvwa acepta DVWA_DEFAULT_SECURITY_LEVEL
-  # como variable de entorno — no hace falta ningún script de init externo.
-  dvwa-db:
-    image: mariadb:10.6
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: dvwa
-      MYSQL_DATABASE:      dvwa
-      MYSQL_USER:          dvwa
-      MYSQL_PASSWORD:      dvwa
-    # Sin volumen persistente: el lab es desechable y DVWA se re-siembra sola.
-    # Evita el "Unsupported redo log format" cuando el volumen quedó de una
-    # versión de MariaDB más nueva.
-    tmpfs:
-      - /var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-udvwa", "-pdvwa"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  dvwa:
-    image: ghcr.io/digininja/dvwa:latest
-    restart: unless-stopped
-    depends_on:
-      dvwa-db:
-        condition: service_healthy
-    environment:
-      DB_SERVER:                 dvwa-db
-      DB_DATABASE:               dvwa
-      DB_USER:                   dvwa
-      DB_PASSWORD:               dvwa
-      # Security level por defecto — cambia a "medium", "high" o "impossible" si necesario
-      DVWA_DEFAULT_SECURITY_LEVEL: low
-    ports:
-      - "8080:80"
-
   # ── OWASP Juice Shop ──────────────────────────────────────────────────────
+  # SPA Angular moderna, OWASP Top 10, sin login de entrada. Se mantiene.
   juice-shop:
     image: bkimminich/juice-shop:latest
     restart: unless-stopped
     ports:
       - "3000:3000"
 
-  # ── Metasploitable 2 ──────────────────────────────────────────────────────
-  # Máquina con servicios antiguos para demos de CVE enrichment real:
-  # Apache 2.2.8, vsftpd 2.3.4, OpenSSH 4.7p1
-  metasploitable:
-    image: tleemcjr/metasploitable2
+  # ── OWASP VulnerableApp ───────────────────────────────────────────────────
+  # App deliberadamente vulnerable pensada para benchmarquear escáneres:
+  # inyección SQL/comandos, XSS, XXE, subida de ficheros, SSRF, path traversal...
+  # Sin login de entrada. Puerto 9090, context path `/VulnerableApp` (Spring Boot).
+  owasp-vulnerableapp:
+    image: sasanlabs/owasp-vulnerableapp:latest
     restart: unless-stopped
-    stdin_open: true
-    tty: true
     ports:
-      - "2121:21"
-      - "8180:80"
+      - "9090:9090"
+
+  # ── vulhub · Apache httpd 2.4.49 — CVE-2021-41773 ─────────────────────────
+  # Path traversal -> RCE. Nmap fingerprintea "Apache httpd 2.4.49" -> CPE ->
+  # enrichment CVE (spec 001) + technology para el chain_graph (spec 005).
+  # https://github.com/vulhub/vulhub/tree/master/httpd/CVE-2021-41773
+  vulhub-httpd:
+    build: ./lab/vulhub-httpd-cve-2021-41773
+    image: auditflow-lab/vulhub-httpd:cve-2021-41773
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+
+  # ── vulhub · Apache Tomcat 9.0.30 — CVE-2020-1938 (Ghostcat) ──────────────
+  # Lectura de ficheros / RCE vía el conector AJP (:8009). Nmap -> CPE Tomcat;
+  # Nuclei confirma Ghostcat. Imagen pre-construida.
+  # https://github.com/vulhub/vulhub/tree/master/tomcat/CVE-2020-1938
+  vulhub-tomcat:
+    image: vulhub/tomcat:9.0.30
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+      - "8009:8009"
+
+  # ── vulhub · Joomla 4.2.7 — CVE-2023-23752 ───────────────────────────────
+  # Divulgación de información: la API REST expone credenciales de BD sin auth.
+  # Multi-contenedor (Joomla + MySQL): la detección del lab casa el contenedor
+  # de fachada `vulhub/joomla`, NO el `mysql:5.7` auxiliar.
+  # https://github.com/vulhub/vulhub/tree/master/joomla/CVE-2023-23752
+  vulhub-joomla:
+    image: vulhub/joomla:4.2.7
+    restart: unless-stopped
+    depends_on:
+      - joomla-db
+    environment:
+      JOOMLA_DB_HOST: joomla-db
+      JOOMLA_DB_PORT: "3306"
+      JOOMLA_DB_USER: root
+      JOOMLA_DB_PASSWORD: vulhub
+      JOOMLA_DB_NAME: joomla
+    ports:
+      - "8083:80"
+
+  joomla-db:
+    image: mysql:5.7
+    restart: unless-stopped
+    # Sin MYSQL_DATABASE: el entrypoint de Joomla crea el esquema `joomla` en el
+    # primer arranque (igual que el entorno original de vulhub). Predefinirla hace
+    # que `site:install` falle con "database already exists".
+    environment:
+      MYSQL_ROOT_PASSWORD: vulhub
+    # Desechable: la BD se re-siembra en cada arranque.
+    tmpfs:
+      - /var/lib/mysql
+
+  # ── Servicios con credenciales débiles (SSH + FTP) ───────────────────────
+  # Imagen propia Alpine. Objetivo de descubrimiento de servicios y, en la
+  # spec 011, del ataque de credenciales. root:root / admin:admin / test:test.
+  weak-creds:
+    build: ./lab/weak-creds
+    image: auditflow-lab/weak-creds:latest
+    restart: unless-stopped
+    ports:
       - "2222:22"
+      - "2121:21"
+      - "30000-30009:30000-30009"

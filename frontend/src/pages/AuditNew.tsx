@@ -58,11 +58,16 @@ export default function AuditNew() {
   const [name,        setName]        = useState('')
   const [description, setDescription] = useState('')
   const [targetId,    setTargetId]    = useState('')
-  const [auditType,   setAuditType]   = useState<AuditType>('vulnerability_scan')
+  // Sin tipo por defecto: elegirlo es obligatorio (fija el perfil del informe PDF).
+  const [auditType,   setAuditType]   = useState<AuditType | null>(null)
 
   const [selected,    setSelected]    = useState<Set<ScanTool>>(new Set())
   // Nmap marcado por el usuario, no por `ensureNmap`
   const [nmapExplicit, setNmapExplicit] = useState(false)
+  // El usuario ha tocado la selección de herramientas a mano. Mientras sea false,
+  // elegir un tipo la rellena con su preset; una vez true, elegir/cambiar el tipo
+  // solo fija el tipo y respeta lo que el usuario tenga marcado.
+  const [toolsTouched, setToolsTouched] = useState(false)
 
   const hasWebTool = useMemo(() => [...selected].some(isWebTool), [selected])
   const nmapAuto   = selected.has('nmap') && hasWebTool && !nmapExplicit
@@ -102,20 +107,30 @@ export default function AuditNew() {
     })
 
     if (tool === 'nmap') setNmapExplicit(!isRemoving)
+    setToolsTouched(true)
   }
 
-  function applyPreset(type: AuditType) {
-    setAuditType(type)
+  // Rellena las herramientas con el preset del tipo. Acción explícita.
+  function applyPresetTools(type: AuditType) {
     setSelected(ensureNmap(new Set(PRESETS[type])))
     setNmapExplicit(PRESETS[type].includes('nmap'))
   }
 
+  // Elegir un tipo: fija el tipo SIEMPRE; rellena las herramientas con su preset
+  // solo si el usuario aún no las ha tocado (así elegir el tipo nunca destruye
+  // una selección hecha a mano).
+  function selectType(type: AuditType) {
+    setAuditType(type)
+    if (!toolsTouched) applyPresetTools(type)
+  }
+
   const canCreate =
-    !!name.trim() && !!targetId && selected.size > 0 && !createMutation.isPending
+    !!name.trim() && !!targetId && !!auditType && selected.size > 0 && !createMutation.isPending
 
   function handleCreate() {
     if (!name.trim())     return toast.error(t('auditNew.toasts.nameRequired'))
     if (!targetId)        return toast.error(t('auditNew.toasts.targetRequired'))
+    if (!auditType)       return toast.error(t('auditNew.toasts.typeRequired'))
     if (selected.size === 0) return toast.error(t('auditNew.toasts.toolRequired'))
 
     createMutation.mutate({
@@ -223,7 +238,7 @@ export default function AuditNew() {
                   <button
                     key={type}
                     type="button"
-                    onClick={() => applyPreset(type)}
+                    onClick={() => selectType(type)}
                     aria-pressed={active}
                     className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-all ${
                       active
@@ -249,6 +264,16 @@ export default function AuditNew() {
               {t('auditNew.availableTools')} <span className="text-destructive">*</span>
             </p>
             <p className="text-xs text-muted-foreground/70">{t('auditNew.toolsHint')}</p>
+
+            {auditType && toolsTouched && (
+              <button
+                type="button"
+                onClick={() => applyPresetTools(auditType)}
+                className="self-start text-xs font-medium text-primary hover:underline"
+              >
+                {t('auditNew.usePreset', { type: t(`auditNew.auditTypes.${auditType}.label`) })}
+              </button>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               {SELECTABLE_TOOLS.map(tool => {

@@ -526,6 +526,7 @@
     "title":              "New Audit",
     "availableTools":     "Tools",
     "toolsHint":          "Pick the tools to run. The system sets the order.",
+    "usePreset":          "Use the {{type}} preset",
     "auditDetails":       "Audit Details",
     "namePlaceholder":    "e.g. Q2 Web Audit",
     "descPlaceholder":    "Optional scope notes...",
@@ -534,7 +535,7 @@
     "descriptionLabel":   "Description",
     "targetLabel":        "Target",
     "auditTypeLabel":     "Audit Type",
-    "auditTypeHint":      "Sets the report focus and fills an initial tool selection that you can adjust below.",
+    "auditTypeHint":      "Sets the report focus. Suggests a starting set of tools if you haven't picked any yet.",
     "presetsLabel":       "Start from a recommended configuration",
     "noTargets":          { "title": "You need a target first", "body": "An audit always runs against a target (system or URL). Add at least one to be able to create audits.", "cta": "Add a target" },
     "nmapAutoHint":       "Added automatically — the web tools need it to discover the ports.",
@@ -574,6 +575,7 @@
       "createFailed":   "Failed to create audit",
       "nameRequired":   "Audit name is required",
       "targetRequired": "Please select a target",
+      "typeRequired":   "Select the audit type",
       "toolRequired":   "Select at least one tool"
     }
   }

@@ -526,6 +526,7 @@
     "title":              "Nueva auditoría",
     "availableTools":     "Herramientas",
     "toolsHint":          "Elige las herramientas a ejecutar. El sistema decide el orden.",
+    "usePreset":          "Usar el preset de {{type}}",
     "auditDetails":       "Detalles de auditoría",
     "namePlaceholder":    "Ej. Auditoría Web Q2",
     "descPlaceholder":    "Notas opcionales de alcance...",
@@ -534,7 +535,7 @@
     "descriptionLabel":   "Descripción",
     "targetLabel":        "Objetivo",
     "auditTypeLabel":     "Tipo de auditoría",
-    "auditTypeHint":      "Determina el enfoque del informe y rellena una selección inicial de herramientas, que puedes ajustar abajo.",
+    "auditTypeHint":      "Determina el enfoque del informe. Propone un punto de partida de herramientas si aún no has elegido ninguna.",
     "presetsLabel":       "Empieza con una configuración recomendada",
     "noTargets":          { "title": "Necesitas un objetivo primero", "body": "Una auditoría se ejecuta siempre contra un objetivo (sistema o URL). Añade al menos uno para poder crear auditorías.", "cta": "Añadir un objetivo" },
     "nmapAutoHint":       "Añadido automáticamente — las herramientas web lo necesitan para descubrir los puertos.",
@@ -574,6 +575,7 @@
       "createFailed":   "Error al crear la auditoría",
       "nameRequired":   "El nombre de la auditoría es obligatorio",
       "targetRequired": "Selecciona un objetivo",
+      "typeRequired":   "Selecciona el tipo de auditoría",
       "toolRequired":   "Selecciona al menos una herramienta"
     }
   }

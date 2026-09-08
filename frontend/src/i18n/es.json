@@ -65,6 +65,11 @@
       "compliance":         "Conformidad",
       "static_analysis":    "Análisis estático"
     },
+    "intensity": {
+      "passive":    "Pasivo",
+      "active":     "Activo",
+      "aggressive": "Agresivo"
+    },
     "targetStatus": {
       "reachable":   "Alcanzable",
       "unreachable": "No alcanzable",
@@ -295,6 +300,7 @@
     "notRunYet":        "Sin ejecutar aún",
     "targetLabel":      "Objetivo:",
     "toolsLabel":       "Herramientas:",
+    "intensityLabel":   "Intensidad:",
     "queueDown": {
       "title":  "Sistema de ejecución no disponible",
       "body":   "La cola de tareas no responde, así que la auditoría no se ha podido iniciar. No ha cambiado de estado. Inténtalo de nuevo en unos minutos o avisa al administrador.",
@@ -535,7 +541,16 @@
     "descriptionLabel":   "Descripción",
     "targetLabel":        "Objetivo",
     "auditTypeLabel":     "Tipo de auditoría",
-    "auditTypeHint":      "Determina el enfoque del informe. Propone un punto de partida de herramientas si aún no has elegido ninguna.",
+    "auditTypeHint":      "Determina el enfoque del informe y del escaneo. Propone herramientas e intensidad si aún no las has elegido.",
+    "intensityLabel":     "Intensidad",
+    "intensityHint":      "Cómo de a fondo escanea cada herramienta. La prerrellena el tipo; ajústala si el objetivo lo requiere.",
+    "intensityDesc": {
+      "passive":    "Solo observación: versiones y configuración. Sin pruebas activas.",
+      "active":     "Detección completa de vulnerabilidades conocidas. Sin ataques destructivos.",
+      "aggressive": "Además: plantillas de explotación, fuzzing activo y modo de ataque."
+    },
+    "intensityWarning":     "Intensidad agresiva: escaneo intrusivo que genera tráfico agresivo contra el objetivo.",
+    "intensityWarningProd": "El objetivo está marcado como producción — asegúrate de tener autorización.",
     "presetsLabel":       "Empieza con una configuración recomendada",
     "noTargets":          { "title": "Necesitas un objetivo primero", "body": "Una auditoría se ejecuta siempre contra un objetivo (sistema o URL). Añade al menos uno para poder crear auditorías.", "cta": "Añadir un objetivo" },
     "nmapAutoHint":       "Añadido automáticamente — las herramientas web lo necesitan para descubrir los puertos.",

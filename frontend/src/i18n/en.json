@@ -65,6 +65,11 @@
       "compliance":         "Compliance",
       "static_analysis":    "Static Analysis"
     },
+    "intensity": {
+      "passive":    "Passive",
+      "active":     "Active",
+      "aggressive": "Aggressive"
+    },
     "targetStatus": {
       "reachable":   "Reachable",
       "unreachable": "Unreachable",
@@ -295,6 +300,7 @@
     "notRunYet":        "Not run yet",
     "targetLabel":      "Target:",
     "toolsLabel":       "Tools:",
+    "intensityLabel":   "Intensity:",
     "unreachablePre":   "Target is ",
     "unreachableWord":  "unreachable",
     "unreachablePost":  ". Verify connectivity before running the audit — the scan will return no findings.",
@@ -535,7 +541,16 @@
     "descriptionLabel":   "Description",
     "targetLabel":        "Target",
     "auditTypeLabel":     "Audit Type",
-    "auditTypeHint":      "Sets the report focus. Suggests a starting set of tools if you haven't picked any yet.",
+    "auditTypeHint":      "Sets the report and scan focus. Suggests tools and intensity if you haven't picked any yet.",
+    "intensityLabel":     "Intensity",
+    "intensityHint":      "How deep each tool scans. Prefilled by the audit type; adjust it if the target calls for it.",
+    "intensityDesc": {
+      "passive":    "Observation only: versions and configuration. No active testing.",
+      "active":     "Full detection of known vulnerabilities. No destructive attacks.",
+      "aggressive": "Plus: exploitation templates, active fuzzing and attack mode."
+    },
+    "intensityWarning":     "Aggressive intensity: intrusive scan that sends aggressive traffic to the target.",
+    "intensityWarningProd": "The target is marked as production — make sure you are authorised.",
     "presetsLabel":       "Start from a recommended configuration",
     "noTargets":          { "title": "You need a target first", "body": "An audit always runs against a target (system or URL). Add at least one to be able to create audits.", "cta": "Add a target" },
     "nmapAutoHint":       "Added automatically — the web tools need it to discover the ports.",

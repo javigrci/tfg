@@ -10,6 +10,7 @@ export interface AppUser {
 export type FindingStatus = 'open' | 'in_progress' | 'resolved' | 'false_positive'
 export type AuditStatus   = 'draft' | 'running' | 'completed' | 'failed'
 export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance'
+export type Intensity     = 'passive' | 'active' | 'aggressive'
 export type ScanStatus    = 'pending' | 'running' | 'completed' | 'failed'
 export type ScanTool      = 'nmap' | 'nikto' | 'wapiti' | 'nuclei' | 'manual'
 export type SeverityLevel = 'info' | 'low' | 'medium' | 'high' | 'critical'
@@ -21,6 +22,7 @@ export interface Target {
   id: number
   name: string
   address: string
+  environment: string
   status: TargetStatus
   created_at: string
   audit_count?: number
@@ -165,6 +167,7 @@ export interface Audit {
   name: string
   description: string | null
   audit_type: AuditType
+  intensity: Intensity
   status: AuditStatus
   selected_modules: string[]
   target: Target

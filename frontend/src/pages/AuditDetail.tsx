@@ -723,6 +723,7 @@ export default function AuditDetail() {
             <p className="text-xs text-muted-foreground mt-1">
               {t('auditDetail.targetLabel')} <span className="font-medium text-foreground font-mono">{audit.target.address}</span>
               {' · '}{t('auditDetail.toolsLabel')} <span className="font-medium text-foreground">{audit.selected_modules.join(', ')}</span>
+              {' · '}{t('auditDetail.intensityLabel')} <span className="font-medium text-foreground">{t(`domain.intensity.${audit.intensity}`)}</span>
             </p>
           </div>
         </div>

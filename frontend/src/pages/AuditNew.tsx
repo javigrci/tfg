@@ -14,9 +14,10 @@ import {
   Crosshair,
 } from 'lucide-react'
 import api from '@/lib/api'
-import type { Target, AuditType, ScanTool } from '@/types'
+import type { Target, AuditType, ScanTool, Intensity } from '@/types'
 import { useTranslation } from 'react-i18next'
 import { ensureNmap, orderModules, isWebTool } from '@/lib/auditPlan'
+import { EXECUTION_PROFILES, INTENSITY_LEVELS } from '@/lib/executionProfiles'
 import { ExecutionGraph } from '@/components/ExecutionGraph'
 import type { ChainGraphResponse } from '@/lib/chainGraph'
 
@@ -36,19 +37,13 @@ const TOOL_META: Record<Exclude<ScanTool, 'manual'>, {
 
 const AUDIT_TYPES: AuditType[] = ['vulnerability_scan', 'penetration_test', 'compliance']
 
-// Punto de partida por tipo, ajustable. Alineado con lo que el perfil de informe de
-// cada tipo necesita (spec 007 / RF-031): el preset debe producir los datos de la
-// sección característica del perfil (pentest → cadena de ataque; compliance → mapa
-// OWASP). Todos incluyen Nmap para no dejar una selección que `ensureNmap` tocaría
-// acto seguido. El usuario ajusta libremente; el tipo nunca fuerza ni bloquea nada.
+// Punto de partida por tipo, ajustable. La fuente de verdad del preset + la intensidad
+// por defecto de cada tipo es `EXECUTION_PROFILES` (spec 009), espejo del backend. El
+// usuario ajusta libremente; el tipo nunca fuerza ni bloquea nada (ADR-012).
 const PRESETS: Record<AuditType, ScanTool[]> = {
-  // Inventario CVE (nmap CPE + nuclei) + amplitud web. Propuesta pendiente de la
-  // tutora: reducirlo a ['nmap', 'nuclei'] para un escaneo de inventario más rápido.
-  vulnerability_scan: ['nmap', 'nikto', 'nuclei', 'wapiti'],
-  // +nikto (spec 007): produce las rutas que alimentan el encadenamiento nmap→web,
-  // sin las cuales el perfil pentest se queda sin la sección de cadena de ataque.
-  penetration_test:   ['nmap', 'nikto', 'nuclei', 'wapiti'],
-  compliance:         ['nmap', 'nikto', 'nuclei'],
+  vulnerability_scan: EXECUTION_PROFILES.vulnerability_scan.tools,
+  penetration_test:   EXECUTION_PROFILES.penetration_test.tools,
+  compliance:         EXECUTION_PROFILES.compliance.tools,
 }
 
 export default function AuditNew() {
@@ -68,6 +63,12 @@ export default function AuditNew() {
   // elegir un tipo la rellena con su preset; una vez true, elegir/cambiar el tipo
   // solo fija el tipo y respeta lo que el usuario tenga marcado.
   const [toolsTouched, setToolsTouched] = useState(false)
+
+  // Intensidad de escaneo (spec 009). La prerrellena el tipo; el usuario la ajusta.
+  // `intensityTouched`: mismo criterio que `toolsTouched` — una vez tocada, cambiar
+  // el tipo no la sobrescribe.
+  const [intensity, setIntensity] = useState<Intensity | null>(null)
+  const [intensityTouched, setIntensityTouched] = useState(false)
 
   const hasWebTool = useMemo(() => [...selected].some(isWebTool), [selected])
   const nmapAuto   = selected.has('nmap') && hasWebTool && !nmapExplicit
@@ -110,33 +111,48 @@ export default function AuditNew() {
     setToolsTouched(true)
   }
 
-  // Rellena las herramientas con el preset del tipo. Acción explícita.
+  // Reajusta herramientas E intensidad al preset del tipo. Acción explícita.
   function applyPresetTools(type: AuditType) {
     setSelected(ensureNmap(new Set(PRESETS[type])))
     setNmapExplicit(PRESETS[type].includes('nmap'))
+    setIntensity(EXECUTION_PROFILES[type].intensity)
   }
 
-  // Elegir un tipo: fija el tipo SIEMPRE; rellena las herramientas con su preset
-  // solo si el usuario aún no las ha tocado (así elegir el tipo nunca destruye
+  // Elegir un tipo: fija el tipo SIEMPRE; rellena herramientas / intensidad con su
+  // preset solo si el usuario aún no los ha tocado (elegir el tipo nunca destruye
   // una selección hecha a mano).
   function selectType(type: AuditType) {
     setAuditType(type)
-    if (!toolsTouched) applyPresetTools(type)
+    if (!toolsTouched) {
+      setSelected(ensureNmap(new Set(PRESETS[type])))
+      setNmapExplicit(PRESETS[type].includes('nmap'))
+    }
+    if (!intensityTouched) setIntensity(EXECUTION_PROFILES[type].intensity)
+  }
+
+  function chooseIntensity(level: Intensity) {
+    setIntensity(level)
+    setIntensityTouched(true)
   }
 
   const canCreate =
-    !!name.trim() && !!targetId && !!auditType && selected.size > 0 && !createMutation.isPending
+    !!name.trim() && !!targetId && !!auditType && !!intensity && selected.size > 0 && !createMutation.isPending
+
+  const selectedTarget = targets.find(tg => String(tg.id) === targetId)
+  const showAggressiveWarning = intensity === 'aggressive'
 
   function handleCreate() {
     if (!name.trim())     return toast.error(t('auditNew.toasts.nameRequired'))
     if (!targetId)        return toast.error(t('auditNew.toasts.targetRequired'))
     if (!auditType)       return toast.error(t('auditNew.toasts.typeRequired'))
+    if (!intensity)       return toast.error(t('auditNew.toasts.typeRequired'))
     if (selected.size === 0) return toast.error(t('auditNew.toasts.toolRequired'))
 
     createMutation.mutate({
       name:        name.trim(),
       description: description.trim() || null,
       audit_type:  auditType,
+      intensity,
       target_id:   parseInt(targetId),
       modules:     orderModules([...selected]),
     })
@@ -261,6 +277,52 @@ export default function AuditNew() {
 
           <section className="flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t('auditNew.intensityLabel')} <span className="text-destructive">*</span>
+            </p>
+            <p className="text-xs text-muted-foreground/70">{t('auditNew.intensityHint')}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {INTENSITY_LEVELS.map(level => {
+                const active = intensity === level
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => chooseIntensity(level)}
+                    aria-pressed={active}
+                    className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-all ${
+                      active
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : 'border-input bg-background hover:bg-muted'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                      {active && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {t(`domain.intensity.${level}`)}
+                    </span>
+                    <span className="text-[11px] leading-snug text-muted-foreground">
+                      {t(`auditNew.intensityDesc.${level}`)}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            {showAggressiveWarning && (
+              <div className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs leading-snug ${
+                selectedTarget?.environment === 'production'
+                  ? 'bg-destructive/15 text-destructive font-medium'
+                  : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+              }`}>
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {t('auditNew.intensityWarning')}
+                  {selectedTarget?.environment === 'production' && ' ' + t('auditNew.intensityWarningProd')}
+                </span>
+              </div>
+            )}
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t('auditNew.availableTools')} <span className="text-destructive">*</span>
             </p>
             <p className="text-xs text-muted-foreground/70">{t('auditNew.toolsHint')}</p>
@@ -279,13 +341,19 @@ export default function AuditNew() {
               {SELECTABLE_TOOLS.map(tool => {
                 const meta       = TOOL_META[tool as Exclude<ScanTool, 'manual'>]
                 const isSelected = selected.has(tool)
+                // El tipo DESTACA sus herramientas y atenúa las demás; nunca bloquea
+                // (clarify Q3 / FR-008). Solo estético: el `onClick` sigue activo.
+                const offProfile = !!auditType && !isSelected
+                  && !EXECUTION_PROFILES[auditType].tools.includes(tool)
                 return (
                   <button
                     key={tool}
                     type="button"
                     onClick={() => toggleTool(tool)}
                     aria-pressed={isSelected}
-                    className="flex flex-col gap-2 rounded-lg border p-3.5 text-left transition-all hover:shadow-sm"
+                    className={`flex flex-col gap-2 rounded-lg border p-3.5 text-left transition-all hover:shadow-sm ${
+                      offProfile ? 'opacity-45 hover:opacity-100' : ''
+                    }`}
                     style={{
                       borderColor: isSelected ? meta.color : 'rgba(255,255,255,0.10)',
                       background:  isSelected ? meta.color + '11' : 'transparent',

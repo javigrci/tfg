@@ -19,6 +19,16 @@ class AuditType(str, Enum):
     COMPLIANCE = "compliance"
 
 
+class Intensity(str, Enum):
+    """Intensidad de escaneo de una auditoría (spec 009). Eje ordenado:
+    passive < active < aggressive. `active` = comportamiento por defecto de las
+    herramientas antes de la spec 009 (cero regresión). El `audit_type` fija la
+    intensidad por defecto (ver `services/execution_profiles.py`)."""
+    PASSIVE = "passive"
+    ACTIVE = "active"
+    AGGRESSIVE = "aggressive"
+
+
 class ScanStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"

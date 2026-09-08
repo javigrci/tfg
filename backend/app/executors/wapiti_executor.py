@@ -4,11 +4,26 @@ import subprocess
 import uuid
 from pathlib import Path
 
-from app.executors.base import AuditExecutor, ChainContext, ChainType
+from app.executors.base import AuditExecutor, ChainContext, ChainType, normalize_intensity
 
 WAPITI_TIMEOUT   = 1200  # Python safety net (20 min) -- debe superar scan+attack+procesado de cola
 MAX_SCAN_TIME    = 240   # wapiti crawl limit (4 min)
 MAX_ATTACK_TIME  = 240   # wapiti attack limit (4 min)
+
+
+def _intensity_flags(intensity: str) -> list[str]:
+    """Flags de wapiti según la intensidad (spec 009). `active` = sin cambio
+    (módulos por defecto). `passive` = solo rastreo, sin ataque. `aggressive` =
+    todos los módulos (incluye fuerza de formularios de login) + nivel 2."""
+    if intensity == "passive":
+        return ["-m", ""]
+    if intensity == "aggressive":
+        return ["--level", "2", "-m", "all"]
+    return []
+
+
+def _attack_time(intensity: str) -> str:
+    return "480" if intensity == "aggressive" else str(MAX_ATTACK_TIME)
 
 # Rutas fijas de instalacion mas comunes (pipx, pip --user, paquete de sistema)
 _FALLBACK_PATHS = [
@@ -59,12 +74,15 @@ class WapitiExecutor(AuditExecutor):
         direccion: str,
         details: dict | None = None,
         chain_context: ChainContext | None = None,
+        *,
+        intensity: str = "active",
     ) -> list[dict]:
         # Wapiti es lento (crawl + ataque, ~8 min/run). En vez de una ejecución por
         # ruta descubierta, hace UNA ejecución con las rutas extra como `--start`
         # (wapiti las añade como puntos de entrada del mismo rastreo).
+        level = normalize_intensity(intensity)
         if chain_context is None:
-            return [self._run_one(direccion, details)]
+            return [self._run_one(direccion, details, intensity=level)]
 
         web = list(chain_context.values(ChainType.WEB_PORT)) or [direccion]
         primary = web[0]
@@ -72,10 +90,11 @@ class WapitiExecutor(AuditExecutor):
             primary.rstrip("/") + "/" + p.lstrip("/")
             for p in chain_context.values(ChainType.PATH)
         ]
-        return [self._run_one(primary, details, extra_starts=extra)]
+        return [self._run_one(primary, details, extra_starts=extra, intensity=level)]
 
     def _run_one(self, direccion: str, details: dict | None = None,
-                 extra_starts: list[str] | None = None) -> dict:
+                 extra_starts: list[str] | None = None,
+                 intensity: str = "active") -> dict:
         # Wapiti solo tiene sentido sobre targets web
         if not _is_web_target(direccion):
             return {"tool": self.name, "command": "", "raw_output": "{}"}
@@ -94,7 +113,8 @@ class WapitiExecutor(AuditExecutor):
             "-f",               "json",
             "-o",               str(output_file),
             "--max-scan-time",  str(MAX_SCAN_TIME),
-            "--max-attack-time", str(MAX_ATTACK_TIME),
+            "--max-attack-time", _attack_time(intensity),
+            *_intensity_flags(intensity),   # spec 009 — [] en `active`
         ]
 
         # Puntos de entrada extra (otros puertos web + rutas descubiertas por Nikto),

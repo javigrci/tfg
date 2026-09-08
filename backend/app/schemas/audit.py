@@ -8,6 +8,7 @@ from app.domain.enums import (
     CveEnrichmentStatus,
     FindingCategory,
     FindingStatus,
+    Intensity,
     RiskLevel,
     ScanStatus,
     SeverityLevel,
@@ -211,6 +212,8 @@ class AuditCreate(BaseModel):
     audit_type: AuditType = AuditType.VULNERABILITY_SCAN
     target_id: int
     modules: list[str] = Field(default=["nmap"], description="Herramientas de escaneo")
+    # None → el servicio resuelve la intensidad por defecto del perfil del audit_type (spec 009).
+    intensity: Optional[Intensity] = None
 
     @field_validator("modules")
     @classmethod
@@ -232,6 +235,7 @@ class AuditRead(BaseModel):
     name: str
     description: Optional[str] = None
     audit_type: AuditType
+    intensity: Intensity
     status: AuditStatus
     selected_modules: list[str]
     created_at: datetime

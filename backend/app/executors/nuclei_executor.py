@@ -1,10 +1,16 @@
 import shutil
 import subprocess
 import os
-from app.executors.base import AuditExecutor, ChainContext, ChainType
+from app.executors.base import AuditExecutor, ChainContext, ChainType, normalize_intensity
 from app.parsers.nmap_parser import normalize_endpoint
 
 timeout = 900
+
+# Tags de plantillas que solo se ejecutan en intensidad agresiva (spec 009): fuerzan
+# la exposición de paneles, credenciales por defecto y desconfiguración activa.
+_AGGRESSIVE_TAGS = ["exposure", "exposed-panel", "default-login", "misconfig"]
+# Tags de solo detección para intensidad pasiva.
+_PASSIVE_TAGS = ["tech", "detection", "favicon"]
 
 
 rutas = [
@@ -40,6 +46,8 @@ class NucleiExecutor(AuditExecutor):
         direccion: str,
         details: dict | None = None,
         chain_context: ChainContext | None = None,
+        *,
+        intensity: str = "active",
     ) -> list[dict]:
         web = (
             chain_context.values(ChainType.WEB_PORT)
@@ -62,7 +70,7 @@ class NucleiExecutor(AuditExecutor):
         # Encadenamiento por tecnología (ADR-010): Nmap detectó el software →
         # nuclei ejecuta también las plantillas de ese producto vía -tags.
         tags = self._tech_tags(chain_context)
-        return [self._run_one(targets, tags)]
+        return [self._run_one(targets, tags, normalize_intensity(intensity))]
 
     @staticmethod
     def _tech_tags(chain_context: ChainContext | None) -> list[str]:
@@ -83,21 +91,46 @@ class NucleiExecutor(AuditExecutor):
                     seen.append(c)
         return seen
 
-    def _run_one(self, targets: list[str], tags: list[str] | None = None) -> dict:
+    def _run_one(self, targets: list[str], tags: list[str] | None = None,
+                 intensity: str = "active") -> dict:
         nuclei_bin = find_nuclei()
+
+        # Intensidad (spec 009). `active` = comportamiento previo, byte a byte.
+        #   passive:    `-tags` (restringe) a plantillas de detección + `-severity info`.
+        #   active:     `-tags` con los tags de tecnología del encadenamiento (ADR-010).
+        #   aggressive: `-itags` (ADITIVO — no restringe) con tecnología + categorías
+        #               ofensivas + `-dast` (fuzzing activo). No se usa `-tags` porque
+        #               `-tags X -dast` deja la intersección vacía y nuclei aborta.
+        if intensity == "passive":
+            severity = "info"
+            tag_flag = "-tags"
+            tag_values = list(dict.fromkeys(list(tags or []) + _PASSIVE_TAGS))
+            dast = False
+        elif intensity == "aggressive":
+            severity = "critical,high,medium,low,info"
+            tag_flag = "-itags"
+            tag_values = list(dict.fromkeys(list(tags or []) + _AGGRESSIVE_TAGS))
+            dast = True
+        else:  # active
+            severity = "critical,high,medium,low,info"
+            tag_flag = "-tags"
+            tag_values = list(tags or [])
+            dast = False
 
         cmd_parts = [nuclei_bin]
         for t in targets:
             cmd_parts += ["-u", t]
-        if tags:
-            cmd_parts += ["-tags", ",".join(tags)]
+        if tag_values:
+            cmd_parts += [tag_flag, ",".join(tag_values)]
         cmd_parts += [
             "-jsonl",
             "-silent",
             "-no-color",
-            "-severity", "critical,high,medium,low,info",
+            "-severity", severity,
             "-timeout", "15",
         ]
+        if dast:
+            cmd_parts.append("-dast")
         comando = " ".join(cmd_parts)
 
         result = subprocess.run(

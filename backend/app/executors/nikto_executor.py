@@ -2,9 +2,18 @@ import shutil
 import subprocess
 from urllib.parse import urlparse
 
-from app.executors.base import AuditExecutor, ChainContext, ChainType
+from app.executors.base import AuditExecutor, ChainContext, ChainType, normalize_intensity
 
 timeout = 600
+
+
+def _intensity_flags(intensity: str) -> list[str]:
+    """Flags de nikto según la intensidad (spec 009). `active` = sin cambio."""
+    if intensity == "passive":
+        return ["-Tuning", "b", "-maxtime", "120s"]        # solo identificacion de software
+    if intensity == "aggressive":
+        return ["-Tuning", "x6", "-maxtime", "600s"]       # todas las categorias salvo DoS (6)
+    return []
 
 
 def find_nikto() -> str:
@@ -48,15 +57,18 @@ class NiktoExecutor(AuditExecutor):
         direccion: str,
         details: dict | None = None,
         chain_context: ChainContext | None = None,
+        *,
+        intensity: str = "active",
     ) -> list[dict]:
         targets = (
             chain_context.values(ChainType.WEB_PORT)
             if chain_context and chain_context.values(ChainType.WEB_PORT)
             else [direccion]
         )
-        return [self._run_one(t) for t in targets]
+        level = normalize_intensity(intensity)
+        return [self._run_one(t, level) for t in targets]
 
-    def _run_one(self, direccion: str) -> dict:
+    def _run_one(self, direccion: str, intensity: str = "active") -> dict:
         nikto_bin = find_nikto()
         host, port, ssl = parsear_direccion(direccion)
 
@@ -66,6 +78,7 @@ class NiktoExecutor(AuditExecutor):
             "-p", str(port),
             "-ask", "no",
             "-nointeractive",
+            *_intensity_flags(intensity),
         ]
         if ssl:
             cmd_parts.append("-ssl")

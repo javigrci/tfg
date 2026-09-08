@@ -19,6 +19,7 @@ from app.parsers.nmap_parser import NmapParser
 from app.schemas.audit import AuditCreate
 from app.services.chain_orchestrator import ChainOrchestrator
 from app.services.cve_enrichment import CVEEnrichmentService
+from app.services.execution_profiles import resolve_execution_profile
 
 
 def _now() -> datetime:
@@ -534,10 +535,16 @@ class AuditService:
         if target is None:
             raise ValueError(f"Target with id {payload.target_id} not found")
 
+        # spec 009: intensidad del perfil del tipo si el analista no la fijó.
+        intensity = payload.intensity or resolve_execution_profile(
+            payload.audit_type
+        ).default_intensity
+
         audit = Audit(
             name=payload.name,
             description=payload.description,
             audit_type=payload.audit_type,
+            intensity=intensity,
             created_by_id=created_by.id,
             target_id=target.id,
             selected_modules=payload.modules,
@@ -770,6 +777,7 @@ class AuditService:
                     audit.target.address,
                     details=audit.target.details,
                     chain_context=context,
+                    intensity=audit.intensity.value,
                 )
                 scan_status = ScanStatus.COMPLETED
             except Exception as exc:

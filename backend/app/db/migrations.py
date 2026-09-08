@@ -14,6 +14,20 @@ _STATEMENTS: list[str] = [
         ADD COLUMN IF NOT EXISTS cve_enrichment_status cveenrichmentstatus
         NOT NULL DEFAULT 'DONE';
     """,
+    # spec 009 — intensidad de escaneo por auditoría. Valores = nombres de miembro
+    # del enum (MAYÚSCULAS), como `Enum(Intensity)` pelado espera. `ACTIVE` para las
+    # filas históricas: es el nivel con el que realmente se ejecutaron.
+    """
+    DO $$ BEGIN
+        CREATE TYPE intensity AS ENUM ('PASSIVE', 'ACTIVE', 'AGGRESSIVE');
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+    """,
+    """
+    ALTER TABLE audits
+        ADD COLUMN IF NOT EXISTS intensity intensity
+        NOT NULL DEFAULT 'ACTIVE';
+    """,
 ]
 
 

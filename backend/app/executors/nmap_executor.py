@@ -4,9 +4,19 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.core.config import get_settings
-from app.executors.base import AuditExecutor, ChainContext, ChainType
+from app.executors.base import AuditExecutor, ChainContext, ChainType, normalize_intensity
 
 timeout = 180
+
+
+def _intensity_flags(intensity: str) -> list[str]:
+    """Flags que se añaden tras `-sV` según la intensidad (spec 009).
+    `active` = sin cambio (comportamiento previo, cero regresión)."""
+    if intensity == "passive":
+        return ["--version-intensity", "2"]          # fingerprint ligero
+    if intensity == "aggressive":
+        return ["--version-all", "--script", "default and safe"]  # + NSE seguros
+    return []
 
 rutas_windows = [
     Path("C:/Program Files/Nmap/nmap.exe"),
@@ -57,11 +67,14 @@ class NmapExecutor(AuditExecutor):
         direccion: str,
         details: dict | None = None,
         chain_context: ChainContext | None = None,
+        *,
+        intensity: str = "active",
     ) -> list[dict]:
         nmap_bin = find_nmap()
         host, puerto = extraer_host_puerto(direccion)
 
-        cmd = [nmap_bin, "-sV", "-T4", "--open", "-oX", "-"]
+        cmd = [nmap_bin, "-sV", *_intensity_flags(normalize_intensity(intensity)),
+               "-T4", "--open", "-oX", "-"]
         excluded = get_settings().excluded_ports
         if excluded:
             cmd.extend(["--exclude-ports", excluded])

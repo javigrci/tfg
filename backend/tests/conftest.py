@@ -218,7 +218,7 @@ def fake_tool(monkeypatch):
     class _FakeExecutor:
         name = "faketool"
 
-        def execute(self, direccion, details=None, chain_context=None):
+        def execute(self, direccion, details=None, chain_context=None, *, intensity="active"):
             if state["raise_error"]:
                 raise state["raise_error"]
             return [{"tool": "faketool", "command": f"faketool --scan {direccion}", "raw_output": "fake output"}]

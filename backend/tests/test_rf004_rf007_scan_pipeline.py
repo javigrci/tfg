@@ -111,7 +111,7 @@ def test_rf004_multiples_herramientas_se_ejecutan_todas_en_el_orden_configurado(
         def __init__(self, name):
             self.name = name
 
-        def execute(self, direccion, details=None, chain_context=None):
+        def execute(self, direccion, details=None, chain_context=None, *, intensity="active"):
             call_order.append(self.name)
             return [{"tool": self.name, "command": self.name, "raw_output": "x"}]
 

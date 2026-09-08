@@ -196,7 +196,7 @@ def chain_fakes(monkeypatch):
         def __init__(self, name):
             self.name = name
 
-        def execute(self, direccion, details=None, chain_context=None):
+        def execute(self, direccion, details=None, chain_context=None, *, intensity="active"):
             targets = (chain_context.web_targets if chain_context and chain_context.web_targets else [])
             state["received"][self.name] = list(targets)
             if self.name == "nmap":

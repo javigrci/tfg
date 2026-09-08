@@ -10,6 +10,7 @@ from app.domain.enums import (
     CveEnrichmentStatus,
     FindingCategory,
     FindingStatus,
+    Intensity,
     RiskLevel,
     ScanStatus,
     SeverityLevel,
@@ -69,6 +70,7 @@ class Audit(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     audit_type: Mapped[AuditType] = mapped_column(Enum(AuditType), default=AuditType.VULNERABILITY_SCAN, nullable=False)
+    intensity: Mapped[Intensity] = mapped_column(Enum(Intensity), default=Intensity.ACTIVE, server_default="ACTIVE", nullable=False)
     status: Mapped[AuditStatus] = mapped_column(Enum(AuditStatus), default=AuditStatus.DRAFT, nullable=False)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     target_id: Mapped[int] = mapped_column(ForeignKey("targets.id"), nullable=False)

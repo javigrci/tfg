@@ -37,6 +37,11 @@ _REFEED_TOOLS = frozenset({"nuclei", "wapiti"})
 
 _MIN_PER_RUN = 60   # suelo cuando una herramienta se reparte entre varias ejecuciones
 
+# Margen sobre el presupuesto del nivel para el tope de espera al cerrar un nivel del grafo
+# con ejecución concurrente (ADR-013, spec 010b): un hilo que no vuelve dentro de este plazo
+# se abandona (su Scan sale FAILED) y el nivel cierra igual.
+_LEVEL_MARGIN = 60
+
 
 def _norm(intensity: str) -> str:
     value = getattr(intensity, "value", intensity)
@@ -67,3 +72,29 @@ def worst_case_seconds(tools: list[str], intensity: str) -> int:
     if len(refeed_tools) >= 2:
         total += REFEED_BUDGET * len(refeed_tools)
     return total
+
+
+def level_deadline(tools: list[str], intensity: str, *, refeed: bool = False) -> int:
+    """Tope de espera al cerrar un nivel del grafo (ADR-013). Es defensa en profundidad:
+    cada herramienta ya se corta a su presupuesto en `run_scan_subprocess`; este plazo solo
+    cubre un hilo que se cuelgue FUERA del subproceso. Se dimensiona al **peor caso
+    secuencial** del nivel (`suma` de presupuestos + margen) para que valga con cualquier
+    `AUDIT_TOOL_CONCURRENCY` — con `= 1` el nivel corre en serie y puede tardar la suma."""
+    if refeed:
+        return REFEED_BUDGET + _LEVEL_MARGIN
+    lvl = _norm(intensity)
+    return sum(BUDGETS.get((t, lvl), BUDGETS.get((t, _ACTIVE), 180)) for t in tools) + _LEVEL_MARGIN
+
+
+def parallel_worst_case_seconds(levels: list[list[str]], intensity: str) -> int:
+    """Peor caso de una auditoría con ejecución CONCURRENTE por nivel (ADR-013, spec 010b):
+    suma, por nivel del grafo, del presupuesto de la herramienta más lenta del nivel, más la
+    reserva de refeed si hay ≥ 2 herramientas encadenables en total. Nunca peor que
+    `worst_case_seconds` sobre las mismas herramientas."""
+    lvl = _norm(intensity)
+    per_level = sum(
+        max(BUDGETS.get((t, lvl), BUDGETS.get((t, _ACTIVE), 180)) for t in level)
+        for level in levels if level
+    )
+    refeed_tools = {t for level in levels for t in level} & _REFEED_TOOLS
+    return per_level + (REFEED_BUDGET if len(refeed_tools) >= 2 else 0)

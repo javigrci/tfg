@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     chain_max_paths: int = Field(default=20, alias="CHAIN_MAX_PATHS")
     chain_refeed_passes: int = Field(default=1, alias="CHAIN_REFEED_PASSES")
 
+    # Paralelismo intra-auditoría (ADR-013, spec 010b): cuántas herramientas de una misma
+    # auditoría se ejecutan a la vez. INDEPENDIENTE de CELERY_CONCURRENCY (Makefile, spec 010),
+    # que es cuántas auditorías corren a la vez. = 1 → ejecución secuencial (modo compat).
+    audit_tool_concurrency: int = Field(default=4, alias="AUDIT_TOOL_CONCURRENCY")
+
     # Cola Celery + Redis (ADR-009). broker/result_backend caen a redis_url si no se fijan.
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     celery_broker_url: str = Field(default="", alias="CELERY_BROKER_URL")

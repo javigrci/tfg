@@ -1,5 +1,8 @@
 import hashlib
+import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait
+from dataclasses import dataclass, field as _dc_field
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
@@ -22,6 +25,19 @@ from app.schemas.audit import AuditCreate
 from app.services.chain_orchestrator import ChainOrchestrator
 from app.services.cve_enrichment import CVEEnrichmentService
 from app.services.execution_profiles import resolve_execution_profile
+from app.services.scan_budgets import level_deadline
+
+
+@dataclass
+class _ToolRun:
+    """Resultado de ejecutar una herramienta en un hilo trabajador (ADR-013, spec 010b).
+    Datos puros: NO contiene objetos ORM ni referencias a la sesión de BD. El hilo principal
+    lo persiste con `_persist_tool_result` y mergea `chain_findings` en orden canónico."""
+    tool: str
+    results: list[dict]
+    status: "ScanStatus | None"          # None = herramienta no registrada (no crea Scan)
+    chain_findings: list = _dc_field(default_factory=list)
+    error: "str | None" = None
 
 
 def _now() -> datetime:
@@ -698,6 +714,13 @@ class AuditService:
 
         tools: list[str] = audit.selected_modules or ["bash"]
 
+        # Primitivas del target capturadas ANTES del pool de hilos (ADR-013): los hilos
+        # trabajadores NO deben tocar la sesión de SQLAlchemy ni objetos ORM (lazy-load no es
+        # thread-safe). Todo lo que `_execute_tool` necesita del target vive aquí.
+        target_address: str = audit.target.address
+        target_details: dict = dict(audit.target.details or {})
+        intensity_value: str = audit.intensity.value
+
         # Incrementar run_number — los scans anteriores se conservan para delta
         max_run = self.db.scalar(
             select(func.max(Scan.run_number)).where(Scan.audit_id == audit_id)
@@ -756,17 +779,17 @@ class AuditService:
             total_findings += len(findings)
 
         def _extract_chain(tool_name: str, raw_result: dict) -> list["ChainFinding"]:
-            """Hallazgos tipados que la herramienta aporta (ADR-010). NO muta el contexto —
-            el merge se hace al cerrar el nivel del grafo (spec 010, FR-013)."""
+            """Hallazgos tipados que la herramienta aporta (ADR-010). Parseo PURO del
+            `raw_output` — sin BD, sin ORM (se llama desde un hilo trabajador, ADR-013)."""
             parser = get_parser(tool_name)
             extractor = getattr(parser, "extract_chain_findings", None)
             if extractor is not None:
-                return list(extractor(raw_result, target_base=audit.target.address))
+                return list(extractor(raw_result, target_base=target_address))
             if tool_name == "nmap":
                 return [
                     ChainFinding(ChainType.WEB_PORT, url, source_tool="nmap")
                     for url in NmapParser.extract_web_targets(
-                        raw_result.get("raw_output", ""), audit.target.address
+                        raw_result.get("raw_output", ""), target_address
                     )
                 ]
             return []
@@ -781,70 +804,141 @@ class AuditService:
                 return
             chain_context.add(cf)
 
-        def _run_tool(tool_name: str, *, context, sink: list, refeed: bool = False) -> None:
+        def _execute_tool(tool_name: str, *, context, refeed: bool = False) -> _ToolRun:
+            """Lanza la herramienta y parsea sus hallazgos encadenables. PURO respecto a la
+            sesión de BD y al estado compartido — se ejecuta en un hilo trabajador (ADR-013).
+            `context` es un `FrozenChainContext` (solo lectura)."""
             try:
                 executor = get_executor(tool_name)
                 get_parser(tool_name)
             except ValueError as exc:
-                self.db.add(Log(audit_id=audit.id, level="WARNING", message=str(exc)))
-                return
+                return _ToolRun(tool_name, [], None, [], error=str(exc))
             try:
-                results = executor.execute(
-                    audit.target.address,
-                    details=audit.target.details,
+                results = list(executor.execute(
+                    target_address,
+                    details=target_details,
                     chain_context=context,
-                    intensity=audit.intensity.value,
+                    intensity=intensity_value,
                     refeed=refeed,
+                ))
+            except Exception as exc:  # noqa: BLE001 — cualquier fallo → Scan FAILED, la auditoría sigue
+                return _ToolRun(
+                    tool_name,
+                    [{"tool": tool_name, "command": tool_name, "raw_output": str(exc)}],
+                    ScanStatus.FAILED, [], error=str(exc),
                 )
-                scan_status = ScanStatus.COMPLETED
-            except Exception as exc:
-                results = [{"tool": tool_name, "command": tool_name, "raw_output": str(exc)}]
-                scan_status = ScanStatus.FAILED
-                tool_failures.append(tool_name)
-                self.db.add(Log(audit_id=audit.id, level="ERROR", message=f"[{tool_name}] {exc}"))
+            cfs: list = []
             for raw_result in results:
-                _persist_scan_and_findings(tool_name, raw_result, scan_status)
-                if scan_status == ScanStatus.COMPLETED:
-                    sink.extend(_extract_chain(tool_name, raw_result))
-            raw_results.extend(results)
-            scanned = (
-                context.values(ChainType.WEB_PORT) + context.values(ChainType.PATH)
-            )
-            chain_context.mark_scanned(tool_name, scanned)
+                cfs.extend(_extract_chain(tool_name, raw_result))
+            return _ToolRun(tool_name, results, ScanStatus.COMPLETED, cfs, None)
 
-        # Pasada topológica — por NIVEL del grafo: las herramientas del nivel reciben una
-        # instantánea del contexto (no se ven entre ellas) y sus hallazgos se mergean al
-        # cerrar el nivel (spec 010, FR-013 — listo para paralelizar el bucle interno).
+        def _persist_tool_result(run: _ToolRun) -> None:
+            """Persiste el resultado de una herramienta. SOLO hilo principal."""
+            if run.status is None:  # herramienta no registrada — como el WARNING previo
+                self.db.add(Log(audit_id=audit.id, level="WARNING",
+                                message=run.error or f"{run.tool} no disponible"))
+                return
+            for raw_result in run.results:
+                _persist_scan_and_findings(run.tool, raw_result, run.status)
+            raw_results.extend(run.results)
+            if run.status == ScanStatus.FAILED:
+                tool_failures.append(run.tool)
+                self.db.add(Log(audit_id=audit.id, level="ERROR",
+                                message=f"[{run.tool}] {run.error}"))
+
+        def _run_level(tools_list: list[str], *, context_for: dict, refeed: bool = False) -> dict:
+            """Ejecuta las herramientas de un nivel CONCURRENTEMENTE (ADR-013). Devuelve
+            `{tool: _ToolRun}` con una entrada por herramienta. El caller persiste e integra
+            en orden canónico (el de `tools_list`). Nunca bloquea por un hilo colgado."""
+            if len(tools_list) == 1:  # nivel de una herramienta → directo, sin pool (edge case)
+                t = tools_list[0]
+                return {t: _execute_tool(t, context=context_for[t], refeed=refeed)}
+            max_workers = max(1, min(get_settings().audit_tool_concurrency, len(tools_list)))
+            deadline = level_deadline(list(tools_list), intensity_value, refeed=refeed)
+            # NO usar `with ThreadPoolExecutor()`: su __exit__ hace shutdown(wait=True) y
+            # bloquearía por un hilo que no vuelve.
+            pool = ThreadPoolExecutor(max_workers=max_workers)
+            try:
+                fut_to_tool = {
+                    pool.submit(_execute_tool, t, context=context_for[t], refeed=refeed): t
+                    for t in tools_list
+                }
+                done, _not_done = _futures_wait(fut_to_tool, timeout=deadline)
+                runs: dict = {}
+                for fut, t in fut_to_tool.items():
+                    if fut in done and fut.exception() is None:
+                        runs[t] = fut.result()
+                    elif fut in done:  # _execute_tool captura todo; esto no debería pasar
+                        runs[t] = _ToolRun(
+                            t, [{"tool": t, "command": t, "raw_output": str(fut.exception())}],
+                            ScanStatus.FAILED, [], error=str(fut.exception()),
+                        )
+                    else:  # no terminó dentro del tope del nivel → se abandona
+                        runs[t] = _ToolRun(
+                            t, [{"tool": t, "command": t,
+                                 "raw_output": "nivel excedió su tope de espera (spec 010b)"}],
+                            ScanStatus.FAILED, [], error="deadline",
+                        )
+                return runs
+            finally:
+                pool.shutdown(wait=False, cancel_futures=True)
+
+        # Pasada topológica — por NIVEL del grafo, con las herramientas del nivel EN PARALELO
+        # (ADR-013). Cada herramienta recibe la misma instantánea del contexto; la
+        # persistencia y la integración de hallazgos son del hilo principal, en el orden de
+        # la lista del nivel (canónico), no en el de finalización de los hilos.
+        execution_levels: list[dict] = []
         for level in graph.order:
             snapshot = chain_context.freeze()
+            _t0 = time.monotonic()
+            runs = _run_level(level, context_for={t: snapshot for t in level})
+            _secs = round(time.monotonic() - _t0)
+            for tool_name in level:                       # ORDEN CANÓNICO
+                _persist_tool_result(runs[tool_name])
             sink: list = []
-            for tool_name in level:
-                _run_tool(tool_name, context=snapshot, sink=sink)
+            for tool_name in level:                       # ORDEN CANÓNICO
+                sink.extend(runs[tool_name].chain_findings)
             for cf in sink:
                 _admit_or_discard(cf)
+            scanned = snapshot.values(ChainType.WEB_PORT) + snapshot.values(ChainType.PATH)
+            for tool_name in level:
+                chain_context.mark_scanned(tool_name, scanned)
+            execution_levels.append({"tools": list(level), "seconds": _secs})
 
-        # Pasadas de re-alimentación de rutas (acotadas — SC-005).
+        # Pasadas de re-alimentación de rutas (acotadas — SC-005). Las herramientas de refeed
+        # también corren en paralelo, cada una con SU contexto (sus rutas `unscanned`).
+        _base = target_address
+        _base_slash = _base if _base.endswith("/") else _base + "/"
         refeed_passes_done = 0
+        execution_refeed: list[dict] = []
         for _ in range(max(0, get_settings().chain_refeed_passes)):
-            progressed = False
+            context_for: dict = {}
+            paths_for: dict = {}
             for tool_name in graph.refeed:
                 new_paths = chain_context.unscanned(tool_name, ChainType.PATH)
                 if not new_paths:
                     continue
-                base = audit.target.address
-                base_slash = base if base.endswith("/") else base + "/"
-                urls = [urljoin(base_slash, p) for p in new_paths]
-                sink = []
-                _run_tool(tool_name, context=ChainContext(web_targets=urls),
-                          sink=sink, refeed=True)
-                for cf in sink:
-                    _admit_or_discard(cf)
-                chain_context.mark_scanned(tool_name, new_paths)
-                progressed = True
-            if progressed:
-                refeed_passes_done += 1
-            else:
+                paths_for[tool_name] = new_paths
+                context_for[tool_name] = ChainContext(
+                    web_targets=[urljoin(_base_slash, p) for p in new_paths]
+                )
+            if not context_for:
                 break
+            tlist = [t for t in graph.refeed if t in context_for]   # orden canónico
+            _t0 = time.monotonic()
+            runs = _run_level(tlist, context_for=context_for, refeed=True)
+            _secs = round(time.monotonic() - _t0)
+            for tool_name in tlist:
+                _persist_tool_result(runs[tool_name])
+            sink = []
+            for tool_name in tlist:
+                sink.extend(runs[tool_name].chain_findings)
+            for cf in sink:
+                _admit_or_discard(cf)
+            for tool_name in tlist:
+                chain_context.mark_scanned(tool_name, paths_for[tool_name])
+            execution_refeed.append({"tools": list(tlist), "seconds": _secs})
+            refeed_passes_done += 1
 
         # Registro del grafo realmente ejecutado (FR-010).
         def _by_type(ct: ChainType) -> dict:
@@ -868,6 +962,14 @@ class AuditService:
             "refeed_passes": refeed_passes_done,
             "by_type": {ct.value: _by_type(ct) for ct in ChainType},
             "tool_failures": tool_failures,
+            # Ejecución real: reloj de pared por nivel y concurrencia efectiva (ADR-013,
+            # spec 010b). Retrocompatible — la comparación de no-regresión del chain_graph
+            # excluye esta sub-clave.
+            "execution": {
+                "tool_concurrency": get_settings().audit_tool_concurrency,
+                "levels": execution_levels,
+                "refeed": execution_refeed,
+            },
         }
         self.db.add(Event(
             audit_id=audit.id, event_type="chain_graph", payload=chain_graph_payload,

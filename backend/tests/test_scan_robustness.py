@@ -334,3 +334,9 @@ def test_sc011_orden_y_estructura_intactos(db_session, chain_fakes_paths):
     assert ev.payload["order"] == [["nmap"], ["nikto"], ["nuclei"]]
     assert set(ev.payload["by_type"]) == {"web_port", "technology", "path"}
     assert "refeed_passes" in ev.payload and "tool_failures" in ev.payload
+    # spec 010b — sub-clave execution (retrocompatible, aditiva)
+    ex = ev.payload["execution"]
+    assert isinstance(ex["tool_concurrency"], int) and ex["tool_concurrency"] >= 1
+    assert [l["tools"] for l in ex["levels"]] == ev.payload["order"]
+    assert all(isinstance(l["seconds"], int) and l["seconds"] >= 0 for l in ex["levels"])
+    assert len(ex["refeed"]) == ev.payload["refeed_passes"]

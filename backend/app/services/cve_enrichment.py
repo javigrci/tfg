@@ -130,8 +130,11 @@ class CVEEnrichmentService:
             kwargs["delay"] = 1  # con key: 50 req/30s → 1s es seguro
 
         if cpe_or_cve.upper().startswith("CVE-"):
-            # Nuclei produce CVE IDs directos → búsqueda exacta
-            results = nvdlib.searchCVE(cveId=cpe_or_cve, **kwargs)
+            # Nuclei produce CVE IDs directos → búsqueda exacta.
+            # El NVD es sensible a mayúsculas en `cveId` (un `cve-2021-41773`
+            # en minúsculas da 404): algunas plantillas de nuclei traen el
+            # `classification.cve-id` en minúsculas → normalizar aquí.
+            results = nvdlib.searchCVE(cveId=cpe_or_cve.upper(), **kwargs)
         else:
             # Nmap produce CPE 2.3 → búsqueda por plataforma
             results = nvdlib.searchCVE(cpeName=cpe_or_cve, **kwargs)

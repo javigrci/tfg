@@ -216,7 +216,11 @@ class NucleiParser:
         # CVE ID → campo `cpe` para que CVEEnrichmentService lo resuelva
         classification = info.get("classification") or {}
         cve_ids = classification.get("cve-id") or []
-        cpe_value = cve_ids[0] if cve_ids else None
+        if isinstance(cve_ids, str):          # nuclei a veces da un string, no lista
+            cve_ids = [cve_ids]
+        # Algunas plantillas escriben el CVE en minúsculas; el NVD lo exige en
+        # mayúsculas (CVEEnrichmentService.searchCVE(cveId=...)) → normalizar.
+        cpe_value = cve_ids[0].upper() if cve_ids and cve_ids[0] else None
 
         # Si no hubo tag match pero el template tiene CVE, es un componente vulnerable
         if category == FindingCategory.OTHER and cpe_value:

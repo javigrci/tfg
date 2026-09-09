@@ -182,6 +182,32 @@ def test_rf008_cve_id_directo_de_nuclei_usa_busqueda_por_cveid(db_session, monke
     assert seen_kwargs["cveId"] == "CVE-2023-1234"
 
 
+def test_rf008_cve_id_en_minusculas_se_normaliza_para_el_nvd(db_session, monkeypatch):
+    """Algunas plantillas de nuclei traen el CVE en minúsculas -- el NVD da 404
+    si `cveId` no va en mayúsculas -> el servicio lo normaliza antes de consultar."""
+    import nvdlib
+    seen_kwargs = {}
+
+    def _search(**kw):
+        seen_kwargs.update(kw)
+        return [_fake_cve("CVE-2021-42013", 9.8)]
+
+    monkeypatch.setattr(nvdlib, "searchCVE", _search)
+
+    aid = _make_audit_id(db_session)
+    scan = Scan(audit_id=aid, tool="nuclei", status=ScanStatus.COMPLETED, run_number=1)
+    db_session.add(scan); db_session.flush()
+    finding = Finding(
+        scan_id=scan.id, title="x", description="d", severity=SeverityLevel.LOW,
+        category=FindingCategory.OUTDATED_COMPONENTS, recommendation="r",
+        cpe="cve-2021-42013",
+    )
+    db_session.add(finding); db_session.flush()
+
+    CVEEnrichmentService(db_session).enrich([finding])
+    assert seen_kwargs.get("cveId") == "CVE-2021-42013"
+
+
 # ── spec 001: estado de enriquecimiento de CVE (pending / done / unavailable) ──
 
 def test_rf008_estado_inicial_es_pending(finding_with_cpe):

@@ -344,9 +344,11 @@ class NmapParser:
         except ET.ParseError:
             return []
 
-        base_host = urlparse(
-            base_address if "://" in base_address else f"http://{base_address}"
-        ).hostname or base_address
+        _pb = urlparse(base_address if "://" in base_address else f"http://{base_address}")
+        base_host = _pb.hostname or base_address
+        base_scheme = _pb.scheme or "http"
+        base_port = _pb.port or (443 if base_scheme == "https" else 80)
+        base_path = _pb.path if _pb.path not in ("", "/") else ""   # spec 010: context path
 
         targets: list[str] = []
         for host_el in root.findall("host"):
@@ -378,5 +380,11 @@ class NmapParser:
                     if tunnel == "ssl" or name in _HTTPS_SVC_NAMES or portid in _HTTPS_PORTS
                     else "http"
                 )
-                targets.append(f"{scheme}://{host}:{portid}")
+                url = f"{scheme}://{host}:{portid}"
+                # spec 010 (FR-005/FR-006): si el puerto descubierto ES el del objetivo de
+                # la auditoría (mismo scheme+host+port) y el objetivo trae ruta base, se
+                # hereda esa ruta. Otros puertos → sin ruta (la ruta es del objetivo).
+                if base_path and scheme == base_scheme and host == base_host and portid == base_port:
+                    url += base_path
+                targets.append(url)
         return targets

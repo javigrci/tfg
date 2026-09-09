@@ -17,7 +17,10 @@ else
     VENV_CMD   = python3 -m venv venv
 endif
 
-CELERY = $(PYTHON) -m celery -A app.celery_app worker --loglevel=info --concurrency=1
+# Auditorías en paralelo. Default 1 (ADR-009 — no sobrecargar una máquina en uso normal).
+# Para una demo: `make dev CELERY_CONCURRENCY=3`.
+CELERY_CONCURRENCY ?= 1
+CELERY = $(PYTHON) -m celery -A app.celery_app worker --loglevel=info --concurrency=$(CELERY_CONCURRENCY)
 
 # PostgreSQL + Redis (la cola de ejecución los necesita siempre)
 services:

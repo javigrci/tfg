@@ -67,18 +67,45 @@ class _FakeRun:
 
 
 def _cmd(executor, url, intensity=None):
-    """Devuelve el `command` producido por el executor parcheando subprocess."""
-    calls = {}
+    """Devuelve el `command` producido por el executor sin lanzar la herramienta.
+    Parchea `run_scan_subprocess` (spec 010) en cada módulo de executor."""
+    def fake_scan(cmd, *, timeout):
+        return "<x/>", "", False
 
-    def fake_run(cmd, **kw):
-        calls["cmd"] = cmd
-        return _FakeRun()
-
-    with patch("subprocess.run", fake_run), \
+    patches = [patch(f"app.executors.{m}_executor.run_scan_subprocess", fake_scan)
+               for m in ("nmap", "nikto", "nuclei", "wapiti")]
+    with patch("subprocess.run", lambda *a, **k: _FakeRun()), \
          patch("shutil.which", lambda name: f"/usr/bin/{name}"), \
-         patch("app.executors.wapiti_executor.find_wapiti", lambda: "/usr/bin/wapiti"):
-        kwargs = {} if intensity is None else {"intensity": intensity}
-        return executor.execute(url, **kwargs)[0]["command"]
+         patch("app.executors.wapiti_executor.find_wapiti", lambda: "/usr/bin/wapiti"), \
+         patch("app.executors.nuclei_executor.find_nuclei", lambda: "/usr/bin/nuclei"):
+        for p in patches:
+            p.start()
+        try:
+            kwargs = {} if intensity is None else {"intensity": intensity}
+            return executor.execute(url, **kwargs)[0]["command"]
+        finally:
+            for p in patches:
+                p.stop()
+
+
+def _cmds(executor, url, intensity=None):
+    """Como `_cmd` pero devuelve TODOS los comandos (nuclei agresivo hace 2 ejecuciones)."""
+    def fake_scan(cmd, *, timeout):
+        return "<x/>", "", False
+
+    patches = [patch(f"app.executors.{m}_executor.run_scan_subprocess", fake_scan)
+               for m in ("nmap", "nikto", "nuclei", "wapiti")]
+    with patch("shutil.which", lambda name: f"/usr/bin/{name}"), \
+         patch("app.executors.wapiti_executor.find_wapiti", lambda: "/usr/bin/wapiti"), \
+         patch("app.executors.nuclei_executor.find_nuclei", lambda: "/usr/bin/nuclei"):
+        for p in patches:
+            p.start()
+        try:
+            kwargs = {} if intensity is None else {"intensity": intensity}
+            return [r["command"] for r in executor.execute(url, **kwargs)]
+        finally:
+            for p in patches:
+                p.stop()
 
 
 _EXECUTORS = [
@@ -128,10 +155,15 @@ def test_e3_aggressive_distinto_con_flags_de_intensidad_alta(executor, url):
 def test_e3_aggressive_por_herramienta():
     assert "--version-all" in _cmd(NmapExecutor(), "http://localhost:8081", "aggressive")
     assert "-Tuning x6" in _cmd(NiktoExecutor(), "http://localhost:8081", "aggressive")
-    nuc = _cmd(NucleiExecutor(), "http://localhost:8081", "aggressive")
-    assert "-dast" in nuc and "default-login" in nuc
+    # spec 010: nuclei agresivo = 2 ejecuciones — normal (con `-itags default-login…`) +
+    # una pasada `-dast` aparte (`-dast` reemplaza las plantillas, no puede compartir invocación).
+    nuc_cmds = _cmds(NucleiExecutor(), "http://localhost:8081", "aggressive")
+    assert any("default-login" in c and "-dast" not in c for c in nuc_cmds)
+    assert any("-dast" in c for c in nuc_cmds)
     wap = _cmd(WapitiExecutor(), "http://localhost:8081", "aggressive")
-    assert "--level 2" in wap and "-m all" in wap
+    # spec 010: `-m all` se retiró (módulos lentos reventaban el presupuesto);
+    # la agresividad de wapiti es ahora rastreo más profundo (`--level 2`).
+    assert "--level 2" in wap
 
 
 @pytest.mark.parametrize("executor,url", _EXECUTORS, ids=lambda v: getattr(v, "name", ""))
@@ -167,7 +199,7 @@ def test_r1_run_audit_pasa_intensity_al_executor(client, admin_headers, make_tar
     class _Exec:
         name = "faketool"
 
-        def execute(self, direccion, details=None, chain_context=None, *, intensity="active"):
+        def execute(self, direccion, details=None, chain_context=None, *, intensity="active", refeed=False):
             seen["intensity"] = intensity
             return [{"tool": "faketool", "command": "faketool", "raw_output": "x"}]
 

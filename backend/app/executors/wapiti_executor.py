@@ -1,29 +1,31 @@
 import os
 import shutil
-import subprocess
+from urllib.parse import urljoin
 import uuid
 from pathlib import Path
 
-from app.executors.base import AuditExecutor, ChainContext, ChainType, normalize_intensity
+from app.executors.base import (
+    AuditExecutor, ChainContext, ChainType, normalize_intensity, run_scan_subprocess,
+)
+from app.services.scan_budgets import budget_for
 
-WAPITI_TIMEOUT   = 1200  # Python safety net (20 min) -- debe superar scan+attack+procesado de cola
-MAX_SCAN_TIME    = 240   # wapiti crawl limit (4 min)
-MAX_ATTACK_TIME  = 240   # wapiti attack limit (4 min)
+# spec 010: el tope AUTORITATIVO es el presupuesto (`run_scan_subprocess` timeout) — wapiti
+# ignora sus propios `--max-*-time`. Estos son solo una PISTA (fracción del presupuesto).
+MAX_SCAN_TIME    = 90
+MAX_ATTACK_TIME  = 120
 
 
 def _intensity_flags(intensity: str) -> list[str]:
     """Flags de wapiti según la intensidad (spec 009). `active` = sin cambio
     (módulos por defecto). `passive` = solo rastreo, sin ataque. `aggressive` =
-    todos los módulos (incluye fuerza de formularios de login) + nivel 2."""
+    rastreo más profundo (nivel 2). `-m all` se retiró (spec 010): añadía
+    `brute_login_form` y otros módulos lentos que reventaban el presupuesto."""
     if intensity == "passive":
         return ["-m", ""]
     if intensity == "aggressive":
-        return ["--level", "2", "-m", "all"]
+        return ["--level", "2"]
     return []
 
-
-def _attack_time(intensity: str) -> str:
-    return "480" if intensity == "aggressive" else str(MAX_ATTACK_TIME)
 
 # Rutas fijas de instalacion mas comunes (pipx, pip --user, paquete de sistema)
 _FALLBACK_PATHS = [
@@ -65,7 +67,7 @@ class WapitiExecutor(AuditExecutor):
     name         = "wapiti"
     display_name = "Wapiti Web Scanner"
     description  = "Rastreo activo de aplicaciones web: SQLi, XSS, LFI, CSRF y cabeceras de seguridad."
-    timeout      = WAPITI_TIMEOUT  # 20 min
+    timeout      = 300  # informativo; el tope real es budget_for("wapiti", intensity)
     consumes     = frozenset({ChainType.WEB_PORT, ChainType.PATH})
     produces     = frozenset({ChainType.PATH})
 
@@ -76,25 +78,29 @@ class WapitiExecutor(AuditExecutor):
         chain_context: ChainContext | None = None,
         *,
         intensity: str = "active",
+        refeed: bool = False,
     ) -> list[dict]:
         # Wapiti es lento (crawl + ataque, ~8 min/run). En vez de una ejecución por
         # ruta descubierta, hace UNA ejecución con las rutas extra como `--start`
         # (wapiti las añade como puntos de entrada del mismo rastreo).
         level = normalize_intensity(intensity)
         if chain_context is None:
-            return [self._run_one(direccion, details, intensity=level)]
+            return [self._run_one(direccion, details, intensity=level, refeed=refeed)]
 
         web = list(chain_context.values(ChainType.WEB_PORT)) or [direccion]
         primary = web[0]
+        _base = primary if primary.endswith("/") else primary + "/"
+        # spec 010 (FR-007): urljoin evita duplicar el segmento de la ruta base
+        # (`/app` + `/app/panel` → `/app/panel`, no `/app/app/panel`).
         extra = web[1:] + [
-            primary.rstrip("/") + "/" + p.lstrip("/")
-            for p in chain_context.values(ChainType.PATH)
+            urljoin(_base, p) for p in chain_context.values(ChainType.PATH)
         ]
-        return [self._run_one(primary, details, extra_starts=extra, intensity=level)]
+        return [self._run_one(primary, details, extra_starts=extra, intensity=level,
+                              refeed=refeed)]
 
     def _run_one(self, direccion: str, details: dict | None = None,
                  extra_starts: list[str] | None = None,
-                 intensity: str = "active") -> dict:
+                 intensity: str = "active", *, refeed: bool = False) -> dict:
         # Wapiti solo tiene sentido sobre targets web
         if not _is_web_target(direccion):
             return {"tool": self.name, "command": "", "raw_output": "{}"}
@@ -113,7 +119,7 @@ class WapitiExecutor(AuditExecutor):
             "-f",               "json",
             "-o",               str(output_file),
             "--max-scan-time",  str(MAX_SCAN_TIME),
-            "--max-attack-time", _attack_time(intensity),
+            "--max-attack-time", str(MAX_ATTACK_TIME),
             *_intensity_flags(intensity),   # spec 009 — [] en `active`
         ]
 
@@ -139,24 +145,18 @@ class WapitiExecutor(AuditExecutor):
         comando = " ".join(cmd)
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=WAPITI_TIMEOUT,
-            )
+            # tope AUTORITATIVO = presupuesto de wapiti (spec 010). wapiti ignora sus
+            # `--max-*-time` → aquí se mata el grupo de procesos al agotarlo.
+            budget = budget_for(self.name, intensity, refeed=refeed)
+            stdout, stderr, timed_out = run_scan_subprocess(cmd, timeout=budget)
 
             if output_file.exists() and output_file.stat().st_size > 0:
                 raw_output = output_file.read_text(encoding="utf-8", errors="replace")
+            elif timed_out:
+                raw_output = '{"error": "wapiti detenido en el presupuesto de tiempo (spec 010)"}'
             else:
-                # El archivo no se generó — capturamos stderr para diagnóstico
-                stderr = (result.stderr or "").strip()
-                stdout = (result.stdout or "").strip()
-                diag   = stderr or stdout or "wapiti no generó output"
+                diag = (stderr or "").strip() or (stdout or "").strip() or "wapiti no generó output"
                 raw_output = f'{{"error": "{diag[:500]}"}}'
-
-        except subprocess.TimeoutExpired:
-            raw_output = '{"error": "wapiti timeout (Python safety net)"}'
         except FileNotFoundError:
             raw_output = '{"error": "wapiti binary not found"}'
         except Exception as exc:

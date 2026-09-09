@@ -16,8 +16,12 @@ from sqlalchemy import select
 from app.domain.enums import AuditStatus, AuditType, ScanStatus
 from app.executors.base import ChainContext
 from app.executors.nikto_executor import NiktoExecutor
+from app.executors.nmap_executor import NmapExecutor
 from app.executors.nuclei_executor import NucleiExecutor
 from app.executors.wapiti_executor import WapitiExecutor
+
+# Declaraciones reales consume/produce — el orquestador las usa para los niveles del grafo.
+_REAL_IO = {c.name: c for c in (NmapExecutor, NiktoExecutor, NucleiExecutor, WapitiExecutor)}
 from app.models.entities import Audit, Event, Log, Scan, Target, User
 from app.parsers.nmap_parser import NmapParser, normalize_endpoint, select_web_targets
 from app.services.audit_service import AuditService
@@ -122,19 +126,15 @@ def test_rf029_normalize_endpoint_puerto_por_defecto_explicito():
 
 # ── Unit: iteración / lote en los executors web ─────────────────────────────
 
-def _fake_completed(stdout: str = "out"):
-    class _R:
-        returncode = 0
-    r = _R()
-    r.stdout = stdout
-    r.stderr = ""
-    return r
+def _fake_scan(stdout: str = "out"):
+    """Reemplazo de `run_scan_subprocess` (spec 010): (stdout, stderr, timed_out)."""
+    return lambda cmd, *, timeout: (stdout, "", False)
 
 
 def test_rf029_nikto_itera_un_scan_por_url():
     ctx = ChainContext(web_targets=["http://h:8080", "https://h:8443"])
     with patch("app.executors.nikto_executor.find_nikto", return_value="/bin/nikto"), \
-         patch("app.executors.nikto_executor.subprocess.run", return_value=_fake_completed()):
+         patch("app.executors.nikto_executor.run_scan_subprocess", _fake_scan()):
         out = NiktoExecutor().execute("h", chain_context=ctx)
     assert len(out) == 2
     assert "8080" in out[0]["command"] and "8443" in out[1]["command"]
@@ -143,7 +143,7 @@ def test_rf029_nikto_itera_un_scan_por_url():
 
 def test_rf029_nikto_sin_contexto_usa_la_direccion_base():
     with patch("app.executors.nikto_executor.find_nikto", return_value="/bin/nikto"), \
-         patch("app.executors.nikto_executor.subprocess.run", return_value=_fake_completed()):
+         patch("app.executors.nikto_executor.run_scan_subprocess", _fake_scan()):
         out = NiktoExecutor().execute("http://h:9000", chain_context=None)
     assert len(out) == 1 and "9000" in out[0]["command"]
 
@@ -151,7 +151,7 @@ def test_rf029_nikto_sin_contexto_usa_la_direccion_base():
 def test_rf029_nuclei_una_invocacion_con_base_y_urls():
     ctx = ChainContext(web_targets=["http://h:8080", "https://h:8443"])
     with patch("app.executors.nuclei_executor.find_nuclei", return_value="/bin/nuclei"), \
-         patch("app.executors.nuclei_executor.subprocess.run", return_value=_fake_completed()):
+         patch("app.executors.nuclei_executor.run_scan_subprocess", _fake_scan()):
         out = NucleiExecutor().execute("h", chain_context=ctx)
     assert len(out) == 1
     cmd = out[0]["command"]
@@ -162,7 +162,7 @@ def test_rf029_nuclei_una_invocacion_con_base_y_urls():
 def test_rf029_nuclei_dedup_base_vs_url_descubierta():
     ctx = ChainContext(web_targets=["http://h:8080"])
     with patch("app.executors.nuclei_executor.find_nuclei", return_value="/bin/nuclei"), \
-         patch("app.executors.nuclei_executor.subprocess.run", return_value=_fake_completed()):
+         patch("app.executors.nuclei_executor.run_scan_subprocess", _fake_scan()):
         out = NucleiExecutor().execute("http://h:8080", chain_context=ctx)
     assert out[0]["command"].count("-u ") == 1
 
@@ -173,7 +173,7 @@ def test_rf029_wapiti_una_ejecucion_con_start_por_cada_extra(tmp_path, monkeypat
     from app.executors.base import ChainFinding, ChainType
     ctx.add(ChainFinding(ChainType.PATH, "/admin", source_tool="nikto"))
     with patch("app.executors.wapiti_executor.find_wapiti", return_value="/bin/wapiti"), \
-         patch("app.executors.wapiti_executor.subprocess.run", return_value=_fake_completed("{}")):
+         patch("app.executors.wapiti_executor.run_scan_subprocess", _fake_scan("{}")):
         out = WapitiExecutor().execute("h", chain_context=ctx)
     assert len(out) == 1
     cmd = out[0]["command"]
@@ -195,8 +195,11 @@ def chain_fakes(monkeypatch):
     class _FakeExec:
         def __init__(self, name):
             self.name = name
+            real = _REAL_IO.get(name)
+            self.consumes = getattr(real, "consumes", frozenset())
+            self.produces = getattr(real, "produces", frozenset())
 
-        def execute(self, direccion, details=None, chain_context=None, *, intensity="active"):
+        def execute(self, direccion, details=None, chain_context=None, *, intensity="active", refeed=False):
             targets = (chain_context.web_targets if chain_context and chain_context.web_targets else [])
             state["received"][self.name] = list(targets)
             if self.name == "nmap":

@@ -4,7 +4,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.core.config import get_settings
-from app.executors.base import AuditExecutor, ChainContext, ChainType, normalize_intensity
+from app.executors.base import (
+    AuditExecutor, ChainContext, ChainType, normalize_intensity, run_scan_subprocess,
+)
+from app.services.scan_budgets import budget_for
 
 timeout = 180
 
@@ -69,6 +72,7 @@ class NmapExecutor(AuditExecutor):
         chain_context: ChainContext | None = None,
         *,
         intensity: str = "active",
+        refeed: bool = False,   # nmap no encadena PATH; se ignora (spec 010)
     ) -> list[dict]:
         nmap_bin = find_nmap()
         host, puerto = extraer_host_puerto(direccion)
@@ -83,14 +87,12 @@ class NmapExecutor(AuditExecutor):
         cmd.append(host)
 
         comando = " ".join(cmd)
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
+        lvl = normalize_intensity(intensity)
+        stdout, stderr, _timed_out = run_scan_subprocess(
+            cmd, timeout=budget_for(self.name, lvl),
         )
 
-        raw_output = result.stdout if result.stdout.strip() else result.stderr
+        raw_output = stdout if stdout.strip() else stderr
 
         return [
             {

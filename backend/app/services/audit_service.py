@@ -12,7 +12,9 @@ from app.domain.enums import (
     SeverityLevel,
 )
 from app.core.config import get_settings
-from app.executors.base import ChainContext, ChainFinding, ChainType, _cap_for
+from urllib.parse import urljoin
+
+from app.executors.base import ChainContext, ChainFinding, ChainType, _cap_for, is_noise_path
 from app.executors.factory import get_executor, get_parser
 from app.models.entities import Audit, Event, Finding, FindingVulnerability, Log, OwaspCategory, Report, Scan, Target, User, Vulnerability
 from app.parsers.nmap_parser import NmapParser
@@ -719,6 +721,7 @@ class AuditService:
         graph = ChainOrchestrator(get_executor).plan(tools)
         tool_failures: list[str] = []
         discovered_totals: dict[ChainType, int] = {t: 0 for t in ChainType}
+        noise_discarded = 0   # rutas descartadas por `is_noise_path` (spec 010, RF-030)
 
         def _persist_scan_and_findings(tool_name: str, raw_result: dict, scan_status) -> None:
             nonlocal total_findings
@@ -752,20 +755,33 @@ class AuditService:
                 all_saved_findings.append(f)
             total_findings += len(findings)
 
-            # Hallazgos tipados → contexto de encadenamiento (ADR-010).
+        def _extract_chain(tool_name: str, raw_result: dict) -> list["ChainFinding"]:
+            """Hallazgos tipados que la herramienta aporta (ADR-010). NO muta el contexto —
+            el merge se hace al cerrar el nivel del grafo (spec 010, FR-013)."""
+            parser = get_parser(tool_name)
             extractor = getattr(parser, "extract_chain_findings", None)
             if extractor is not None:
-                for cf in extractor(raw_result, target_base=audit.target.address):
-                    discovered_totals[cf.type] += 1
-                    chain_context.add(cf)
-            elif tool_name == "nmap":
-                for url in NmapParser.extract_web_targets(
-                    raw_result.get("raw_output", ""), audit.target.address
-                ):
-                    discovered_totals[ChainType.WEB_PORT] += 1
-                    chain_context.add(ChainFinding(ChainType.WEB_PORT, url, source_tool="nmap"))
+                return list(extractor(raw_result, target_base=audit.target.address))
+            if tool_name == "nmap":
+                return [
+                    ChainFinding(ChainType.WEB_PORT, url, source_tool="nmap")
+                    for url in NmapParser.extract_web_targets(
+                        raw_result.get("raw_output", ""), audit.target.address
+                    )
+                ]
+            return []
 
-        def _run_tool(tool_name: str, *, context: ChainContext) -> None:
+        def _admit_or_discard(cf: "ChainFinding") -> None:
+            """Merge de un hallazgo encadenable al contexto. Filtra rutas-ruido y las
+            registra como descartadas (spec 010, RF-029/RF-030)."""
+            nonlocal noise_discarded
+            discovered_totals[cf.type] += 1
+            if cf.type == ChainType.PATH and is_noise_path(cf.value):
+                noise_discarded += 1
+                return
+            chain_context.add(cf)
+
+        def _run_tool(tool_name: str, *, context, sink: list, refeed: bool = False) -> None:
             try:
                 executor = get_executor(tool_name)
                 get_parser(tool_name)
@@ -778,6 +794,7 @@ class AuditService:
                     details=audit.target.details,
                     chain_context=context,
                     intensity=audit.intensity.value,
+                    refeed=refeed,
                 )
                 scan_status = ScanStatus.COMPLETED
             except Exception as exc:
@@ -787,17 +804,24 @@ class AuditService:
                 self.db.add(Log(audit_id=audit.id, level="ERROR", message=f"[{tool_name}] {exc}"))
             for raw_result in results:
                 _persist_scan_and_findings(tool_name, raw_result, scan_status)
+                if scan_status == ScanStatus.COMPLETED:
+                    sink.extend(_extract_chain(tool_name, raw_result))
             raw_results.extend(results)
             scanned = (
-                chain_context.values(ChainType.WEB_PORT)
-                + chain_context.values(ChainType.PATH)
+                context.values(ChainType.WEB_PORT) + context.values(ChainType.PATH)
             )
             chain_context.mark_scanned(tool_name, scanned)
 
-        # Pasada topológica.
+        # Pasada topológica — por NIVEL del grafo: las herramientas del nivel reciben una
+        # instantánea del contexto (no se ven entre ellas) y sus hallazgos se mergean al
+        # cerrar el nivel (spec 010, FR-013 — listo para paralelizar el bucle interno).
         for level in graph.order:
+            snapshot = chain_context.freeze()
+            sink: list = []
             for tool_name in level:
-                _run_tool(tool_name, context=chain_context)
+                _run_tool(tool_name, context=snapshot, sink=sink)
+            for cf in sink:
+                _admit_or_discard(cf)
 
         # Pasadas de re-alimentación de rutas (acotadas — SC-005).
         refeed_passes_done = 0
@@ -808,10 +832,13 @@ class AuditService:
                 if not new_paths:
                     continue
                 base = audit.target.address
-                urls = [
-                    (base.rstrip("/") + "/" + p.lstrip("/")) for p in new_paths
-                ]
-                _run_tool(tool_name, context=ChainContext(web_targets=urls))
+                base_slash = base if base.endswith("/") else base + "/"
+                urls = [urljoin(base_slash, p) for p in new_paths]
+                sink = []
+                _run_tool(tool_name, context=ChainContext(web_targets=urls),
+                          sink=sink, refeed=True)
+                for cf in sink:
+                    _admit_or_discard(cf)
                 chain_context.mark_scanned(tool_name, new_paths)
                 progressed = True
             if progressed:
@@ -829,6 +856,9 @@ class AuditService:
                 "discarded": max(0, disc - chained),
                 "cap": _cap_for(ct),
             }
+            if ct == ChainType.PATH:
+                # de las descartadas, cuántas por ruido (spec 010, RF-030)
+                entry["discarded_noise"] = noise_discarded
             if ct == ChainType.TECHNOLOGY:
                 entry["values"] = chain_context.values(ct)
             return entry

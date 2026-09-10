@@ -336,22 +336,22 @@ class AuditService:
             severity_dist[f.severity.value] += 1
             category_dist[f.category.value] += 1
 
-        eight_weeks_ago = datetime.now(tz=timezone.utc) - timedelta(weeks=8)
+        window_start = datetime.now(tz=timezone.utc) - timedelta(days=90)
         recent_scans = list(
             self.db.scalars(
                 select(Scan)
-                .where(Scan.executed_at >= eight_weeks_ago)
+                .where(Scan.executed_at >= window_start)
                 .options(joinedload(Scan.findings))
             ).unique().all()
         )
-        weekly: dict[str, int] = defaultdict(int)
+        # Evolución de hallazgos por DÍA (RF-016) — un punto por día con actividad de escaneo.
+        daily: dict[str, int] = defaultdict(int)
         for scan in recent_scans:
             if scan.executed_at:
                 dt = scan.executed_at
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
-                week_start = dt - timedelta(days=dt.weekday())
-                weekly[week_start.strftime("%Y-%m-%d")] += len(scan.findings)
+                daily[dt.date().isoformat()] += len(scan.findings)
 
         recent = list(
             self.db.scalars(
@@ -380,7 +380,7 @@ class AuditService:
                 ]
             },
             "findings_evolution": [
-                {"week": k, "count": v} for k, v in sorted(weekly.items())
+                {"date": k, "count": v} for k, v in sorted(daily.items())
             ],
             "recent_audits": [
                 {

@@ -16,7 +16,7 @@ interface AdminStats {
   total_findings: number
   severity_distribution: Record<string, number>
   findings_by_category: Record<string, number>
-  findings_evolution: { week: string; count: number }[]
+  findings_evolution: { date: string; count: number }[]
   recent_audits: {
     id: number
     name: string
@@ -123,7 +123,7 @@ export default function DashboardAdmin() {
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={stats.findings_evolution}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Line

@@ -28,6 +28,12 @@ def test_rf011_admin_stats_agrega_datos_globales(client, admin_headers, operator
     assert stats["critical_findings"] >= 1
     assert stats["severity_distribution"]["critical"] >= 1
     assert "findings_evolution" in stats  # RF-016: metricas historicas
+    # RF-016: la evolución se agrupa por DÍA (`date`), no por semana
+    ev = stats["findings_evolution"]
+    assert ev and all(set(p) == {"date", "count"} for p in ev)
+    assert sum(p["count"] for p in ev) >= 1
+    # `date` es una fecha ISO (YYYY-MM-DD), no un rango semanal
+    assert all(len(p["date"]) == 10 and p["date"].count("-") == 2 for p in ev)
     assert "recent_audits" in stats
     assert any(a["name"] == "para stats" for a in stats["recent_audits"])
 

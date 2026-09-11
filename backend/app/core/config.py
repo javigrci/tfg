@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     chain_max_technologies: int = Field(default=10, alias="CHAIN_MAX_TECHNOLOGIES")
     chain_max_paths: int = Field(default=20, alias="CHAIN_MAX_PATHS")
     chain_refeed_passes: int = Field(default=1, alias="CHAIN_REFEED_PASSES")
+    # spec 011a — servicios con login descubiertos por nmap (ChainType.SERVICE); sin
+    # consumidor hasta hydra (spec 012).
+    chain_max_services: int = Field(default=10, alias="CHAIN_MAX_SERVICES")
 
     # Paralelismo intra-auditoría (ADR-013, spec 010b): cuántas herramientas de una misma
     # auditoría se ejecutan a la vez. INDEPENDIENTE de CELERY_CONCURRENCY (Makefile, spec 010),

@@ -397,7 +397,7 @@ def export_findings_csv(
     writer.writerow([
         "id", "title", "severity", "category", "status", "tool",
         "description", "evidence", "recommendation",
-        "cve_ids", "cvss_scores", "cve_enrichment_status", "fingerprint",
+        "cve_ids", "cvss_scores", "cve_enrichment_status", "exploit_ids", "fingerprint",
     ])
 
     # Build a scan_id → tool mapping from the audit
@@ -421,6 +421,7 @@ def export_findings_csv(
             cve_ids,
             cvss_vals,
             f.cve_enrichment_status.value,
+            "; ".join(f"EDB-{r['id']}" for r in (f.exploit_refs or []) if r.get("id")),
             f.fingerprint or "",
         ])
 

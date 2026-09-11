@@ -127,6 +127,9 @@ class Finding(Base):
         default=CveEnrichmentStatus.PENDING,
         server_default=CveEnrichmentStatus.DONE.name,
     )
+    # spec 011a (RF-035) — referencias a exploits públicos (SearchSploit / Exploit-DB).
+    # Lista de {db, id, title, url}. NULL = correlación no hecha o sin exploits.
+    exploit_refs: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=None)
 
     scan: Mapped["Scan"] = relationship(back_populates="findings")
     assigned_to: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to_id])

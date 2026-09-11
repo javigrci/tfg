@@ -99,6 +99,18 @@ _LAB_CONTAINERS = [
         "details":             {},
         "description":          "Alpine + OpenSSH (:2222) + vsftpd (:2121) con credenciales triviales (root:root / admin:admin / test:test). Objetivo de descubrimiento de servicios y del ataque de credenciales (spec 011).",
     },
+    {
+        "key":                 "lab-weak-tls",
+        "image":               "auditflow-lab/weak-tls",
+        "aliases":             ("lab-weak-tls", "weak-tls"),
+        "suggested_name":      "HTTPS con TLS débil",
+        "address":             "https://localhost:8444",
+        "service":             "https://weak-tls",
+        "environment":         "lab",
+        "recommended_modules": ["nmap", "testssl"],
+        "details":             {},
+        "description":          "nginx con TLS deliberadamente obsoleto (TLS 1.0/1.1, cifrados RC4/3DES, certificado autofirmado, sin HSTS). Objetivo reproducible de testssl.sh (spec 011a, RF-036).",
+    },
 ]
 
 

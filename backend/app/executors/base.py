@@ -16,11 +16,17 @@ from urllib.parse import urljoin, urlparse
 
 
 class ChainType(str, Enum):
-    """Tipos de hallazgo encadenable (conjunto cerrado y documentado — FR-012)."""
+    """Tipos de hallazgo encadenable (conjunto cerrado y documentado — FR-012).
+
+    spec 011a: `SERVICE` lo produce nmap para servicios con login (ssh/ftp/smb/bd/rdp/
+    ajp/telnet); ningún paso lo consume todavía — sustrato del ataque de credenciales
+    (hydra, spec 012). Añadirlo NO cambia el modelo del grafo (ADR-010): sin consumidor,
+    no genera aristas."""
 
     WEB_PORT = "web_port"        # http(s)://host:port
     TECHNOLOGY = "technology"    # CPE 2.3, o "producto versión"
     PATH = "path"               # ruta del sitio: /admin, /backup/
+    SERVICE = "service"          # <proto>://host:port — servicio con autenticación
 
 
 @dataclass(frozen=True)
@@ -120,6 +126,7 @@ def _cap_for(chain_type: ChainType) -> int:
         ChainType.WEB_PORT: s.chain_max_web_targets,
         ChainType.TECHNOLOGY: s.chain_max_technologies,
         ChainType.PATH: s.chain_max_paths,
+        ChainType.SERVICE: s.chain_max_services,
     }[chain_type]
 
 

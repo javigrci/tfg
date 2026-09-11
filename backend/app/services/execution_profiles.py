@@ -13,21 +13,25 @@ from dataclasses import dataclass
 
 from app.domain.enums import AuditType, Intensity
 
-_ALL_TOOLS = ("nmap", "nikto", "nuclei", "wapiti")
-
-
 @dataclass(frozen=True)
 class ExecutionProfile:
     tools: tuple[str, ...]            # preset de herramientas del tipo (punto de partida)
     default_intensity: Intensity
 
 
-# Presets = los de la spec 007 (`AuditNew.PRESETS`). vulnerability_scan y penetration_test
-# comparten herramientas y se diferencian por la intensidad (clarify Q4, spec 009).
+# spec 011a: cada tipo gana herramientas propias → los presets dejan de compartirse.
+#   vulnerability_scan  = las 4 + whatweb (fingerprint web)                         · active
+#   penetration_test    = + dirsearch (rutas) + searchsploit (exploits públicos)    · aggressive
+#   compliance          = nmap+whatweb+nikto+nuclei + testssl (config TLS)          · passive
+# El perfil PROPONE, no impone (RF-004/RF-033): el analista sigue eligiendo.
 PROFILES: dict[AuditType, ExecutionProfile] = {
-    AuditType.VULNERABILITY_SCAN: ExecutionProfile(_ALL_TOOLS, Intensity.ACTIVE),
-    AuditType.PENETRATION_TEST:   ExecutionProfile(_ALL_TOOLS, Intensity.AGGRESSIVE),
-    AuditType.COMPLIANCE:         ExecutionProfile(("nmap", "nikto", "nuclei"), Intensity.PASSIVE),
+    AuditType.VULNERABILITY_SCAN: ExecutionProfile(
+        ("nmap", "whatweb", "nikto", "nuclei", "wapiti"), Intensity.ACTIVE),
+    AuditType.PENETRATION_TEST: ExecutionProfile(
+        ("nmap", "whatweb", "nikto", "dirsearch", "nuclei", "wapiti", "searchsploit"),
+        Intensity.AGGRESSIVE),
+    AuditType.COMPLIANCE: ExecutionProfile(
+        ("nmap", "whatweb", "nikto", "nuclei", "testssl"), Intensity.PASSIVE),
 }
 
 

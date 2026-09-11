@@ -24,6 +24,7 @@ from app.parsers.nmap_parser import NmapParser
 from app.schemas.audit import AuditCreate
 from app.services.chain_orchestrator import ChainOrchestrator
 from app.services.cve_enrichment import CVEEnrichmentService
+from app.services.exploit_correlation import ExploitCorrelationService
 from app.services.execution_profiles import resolve_execution_profile
 from app.services.scan_budgets import level_deadline
 
@@ -953,7 +954,9 @@ class AuditService:
             if ct == ChainType.PATH:
                 # de las descartadas, cuántas por ruido (spec 010, RF-030)
                 entry["discarded_noise"] = noise_discarded
-            if ct == ChainType.TECHNOLOGY:
+            if ct in (ChainType.TECHNOLOGY, ChainType.SERVICE):
+                # spec 011a: `service` lista sus valores (host/puerto/protocolo) — sin
+                # consumidor, útil para el informe/dashboard y la validación.
                 entry["values"] = chain_context.values(ct)
             return entry
 
@@ -1004,6 +1007,21 @@ class AuditService:
                         audit_id=audit.id,
                         level="WARNING",
                         message=f"CVE enrichment falló (no crítico): {exc}",
+                    )
+                )
+                self.db.commit()
+
+            # spec 011a (RF-035) — pasada 2 de correlación de exploits, por CVE-ID.
+            # Después del enriquecimiento CVE (ya existen los CVE-IDs); antes del informe.
+            try:
+                ExploitCorrelationService(self.db).correlate(all_saved_findings)
+                self.db.commit()
+            except Exception as exc:  # noqa: BLE001 — falla en silencio, como el enrichment
+                self.db.add(
+                    Log(
+                        audit_id=audit.id,
+                        level="WARNING",
+                        message=f"Correlación de exploits falló (no crítico): {exc}",
                     )
                 )
                 self.db.commit()

@@ -36,7 +36,8 @@ def chain_graph(
     if any(m in _WEB_TOOLS for m in selected) and "nmap" not in selected:
         raise HTTPException(
             422,
-            "Las herramientas web necesitan Nmap por delante para el encadenamiento. Añade nmap.",
+            "Las herramientas de encadenamiento (web + whatweb/dirsearch/testssl/searchsploit) "
+            "necesitan Nmap por delante. Añade nmap.",
         )
 
     g = ChainOrchestrator().plan(selected)

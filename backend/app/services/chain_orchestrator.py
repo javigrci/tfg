@@ -11,8 +11,14 @@ from app.executors.base import ChainType
 from app.executors.factory import get_executor as _get_executor
 
 # Empate dentro de un nivel topológico y ruptura del ciclo PATH↔PATH.
-_CANONICAL_ORDER = ["nmap", "nikto", "wapiti", "nuclei"]
-_WEB_TOOLS = {"nikto", "wapiti", "nuclei"}
+# spec 011a: orden canónico ampliado a 8 herramientas. whatweb antes que nuclei (su
+# `technology` alimenta el `-tags`); searchsploit al final (hoja, consume `technology`).
+_CANONICAL_ORDER = ["nmap", "whatweb", "nikto", "dirsearch", "testssl",
+                    "wapiti", "nuclei", "searchsploit"]
+# Herramientas que necesitan nmap por delante (para el 422 de `/tools/chain-graph` y
+# `POST /audits`). "web" en sentido amplio: whatweb/dirsearch/testssl consumen WEB_PORT;
+# searchsploit consume TECHNOLOGY (que produce nmap).
+_WEB_TOOLS = {"nikto", "wapiti", "nuclei", "whatweb", "dirsearch", "testssl", "searchsploit"}
 
 
 @dataclass

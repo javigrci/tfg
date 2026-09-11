@@ -11,6 +11,28 @@ _WEB_SVC_NAMES = {"http", "https", "http-proxy", "http-alt", "https-alt", "ssl/h
 _DEFAULT_SCHEME_PORT = {"http": 80, "https": 443}
 _ADMIN_WEB_PORTS = {8080, 8443, 8000, 8888, 9000, 9090}
 
+# spec 011a (RF-029) — servicios con login → `ChainType.SERVICE`. Nombre de servicio de
+# nmap → protocolo normalizado. `http`/`https` NO están (ya son `WEB_PORT`); `http-auth`
+# sí (panel con autenticación HTTP).
+_LOGIN_SERVICES: dict[str, str] = {
+    "ssh": "ssh",
+    "ftp": "ftp", "ftp-data": "ftp",
+    "telnet": "telnet",
+    "microsoft-ds": "smb", "netbios-ssn": "smb", "smb": "smb",
+    "ms-sql-s": "mssql",
+    "mysql": "mysql",
+    "postgresql": "postgresql",
+    "oracle-tns": "oracle",
+    "vnc": "vnc", "vnc-http": "vnc",
+    "ms-wbt-server": "rdp",
+    "ajp13": "ajp",
+    "pop3": "pop3", "pop3s": "pop3",
+    "imap": "imap", "imaps": "imap",
+    "ldap": "ldap", "ldaps": "ldap",
+    "rlogin": "rlogin", "exec": "rexec",
+    "http-auth": "http-auth",
+}
+
 
 def normalize_endpoint(url: str) -> tuple[str, str, int]:
     parsed = urlparse(url if "://" in url else f"http://{url}")
@@ -330,6 +352,36 @@ class NmapParser:
                     metadata={
                         "product": product.lower(), "version": version,
                         "port": int(port_el.get("portid", 0)),
+                    },
+                ))
+
+        # spec 011a (RF-029) — servicios con capacidad de autenticación (ChainType.SERVICE).
+        # Sin consumidor todavía (hydra, spec 012); sustrato para el ataque de credenciales.
+        _pb = urlparse(target_base if "://" in target_base else f"http://{target_base}")
+        _host_hint = _pb.hostname or ""
+        for host_el in root.findall("host"):
+            addr_el = host_el.find("address[@addrtype='ipv4']")
+            ip = addr_el.get("addr") if addr_el is not None else None
+            host = _host_hint or ip or ""
+            ports_el = host_el.find("ports")
+            if ports_el is None:
+                continue
+            for port_el in ports_el.findall("port"):
+                state_el = port_el.find("state")
+                if state_el is None or state_el.get("state") != "open":
+                    continue
+                svc = port_el.find("service")
+                name = (svc.get("name", "") if svc is not None else "").lower()
+                proto = _LOGIN_SERVICES.get(name)
+                if not proto:
+                    continue
+                portid = int(port_el.get("portid", 0))
+                out.append(ChainFinding(
+                    ChainType.SERVICE, f"{proto}://{host}:{portid}", source_tool="nmap",
+                    metadata={
+                        "host": host, "port": portid, "protocol": proto,
+                        "product": (svc.get("product") or "").strip().lower() if svc is not None else "",
+                        "version": (svc.get("version") or "").strip() if svc is not None else "",
                     },
                 ))
         return out

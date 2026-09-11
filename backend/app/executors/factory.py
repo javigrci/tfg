@@ -3,10 +3,18 @@ from app.executors.nikto_executor import NiktoExecutor
 from app.executors.nmap_executor import NmapExecutor
 from app.executors.nuclei_executor import NucleiExecutor
 from app.executors.wapiti_executor import WapitiExecutor
+from app.executors.whatweb_executor import WhatwebExecutor
+from app.executors.dirsearch_executor import DirsearchExecutor
+from app.executors.searchsploit_executor import SearchsploitExecutor
+from app.executors.testssl_executor import TestsslExecutor
 from app.parsers.nikto_parser import NiktoParser
 from app.parsers.nmap_parser import NmapParser
 from app.parsers.nuclei_parser import NucleiParser
 from app.parsers.wapiti_parser import WapitiParser
+from app.parsers.whatweb_parser import WhatwebParser
+from app.parsers.dirsearch_parser import DirsearchParser
+from app.parsers.searchsploit_parser import SearchsploitParser
+from app.parsers.testssl_parser import TestsslParser
 
 # Registry is built automatically from class-level metadata.
 # To add a new tool: create an executor subclass with the required class
@@ -16,6 +24,11 @@ _EXECUTOR_CLASSES: list[type[AuditExecutor]] = [
     NiktoExecutor,
     NucleiExecutor,
     WapitiExecutor,
+    # spec 011a
+    WhatwebExecutor,
+    DirsearchExecutor,
+    SearchsploitExecutor,
+    TestsslExecutor,
 ]
 
 _EXECUTORS: dict[str, type[AuditExecutor]] = {
@@ -27,6 +40,11 @@ _PARSERS: dict[str, type] = {
     NiktoExecutor.name:  NiktoParser,
     NucleiExecutor.name: NucleiParser,
     WapitiExecutor.name: WapitiParser,
+    # spec 011a
+    WhatwebExecutor.name: WhatwebParser,
+    DirsearchExecutor.name: DirsearchParser,
+    SearchsploitExecutor.name: SearchsploitParser,
+    TestsslExecutor.name: TestsslParser,
 }
 
 

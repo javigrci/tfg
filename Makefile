@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend worker install services stop restart lab lab-down down
+.PHONY: dev backend frontend worker install tools services stop restart lab lab-down down
 
 # El lab vive en otro fichero compose bajo el mismo proyecto → silencia el aviso
 # "Found orphan containers" al levantar solo db+redis.
@@ -103,4 +103,14 @@ install:
 		ln -sf /tmp/wapiti-venv/bin/wapiti ~/.local/bin/wapiti && \
 		echo "wapiti instalado en ~/.local/bin/wapiti"; \
 	fi
+	$(MAKE) tools
 	cd frontend && npm install
+
+# Herramientas de escaneo de la spec 011a (fuera del Dockerfile — para dev en WSL).
+# whatweb: apt · exploitdb (searchsploit): apt o git · testssl.sh: git · dirsearch: pipx/venv
+tools:
+	@command -v whatweb >/dev/null 2>&1 || echo "  ⚠ falta whatweb  → sudo apt install whatweb"
+	@command -v searchsploit >/dev/null 2>&1 || echo "  ⚠ falta searchsploit → sudo apt install exploitdb"
+	@command -v testssl >/dev/null 2>&1 || echo "  ⚠ falta testssl  → git clone --depth 1 https://github.com/testssl/testssl.sh /opt/testssl && sudo ln -sf /opt/testssl/testssl.sh /usr/local/bin/testssl"
+	@command -v dirsearch >/dev/null 2>&1 || echo "  ⚠ falta dirsearch → pipx install dirsearch  (o python -m venv + pip)"
+	@echo "  (una herramienta ausente = su scan sale FAILED y la auditoría continúa)"

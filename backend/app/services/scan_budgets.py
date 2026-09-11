@@ -17,6 +17,13 @@ BUDGETS: dict[tuple[str, str], int] = {
     # nuclei agresivo = pasada normal (300 s) + pasada `-dast` (60 s) — ver NUCLEI_DAST_BUDGET
     ("nuclei", "passive"): 120, ("nuclei", "active"): 240, ("nuclei", "aggressive"): 360,
     ("wapiti", "passive"):  90, ("wapiti", "active"): 240, ("wapiti", "aggressive"): 300,
+    # spec 011a — herramientas nuevas. whatweb/searchsploit son ligeras (encajan bajo el
+    # camino crítico de su nivel → el peor caso agresivo de 8 herramientas se mantiene en
+    # ≤ 900 s). dirsearch/testssl no superan a nikto (240) en su nivel.
+    ("whatweb",      "passive"):  30, ("whatweb",      "active"):  45, ("whatweb",      "aggressive"):  60,
+    ("dirsearch",    "passive"):  60, ("dirsearch",    "active"): 120, ("dirsearch",    "aggressive"): 180,
+    ("testssl",      "passive"): 180, ("testssl",      "active"): 180, ("testssl",      "aggressive"): 240,
+    ("searchsploit", "passive"):  30, ("searchsploit", "active"):  30, ("searchsploit", "aggressive"):  45,
 }
 
 # La pasada `-dast` de nuclei agresivo (fuzzing) tiene un tope FIJO pequeño: contra objetivos

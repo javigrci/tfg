@@ -96,6 +96,14 @@ class VulnerabilityRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ExploitRef(BaseModel):
+    """Referencia a un exploit público (spec 011a, RF-035)."""
+    db: str
+    id: str
+    title: str
+    url: str
+
+
 class FindingRead(BaseModel):
     id: int
     title: str
@@ -112,6 +120,7 @@ class FindingRead(BaseModel):
     cpe: Optional[str] = None
     cve_enrichment_status: CveEnrichmentStatus = CveEnrichmentStatus.DONE
     vulnerabilities: list[VulnerabilityRead] = []
+    exploit_refs: Optional[list[ExploitRef]] = None
 
     model_config = {"from_attributes": True}
 
@@ -203,7 +212,10 @@ class LogRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
-_WEB_TOOLS = {"nikto", "wapiti", "nuclei"}
+# Herramientas que exigen nmap por delante (encadenamiento). Espejo de
+# `chain_orchestrator._WEB_TOOLS` — mantener sincronizado. spec 011a: +whatweb/dirsearch/
+# testssl (consumen WEB_PORT) y searchsploit (consume TECHNOLOGY de nmap).
+_WEB_TOOLS = {"nikto", "wapiti", "nuclei", "whatweb", "dirsearch", "testssl", "searchsploit"}
 
 
 class AuditCreate(BaseModel):
@@ -223,8 +235,9 @@ class AuditCreate(BaseModel):
             return modules
         if "nmap" not in modules or modules.index("nmap") > min(web_idx):
             raise ValueError(
-                "Nmap debe ejecutarse antes que las herramientas web (Nikto, Wapiti, "
-                "Nuclei) para que el encadenamiento funcione. Añade Nmap o muévelo al "
+                "Nmap debe ejecutarse antes que las herramientas de encadenamiento "
+                "(Nikto, Wapiti, Nuclei, WhatWeb, dirsearch, testssl, SearchSploit) "
+                "para que el encadenamiento funcione. Añade Nmap o muévelo al "
                 "principio del flujo."
             )
         return modules

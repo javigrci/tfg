@@ -28,6 +28,12 @@ _STATEMENTS: list[str] = [
         ADD COLUMN IF NOT EXISTS intensity intensity
         NOT NULL DEFAULT 'ACTIVE';
     """,
+    # spec 011a (RF-035) — referencias a exploits públicos por hallazgo.
+    # JSONB, nullable, sin backfill: los hallazgos históricos quedan en NULL.
+    """
+    ALTER TABLE findings
+        ADD COLUMN IF NOT EXISTS exploit_refs JSONB;
+    """,
 ]
 
 

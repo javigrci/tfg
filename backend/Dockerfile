@@ -12,12 +12,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfontconfig1 \
     # Herramientas de escaneo
     nmap \
+    # spec 011a — WhatWeb (fingerprint web, Ruby) + Exploit-DB (searchsploit, offline)
+    whatweb \
+    exploitdb \
+    # testssl.sh necesita bash + openssl (openssl ya viene por la imagen base)
+    bash \
+    dnsutils \
     # Perl + módulos requeridos por nikto
     perl \
     libwww-perl \
     libnet-ssleay-perl \
     libcrypt-ssleay-perl \
-    # Necesario para clonar nikto y descargar el release de nuclei
+    # Necesario para clonar nikto/testssl y descargar el release de nuclei
     git \
     ca-certificates \
     curl \
@@ -47,6 +53,18 @@ RUN NUCLEI_VERSION=$(curl -s https://api.github.com/repos/projectdiscovery/nucle
 RUN python -m venv /opt/wapiti-venv \
     && /opt/wapiti-venv/bin/pip install --no-cache-dir wapiti3 \
     && ln -sf /opt/wapiti-venv/bin/wapiti /usr/local/bin/wapiti
+
+# ── testssl.sh (spec 011a) ────────────────────────────────────────────────
+# Script Bash, no está en los repos de Debian — repo oficial (misma filosofía
+# que nikto). Sin dependencia de red en ejecución.
+RUN git clone --depth 1 https://github.com/testssl/testssl.sh /opt/testssl \
+    && ln -sf /opt/testssl/testssl.sh /usr/local/bin/testssl
+
+# ── dirsearch en venv aislado (spec 011a) ─────────────────────────────────
+# Trae sus wordlists. Venv propio para no arrastrar sus deps al entorno de la app.
+RUN python -m venv /opt/dirsearch-venv \
+    && /opt/dirsearch-venv/bin/pip install --no-cache-dir dirsearch \
+    && ln -sf /opt/dirsearch-venv/bin/dirsearch /usr/local/bin/dirsearch
 
 # ── Aplicación Python ──────────────────────────────────────────────────────
 WORKDIR /app

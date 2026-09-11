@@ -9,21 +9,31 @@ describe('EXECUTION_PROFILES', () => {
     )
   })
 
-  it('todos los presets incluyen nmap y solo herramientas del stack', () => {
+  it('todos los presets incluyen nmap y solo herramientas del stack (8, spec 011a)', () => {
+    const stack = ['nmap', 'whatweb', 'nikto', 'dirsearch', 'nuclei', 'wapiti', 'testssl', 'searchsploit']
     for (const p of Object.values(EXECUTION_PROFILES)) {
       expect(p.tools).toContain('nmap')
       for (const tool of p.tools) {
-        expect(['nmap', 'nikto', 'nuclei', 'wapiti']).toContain(tool)
+        expect(stack).toContain(tool)
       }
     }
   })
 
-  it('vulnerability_scan y penetration_test comparten preset, difieren en intensidad', () => {
-    expect(EXECUTION_PROFILES.vulnerability_scan.tools).toEqual(
-      EXECUTION_PROFILES.penetration_test.tools,
-    )
+  it('spec 011a: pentest ya NO comparte preset con vuln_scan — gana ≥ 2 herramientas', () => {
+    const vs = EXECUTION_PROFILES.vulnerability_scan.tools
+    const pt = EXECUTION_PROFILES.penetration_test.tools
+    expect(pt).not.toEqual(vs)
+    const extra = pt.filter(t => !vs.includes(t))
+    expect(extra).toEqual(expect.arrayContaining(['dirsearch', 'searchsploit']))
+    expect(extra.length).toBeGreaterThanOrEqual(2)
     expect(EXECUTION_PROFILES.vulnerability_scan.intensity).toBe('active')
     expect(EXECUTION_PROFILES.penetration_test.intensity).toBe('aggressive')
+  })
+
+  it('vuln_scan y compliance incorporan whatweb; compliance incorpora testssl', () => {
+    expect(EXECUTION_PROFILES.vulnerability_scan.tools).toContain('whatweb')
+    expect(EXECUTION_PROFILES.compliance.tools).toContain('whatweb')
+    expect(EXECUTION_PROFILES.compliance.tools).toContain('testssl')
   })
 
   it('compliance: sin wapiti, intensidad pasiva', () => {

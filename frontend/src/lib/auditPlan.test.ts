@@ -30,11 +30,23 @@ describe('ensureNmap', () => {
     expect(ensureNmap(set('wapiti')).has('nmap')).toBe(true)
     expect(ensureNmap(set('nuclei')).has('nmap')).toBe(true)
   })
+
+  it('spec 011a: añade nmap con las herramientas nuevas (whatweb, dirsearch, testssl, searchsploit)', () => {
+    expect(ensureNmap(set('whatweb')).has('nmap')).toBe(true)
+    expect(ensureNmap(set('dirsearch')).has('nmap')).toBe(true)
+    expect(ensureNmap(set('testssl')).has('nmap')).toBe(true)
+    expect(ensureNmap(set('searchsploit')).has('nmap')).toBe(true)  // consume la tecnología de nmap
+  })
 })
 
 describe('orderModules', () => {
   it('ordena en el orden canónico nmap → nikto → wapiti → nuclei', () => {
     expect(orderModules(['wapiti', 'nmap', 'nikto'])).toEqual(['nmap', 'nikto', 'wapiti'])
+  })
+
+  it('spec 011a: orden canónico de 8 herramientas', () => {
+    expect(orderModules(['searchsploit', 'nuclei', 'whatweb', 'nmap', 'dirsearch', 'testssl', 'nikto', 'wapiti']))
+      .toEqual(['nmap', 'whatweb', 'nikto', 'dirsearch', 'testssl', 'wapiti', 'nuclei', 'searchsploit'])
   })
 
   it('devuelve solo nmap', () => {

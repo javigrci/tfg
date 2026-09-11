@@ -8,6 +8,10 @@ import {
   Globe,
   Zap,
   Shield,
+  Fingerprint,
+  FolderSearch,
+  Lock,
+  Bug,
   ChevronDown,
   Check,
   Info,
@@ -21,7 +25,9 @@ import { EXECUTION_PROFILES, INTENSITY_LEVELS } from '@/lib/executionProfiles'
 import { ExecutionGraph } from '@/components/ExecutionGraph'
 import type { ChainGraphResponse } from '@/lib/chainGraph'
 
-const SELECTABLE_TOOLS: ScanTool[] = ['nmap', 'nikto', 'nuclei', 'wapiti']
+const SELECTABLE_TOOLS: ScanTool[] = [
+  'nmap', 'whatweb', 'nikto', 'dirsearch', 'nuclei', 'wapiti', 'testssl', 'searchsploit',
+]
 
 const TOOL_META: Record<Exclude<ScanTool, 'manual'>, {
   label: string
@@ -29,10 +35,14 @@ const TOOL_META: Record<Exclude<ScanTool, 'manual'>, {
   color: string
   scope: 'NET' | 'WEB'
 }> = {
-  nmap:   { label: 'Nmap',   icon: <Network className="h-4 w-4" />, color: '#3b82f6', scope: 'NET' },
-  nikto:  { label: 'Nikto',  icon: <Globe   className="h-4 w-4" />, color: '#f59e0b', scope: 'WEB' },
-  nuclei: { label: 'Nuclei', icon: <Zap     className="h-4 w-4" />, color: '#8b5cf6', scope: 'WEB' },
-  wapiti: { label: 'Wapiti', icon: <Shield  className="h-4 w-4" />, color: '#ef4444', scope: 'WEB' },
+  nmap:         { label: 'Nmap',         icon: <Network      className="h-4 w-4" />, color: '#3b82f6', scope: 'NET' },
+  whatweb:      { label: 'WhatWeb',      icon: <Fingerprint  className="h-4 w-4" />, color: '#14b8a6', scope: 'WEB' },
+  nikto:        { label: 'Nikto',        icon: <Globe        className="h-4 w-4" />, color: '#f59e0b', scope: 'WEB' },
+  dirsearch:    { label: 'dirsearch',    icon: <FolderSearch className="h-4 w-4" />, color: '#eab308', scope: 'WEB' },
+  nuclei:       { label: 'Nuclei',       icon: <Zap          className="h-4 w-4" />, color: '#8b5cf6', scope: 'WEB' },
+  wapiti:       { label: 'Wapiti',       icon: <Shield       className="h-4 w-4" />, color: '#ef4444', scope: 'WEB' },
+  testssl:      { label: 'testssl.sh',   icon: <Lock         className="h-4 w-4" />, color: '#06b6d4', scope: 'WEB' },
+  searchsploit: { label: 'SearchSploit', icon: <Bug          className="h-4 w-4" />, color: '#a855f7', scope: 'NET' },
 }
 
 const AUDIT_TYPES: AuditType[] = ['vulnerability_scan', 'penetration_test', 'compliance']

@@ -330,6 +330,7 @@
     "descLabel":        "Descripción",
     "evidenceLabel":    "Evidencia",
     "recommendLabel":   "Recomendación",
+    "exploitRefs":      "Exploits públicos",
     "cveUnverified":    "No se pudo verificar la información de CVE (fuente externa no disponible)",
     "notesLabel":       "Notas del analista",
     "statusLabel":      "Estado",
@@ -574,11 +575,15 @@
       "type": { "web_port": "puertos web", "technology": "tecnología", "path": "rutas" }
     },
     "tools": {
-      "nmap":   { "desc": "Descubrimiento de puertos y servicios" },
-      "nikto":  { "desc": "Vulnerabilidades del servidor web" },
-      "nuclei": { "desc": "Escaneo de plantillas CVE" },
-      "wapiti": { "desc": "SQLi / XSS / LFI en aplicaciones web" },
-      "manual": { "desc": "Hallazgos manuales" }
+      "nmap":         { "desc": "Descubrimiento de puertos y servicios" },
+      "whatweb":      { "desc": "Fingerprint de tecnología web (CMS, framework, versión)" },
+      "nikto":        { "desc": "Vulnerabilidades del servidor web" },
+      "dirsearch":    { "desc": "Enumeración de rutas y directorios ocultos" },
+      "nuclei":       { "desc": "Escaneo de plantillas CVE" },
+      "wapiti":       { "desc": "SQLi / XSS / LFI en aplicaciones web" },
+      "testssl":      { "desc": "Configuración TLS y estado del certificado" },
+      "searchsploit": { "desc": "Exploits públicos conocidos (Exploit-DB, sin conexión)" },
+      "manual":       { "desc": "Hallazgos manuales" }
     },
     "auditTypes": {
       "vulnerability_scan": { "label": "Escaneo de vulnerabilidades", "desc": "Cobertura amplia en capas de red y web" },

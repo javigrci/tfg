@@ -7,32 +7,41 @@ import type { ScanTool } from '@/types'
  * `orderModules` evita Nmap después de una herramienta web.
  */
 
-export const WEB_TOOLS: readonly ScanTool[] = ['nikto', 'wapiti', 'nuclei']
+// spec 011a — herramientas que consumen un puerto/ruta web (para el plan de ejecución).
+export const WEB_TOOLS: readonly ScanTool[] = ['whatweb', 'nikto', 'dirsearch', 'nuclei', 'wapiti', 'testssl']
 
-const CANONICAL_ORDER: readonly ScanTool[] = ['nmap', 'nikto', 'wapiti', 'nuclei']
+// Herramientas que exigen Nmap por delante: las web + searchsploit (consume la
+// tecnología que produce Nmap). Espejo de `chain_orchestrator._WEB_TOOLS` (backend).
+const NEEDS_NMAP: readonly ScanTool[] = [...WEB_TOOLS, 'searchsploit']
+
+// Orden canónico de 8 herramientas — espejo de `chain_orchestrator._CANONICAL_ORDER`.
+const CANONICAL_ORDER: readonly ScanTool[] = [
+  'nmap', 'whatweb', 'nikto', 'dirsearch', 'testssl', 'wapiti', 'nuclei', 'searchsploit',
+]
 
 export function isWebTool(tool: ScanTool): boolean {
   return WEB_TOOLS.includes(tool)
 }
 
 /**
- * Añade `nmap` si hay alguna herramienta web y no está presente; si no, devuelve
- * el mismo set (misma referencia).
+ * Añade `nmap` si hay alguna herramienta que lo necesita (web + searchsploit) y no
+ * está presente; si no, devuelve el mismo set (misma referencia).
  *
  *   ensureNmap({'nikto'})         → {'nmap', 'nikto'}
+ *   ensureNmap({'searchsploit'})  → {'nmap', 'searchsploit'}
  *   ensureNmap({'nmap', 'nikto'}) → {'nmap', 'nikto'}
  *   ensureNmap({})                → {}
  */
 export function ensureNmap(selected: Set<ScanTool>): Set<ScanTool> {
-  const hasWebTool = [...selected].some(isWebTool)
-  if (hasWebTool && !selected.has('nmap')) {
+  const needsNmap = [...selected].some(t => NEEDS_NMAP.includes(t))
+  if (needsNmap && !selected.has('nmap')) {
     return new Set<ScanTool>(['nmap', ...selected])
   }
   return selected
 }
 
 /**
- * Herramientas seleccionadas en orden canónico `nmap → nikto → wapiti → nuclei`.
+ * Herramientas seleccionadas en orden canónico (8 herramientas, spec 011a).
  *
  *   orderModules(['wapiti', 'nmap', 'nikto']) → ['nmap', 'nikto', 'wapiti']
  */

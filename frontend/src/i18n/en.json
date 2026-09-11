@@ -330,6 +330,7 @@
     "descLabel":        "Description",
     "evidenceLabel":    "Evidence",
     "recommendLabel":   "Recommendation",
+    "exploitRefs":      "Public exploits",
     "cveUnverified":    "CVE data could not be verified (external source unavailable)",
     "notesLabel":       "Analyst Notes",
     "statusLabel":      "Status",
@@ -574,11 +575,15 @@
       "type": { "web_port": "web ports", "technology": "technology", "path": "paths" }
     },
     "tools": {
-      "nmap":   { "desc": "Port & service discovery" },
-      "nikto":  { "desc": "Web server vulnerabilities" },
-      "nuclei": { "desc": "CVE template scanning" },
-      "wapiti": { "desc": "Web app SQLi / XSS / LFI" },
-      "manual": { "desc": "Manual findings" }
+      "nmap":         { "desc": "Port & service discovery" },
+      "whatweb":      { "desc": "Web technology fingerprint (CMS, framework, version)" },
+      "nikto":        { "desc": "Web server vulnerabilities" },
+      "dirsearch":    { "desc": "Hidden path & directory enumeration" },
+      "nuclei":       { "desc": "CVE template scanning" },
+      "wapiti":       { "desc": "Web app SQLi / XSS / LFI" },
+      "testssl":      { "desc": "TLS configuration & certificate status" },
+      "searchsploit": { "desc": "Known public exploits (Exploit-DB, offline)" },
+      "manual":       { "desc": "Manual findings" }
     },
     "auditTypes": {
       "vulnerability_scan": { "label": "Vulnerability Scan", "desc": "Broad coverage across network and web layers" },

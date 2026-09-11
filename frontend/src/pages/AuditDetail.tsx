@@ -94,6 +94,33 @@ function CveChips({ vulnerabilities }: { vulnerabilities: Vulnerability[] }) {
   )
 }
 
+// spec 011a (RF-035) — referencias a exploits públicos (SearchSploit / Exploit-DB).
+function ExploitChips({ refs }: { refs: import('@/types').ExploitRef[] | null }) {
+  const { t } = useTranslation()
+  if (!refs || refs.length === 0) return null
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+        {t('auditDetail.exploitRefs')}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {refs.map(r => (
+          <a
+            key={`${r.db}-${r.id}`}
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={r.title}
+            className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2.5 py-0.5 text-xs font-medium text-fuchsia-300 transition-opacity hover:opacity-80"
+          >
+            <span className="font-mono">EDB-{r.id}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function StatusBadge({ status }: { status: FindingStatus }) {
   const { t } = useTranslation()
   return (
@@ -467,6 +494,7 @@ function FindingRow({ finding, auditId }: { finding: Finding & { tool?: ScanTool
                 <p className="text-foreground">{finding.recommendation}</p>
               </div>
               <CveChips vulnerabilities={finding.vulnerabilities} />
+              <ExploitChips refs={finding.exploit_refs} />
               {finding.cve_enrichment_status === 'unavailable' && (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Info className="h-3.5 w-3.5 shrink-0" />

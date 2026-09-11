@@ -12,7 +12,7 @@ export type AuditStatus   = 'draft' | 'running' | 'completed' | 'failed'
 export type AuditType     = 'penetration_test' | 'vulnerability_scan' | 'compliance'
 export type Intensity     = 'passive' | 'active' | 'aggressive'
 export type ScanStatus    = 'pending' | 'running' | 'completed' | 'failed'
-export type ScanTool      = 'nmap' | 'nikto' | 'wapiti' | 'nuclei' | 'manual'
+export type ScanTool      = 'nmap' | 'nikto' | 'wapiti' | 'nuclei' | 'whatweb' | 'dirsearch' | 'testssl' | 'searchsploit' | 'manual'
 export type SeverityLevel = 'info' | 'low' | 'medium' | 'high' | 'critical'
 export type RiskLevel     = 'info' | 'low' | 'medium' | 'high' | 'critical'
 export type TargetStatus  = 'unknown' | 'reachable' | 'unreachable'
@@ -56,6 +56,13 @@ export interface Vulnerability {
   remediation: string | null
 }
 
+export interface ExploitRef {
+  db: string
+  id: string
+  title: string
+  url: string
+}
+
 export interface Finding {
   id: number
   title: string
@@ -71,6 +78,7 @@ export interface Finding {
   cve_enrichment_status: CveEnrichmentStatus
   resolved_at: string | null
   vulnerabilities: Vulnerability[]
+  exploit_refs: ExploitRef[] | null
 }
 
 export interface Scan {

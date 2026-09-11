@@ -9,15 +9,12 @@ import type { AuditType, Intensity, ScanTool } from '../types'
  *   ni bloquea nada, ADR-012).
  * - `intensity`: intensidad por defecto. `active` = comportamiento previo a la spec 009.
  *
- * `vulnerability_scan` y `penetration_test` comparten herramientas y se diferencian
- * por la intensidad (clarify Q4).
+ * spec 011a: cada tipo gana herramientas propias — los presets dejan de compartirse.
  */
-const ALL_TOOLS: ScanTool[] = ['nmap', 'nikto', 'nuclei', 'wapiti']
-
 export const EXECUTION_PROFILES: Record<AuditType, { tools: ScanTool[]; intensity: Intensity }> = {
-  vulnerability_scan: { tools: ALL_TOOLS,                       intensity: 'active' },
-  penetration_test:   { tools: ALL_TOOLS,                       intensity: 'aggressive' },
-  compliance:         { tools: ['nmap', 'nikto', 'nuclei'],     intensity: 'passive' },
+  vulnerability_scan: { tools: ['nmap', 'whatweb', 'nikto', 'nuclei', 'wapiti'],                          intensity: 'active' },
+  penetration_test:   { tools: ['nmap', 'whatweb', 'nikto', 'dirsearch', 'nuclei', 'wapiti', 'searchsploit'], intensity: 'aggressive' },
+  compliance:         { tools: ['nmap', 'whatweb', 'nikto', 'nuclei', 'testssl'],                         intensity: 'passive' },
 }
 
 export const INTENSITY_LEVELS: Intensity[] = ['passive', 'active', 'aggressive']

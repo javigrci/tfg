@@ -2,7 +2,7 @@ import hashlib
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait
-from dataclasses import dataclass, field as _dc_field
+from dataclasses import asdict as _dc_asdict, dataclass, field as _dc_field
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
@@ -27,6 +27,8 @@ from app.services.cve_enrichment import CVEEnrichmentService
 from app.services.exploit_correlation import ExploitCorrelationService
 from app.services.execution_profiles import resolve_execution_profile
 from app.services.scan_budgets import level_deadline
+from app.services.posture_service import compute_posture
+from app.services.asvs_mapping import apply_asvs_mapping, coverage_to_dict
 
 
 @dataclass
@@ -174,7 +176,10 @@ class AuditService:
             .options(
                 joinedload(Finding.finding_vulnerabilities).joinedload(
                     FindingVulnerability.vulnerability
-                )
+                ),
+                # spec 011b: posture_service/asvs_mapping leen `finding.scan.tool`/`.status`
+                # (fuente única por herramienta) — un solo joinedload extra, sin N+1 (SC-006).
+                joinedload(Finding.scan),
             )
             .order_by(Finding.severity.desc())
         )
@@ -200,6 +205,17 @@ class AuditService:
     _SEV_RANK: dict[str, int] = {
         "critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0,
     }
+
+    def _latest_chain_graph_payload(self, audit_id: int) -> dict | None:
+        """El payload del `Event chain_graph` más reciente de la auditoría (spec 011b:
+        lo consume `posture_service._https_available_check` / `asvs_mapping` V6-SURFACE-01).
+        `None` si la auditoría no encadenó nada (p. ej. una sola herramienta)."""
+        ev = self.db.scalar(
+            select(Event)
+            .where(Event.audit_id == audit_id, Event.event_type == "chain_graph")
+            .order_by(Event.id.desc())
+        )
+        return ev.payload if ev is not None else None
 
     def get_compliance(self, audit_id: int) -> dict:
         """
@@ -259,6 +275,17 @@ class AuditService:
                 "max_severity": max_sev,
             })
 
+        # spec 011b: postura + cobertura ASVS — aditivo, el semáforo Top 10 de arriba no
+        # cambia (SC-007). `None` si la auditoría no tiene ninguna ejecución (sin findings).
+        posture = None
+        asvs_coverage = None
+        if findings:
+            chain_graph_payload = self._latest_chain_graph_payload(audit_id)
+            posture_result = compute_posture(findings, chain_graph_payload)
+            asvs_result = apply_asvs_mapping(findings, posture_result, chain_graph_payload)
+            posture = _dc_asdict(posture_result)
+            asvs_coverage = coverage_to_dict(asvs_result)
+
         return {
             "audit_id": audit_id,
             "assessed_count": assessed,
@@ -266,6 +293,8 @@ class AuditService:
             "yellow_count": yellow,
             "red_count": red,
             "categories": categories,
+            "posture": posture,
+            "asvs_coverage": asvs_coverage,
         }
 
     def get_all_reports(self) -> list[dict]:
@@ -954,9 +983,10 @@ class AuditService:
             if ct == ChainType.PATH:
                 # de las descartadas, cuántas por ruido (spec 010, RF-030)
                 entry["discarded_noise"] = noise_discarded
-            if ct in (ChainType.TECHNOLOGY, ChainType.SERVICE):
-                # spec 011a: `service` lista sus valores (host/puerto/protocolo) — sin
-                # consumidor, útil para el informe/dashboard y la validación.
+            if ct in (ChainType.WEB_PORT, ChainType.TECHNOLOGY, ChainType.SERVICE):
+                # spec 011a: `service`/`technology` listan sus valores. spec 011b: `web_port`
+                # también — lo consume `posture_service._https_available_check` (¿algún
+                # `web_port` con esquema https?), sin disparar ninguna petición nueva.
                 entry["values"] = chain_context.values(ct)
             return entry
 

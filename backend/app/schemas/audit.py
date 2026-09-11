@@ -292,6 +292,38 @@ class ComplianceCategoryRead(BaseModel):
     max_severity: Optional[str] = None  # highest severity found, null when no findings
 
 
+class PostureCheckRead(BaseModel):
+    key: str
+    label_key: str
+    result: str                          # "pass" | "fail" | "not_covered"
+    source: str                          # "testssl" | "nikto" | "chain_graph" | "none"
+    evidence_finding_id: Optional[int] = None
+    explanation_key: str
+
+
+class PostureRead(BaseModel):
+    score: int
+    grade: str                           # "A+".."F"
+    covered: int
+    total: int
+    checks: list[PostureCheckRead]
+
+
+class AsvsRowRead(BaseModel):
+    id: str                              # esquema propio, p.ej. "V12-TLS-01"
+    chapter: str                         # "V12", ...
+    chapter_name: str                    # "Secure Communication", ...
+    requirement_key: str                 # clave i18n de la descripción
+    result: str                          # "pass" | "fail" | "not_covered"
+    evidence_finding_id: Optional[int] = None
+
+
+class AsvsCoverageRead(BaseModel):
+    rows: list[AsvsRowRead]
+    covered: int
+    total: int
+
+
 class ComplianceRead(BaseModel):
     audit_id: int
     assessed_count: int    # categories with tooling coverage
@@ -299,6 +331,8 @@ class ComplianceRead(BaseModel):
     yellow_count: int
     red_count: int
     categories: list[ComplianceCategoryRead]
+    posture: Optional[PostureRead] = None            # spec 011b — None si sin findings
+    asvs_coverage: Optional[AsvsCoverageRead] = None  # spec 011b — None si sin findings
 
 
 # ── Target Risk History ───────────────────────────────────────────────────────

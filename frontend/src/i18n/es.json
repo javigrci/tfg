@@ -362,6 +362,175 @@
       "red":          "En riesgo",
       "not_assessed": "No evaluado"
     },
+    "complianceGroupTitle": "Cumplimiento",
+    "complianceGroupSub": "Tres vistas complementarias: postura, cobertura ASVS y semáforo OWASP Top 10",
+    "dashboard": {
+      "featuredBadge": "Destacado para este tipo de auditoría",
+      "noData": "Sin datos para este panel",
+      "noDataHint": "Esta auditoría no tiene información suficiente para este panel todavía."
+    },
+    "posture": {
+      "title": "Postura de seguridad",
+      "subtitle": "Higiene de configuración remota (modelo Mozilla HTTP Observatory)",
+      "coverage": "{{covered}}/{{total}} comprobaciones verificadas",
+      "noFindings": "Sin ejecuciones todavía — no hay nota de postura que mostrar.",
+      "evidenceLink": "Ver hallazgo",
+      "result": {
+        "pass": "Superado",
+        "fail": "Fallado",
+        "not_covered": "No verificado"
+      },
+      "check": {
+        "https_available": {
+          "label": "HTTPS disponible",
+          "pass": "El objetivo ofrece un endpoint cifrado (HTTPS).",
+          "fail": "El objetivo no ofrece ningún endpoint HTTPS.",
+          "not_covered": "No se pudo determinar si el objetivo ofrece HTTPS."
+        },
+        "tls_protocol": {
+          "label": "Protocolos TLS modernos",
+          "pass": "No se detectaron versiones obsoletas de TLS/SSL.",
+          "fail": "Se detectó un protocolo TLS obsoleto (TLS 1.0/1.1 o SSL).",
+          "not_covered": "No se ejecutó un análisis de configuración TLS."
+        },
+        "tls_ciphers": {
+          "label": "Cifrados seguros",
+          "pass": "No se detectaron cifrados débiles conocidos.",
+          "fail": "Se detectó al menos un cifrado débil (p. ej. RC4, 3DES).",
+          "not_covered": "No se ejecutó un análisis de configuración TLS."
+        },
+        "tls_certificate": {
+          "label": "Certificado válido",
+          "pass": "El certificado es válido y de confianza.",
+          "fail": "El certificado presenta un problema (caducado, autofirmado o cadena incompleta).",
+          "not_covered": "No se ejecutó un análisis del certificado."
+        },
+        "hsts": {
+          "label": "HSTS",
+          "pass": "El servidor envía la cabecera Strict-Transport-Security.",
+          "fail": "Falta la cabecera HSTS (Strict-Transport-Security).",
+          "not_covered": "No se pudo verificar la presencia de HSTS."
+        },
+        "csp": {
+          "label": "Content-Security-Policy",
+          "pass": "El servidor define una política de seguridad de contenido.",
+          "fail": "Falta o es demasiado permisiva la Content-Security-Policy.",
+          "not_covered": "No se pudo verificar la presencia de CSP."
+        },
+        "x_content_type_options": {
+          "label": "Anti-sniffing MIME",
+          "pass": "El servidor envía X-Content-Type-Options: nosniff.",
+          "fail": "Falta la cabecera X-Content-Type-Options.",
+          "not_covered": "No se pudo verificar esta cabecera."
+        },
+        "clickjacking_protection": {
+          "label": "Protección anti-clickjacking",
+          "pass": "El servidor protege contra clickjacking (X-Frame-Options o CSP frame-ancestors).",
+          "fail": "Falta protección contra clickjacking.",
+          "not_covered": "No se pudo verificar esta protección."
+        },
+        "referrer_permissions_policy": {
+          "label": "Referrer/Permissions-Policy",
+          "pass": "El servidor define Referrer-Policy y/o Permissions-Policy.",
+          "fail": "Faltan las cabeceras Referrer-Policy/Permissions-Policy.",
+          "not_covered": "No se pudo verificar esta cabecera."
+        },
+        "cookie_security": {
+          "label": "Cookies de sesión seguras",
+          "pass": "Las cookies detectadas usan atributos seguros (HttpOnly/Secure/SameSite).",
+          "fail": "Se detectó una cookie sin HttpOnly, Secure o SameSite.",
+          "not_covered": "No se pudo verificar la configuración de las cookies."
+        },
+        "version_disclosure": {
+          "label": "Sin divulgación de versión",
+          "pass": "No se detectó divulgación de la versión del software.",
+          "fail": "El servidor divulga la versión del software (p. ej. X-Powered-By).",
+          "not_covered": "No se pudo verificar la divulgación de versión."
+        },
+        "dangerous_methods": {
+          "label": "Métodos HTTP peligrosos deshabilitados",
+          "pass": "No se detectaron métodos HTTP peligrosos habilitados (TRACE/PUT/DELETE).",
+          "fail": "Se detectó un método HTTP peligroso habilitado (TRACE/PUT/DELETE).",
+          "not_covered": "No se pudo verificar los métodos HTTP habilitados."
+        },
+        "directory_listing": {
+          "label": "Sin listado de directorios",
+          "pass": "No se detectó listado de directorios habilitado.",
+          "fail": "Se detectó listado de directorios habilitado.",
+          "not_covered": "No se pudo verificar el listado de directorios."
+        },
+        "forced_https_redirect": {
+          "label": "Redirección forzada a HTTPS",
+          "pass": "El tráfico HTTP redirige a HTTPS.",
+          "fail": "El tráfico HTTP no redirige a HTTPS.",
+          "not_covered": "Ninguna herramienta actual verifica la redirección HTTP→HTTPS."
+        }
+      }
+    },
+    "asvs": {
+      "title": "Cobertura ASVS 5.0",
+      "subtitle": "Evaluación parcial en caja negra — no certifica cumplimiento del estándar completo",
+      "coverage": "{{covered}}/{{total}} requisitos con resultado",
+      "noFindings": "Sin ejecuciones todavía — no hay cobertura ASVS que mostrar.",
+      "v12": {
+        "tls01": "Solo protocolos TLS modernos (≥ 1.2).",
+        "tls02": "Sin cifrados débiles conocidos (RC4, 3DES, export).",
+        "tls03": "Forward secrecy disponible en la negociación TLS.",
+        "cert01": "El certificado no está caducado.",
+        "cert02": "La cadena de confianza del certificado está completa.",
+        "cert03": "El nombre del certificado (CN/SAN) coincide con el host.",
+        "https01": "El servicio se ofrece sobre HTTPS.",
+        "https02": "El tráfico HTTP redirige a HTTPS.",
+        "hsts01": "HSTS presente con una duración razonable."
+      },
+      "v13": {
+        "hdr01": "X-Content-Type-Options: nosniff presente.",
+        "hdr02": "Protección anti-clickjacking (X-Frame-Options / frame-ancestors).",
+        "hdr03": "Content-Security-Policy presente y no permisiva.",
+        "hdr04": "Referrer-Policy restrictiva.",
+        "hdr05": "Permissions-Policy presente.",
+        "meth01": "Método HTTP TRACE deshabilitado.",
+        "meth02": "Métodos PUT/DELETE deshabilitados salvo necesidad.",
+        "dir01": "Sin listado de directorios.",
+        "info01": "Sin divulgación de versión de software (Server, X-Powered-By).",
+        "info02": "Sin ficheros de configuración o backup expuestos.",
+        "info03": "Sin páginas de diagnóstico expuestas (phpinfo, server-status)."
+      },
+      "v7": {
+        "cookie01": "Cookies de sesión con el atributo Secure.",
+        "cookie02": "Cookies de sesión con el atributo HttpOnly.",
+        "cookie03": "Cookies de sesión con el atributo SameSite.",
+        "url01": "El identificador de sesión no viaja en la URL."
+      },
+      "v6": {
+        "default01": "Sin credenciales por defecto conocidas en paneles o servicios.",
+        "surface01": "Superficie de autenticación inventariada (informativo).",
+        "lockout01": "Bloqueo de cuenta tras intentos fallidos."
+      },
+      "v5": {
+        "traversal01": "Sin path traversal explotable.",
+        "upload01": "Sin subida de ficheros sin restricción conocida.",
+        "backup01": "Sin ficheros de backup o versión expuestos."
+      },
+      "v2": {
+        "injection01": "Sin inyección SQL detectada.",
+        "injection02": "Sin inyección de comandos o RCE detectada.",
+        "xss01": "Sin XSS reflejado o almacenado detectado.",
+        "xxe01": "Sin XXE detectado.",
+        "ssrf01": "Sin SSRF detectado."
+      },
+      "v16": {
+        "error01": "Sin mensajes de error verbosos (trazas de pila, rutas del servidor).",
+        "error02": "Sin páginas de error por defecto del framework expuestas."
+      }
+    },
+    "exploitsAvailable": {
+      "title": "Exploits disponibles",
+      "subtitle": "Hallazgos con un exploit público conocido (searchsploit / Exploit-DB)",
+      "validated": "Validado como explotable",
+      "detectedOnly": "Solo detectado",
+      "empty": "Ningún hallazgo de esta auditoría tiene un exploit público conocido."
+    },
     "statusHints": {
       "open":           "Vulnerabilidad confirmada y pendiente de remediación",
       "in_progress":    "La remediación está activamente en curso",
@@ -572,7 +741,7 @@
       "single":      "Una sola herramienta — sin encadenamiento.",
       "nmapMissing": "Sin Nmap, las herramientas web se ejecutan en modo genérico.",
       "refeed":      "Las herramientas web se re-alimentan las rutas descubiertas (1 pasada).",
-      "type": { "web_port": "puertos web", "technology": "tecnología", "path": "rutas" }
+      "type": { "web_port": "puertos web", "technology": "tecnología", "path": "rutas", "service": "servicios" }
     },
     "tools": {
       "nmap":         { "desc": "Descubrimiento de puertos y servicios" },

@@ -128,6 +128,40 @@ export interface ComplianceCategory {
   max_severity: SeverityLevel | null
 }
 
+export type PostureResultValue = 'pass' | 'fail' | 'not_covered'
+
+export interface PostureCheck {
+  key: string
+  label_key: string
+  result: PostureResultValue
+  source: string
+  evidence_finding_id: number | null
+  explanation_key: string
+}
+
+export interface Posture {
+  score: number
+  grade: string
+  covered: number
+  total: number
+  checks: PostureCheck[]
+}
+
+export interface AsvsRow {
+  id: string
+  chapter: string
+  chapter_name: string
+  requirement_key: string
+  result: PostureResultValue
+  evidence_finding_id: number | null
+}
+
+export interface AsvsCoverage {
+  rows: AsvsRow[]
+  covered: number
+  total: number
+}
+
 export interface ComplianceMap {
   audit_id: number
   assessed_count: number
@@ -135,6 +169,8 @@ export interface ComplianceMap {
   yellow_count: number
   red_count: number
   categories: ComplianceCategory[]
+  posture: Posture | null
+  asvs_coverage: AsvsCoverage | null
 }
 
 export interface ActionLogEntry {

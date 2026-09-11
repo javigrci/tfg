@@ -10,7 +10,9 @@ import { toast } from 'sonner'
 import axios from 'axios'
 import api from '@/lib/api'
 import { PageLoader } from '@/components/ui/PageLoader'
-import type { Audit, AuditEvent, ChainGraphPayload, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, ScanTool, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
+import { gradeColor } from '@/lib/posture'
+import { resolveDashboardProfile } from '@/lib/dashboardProfiles'
+import type { Audit, AuditEvent, AsvsCoverage, ChainGraphPayload, ComplianceMap, ComplianceStatus, DeltaResponse, Finding, FindingStatus, Posture, ScanTool, SeverityLevel, RiskLevel, Vulnerability } from '@/types'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -146,6 +148,125 @@ function KpiCard({ label, value, sub }: { label: string; value: string | number;
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="text-2xl font-bold text-foreground">{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  )
+}
+
+// ── Postura de seguridad (RF-037, spec 011b) ───────────────────────────────────
+
+const RESULT_DOT: Record<string, string> = {
+  pass: 'bg-green-400',
+  fail: 'bg-red-400',
+  not_covered: 'bg-slate-500',
+}
+
+function EmptyPanel() {
+  const { t } = useTranslation()
+  return (
+    <div className="rounded-xl border border-dashed border-border/60 bg-card/50 px-5 py-6 text-center">
+      <p className="text-sm text-muted-foreground">{t('auditDetail.dashboard.noData')}</p>
+      <p className="text-xs text-muted-foreground/70 mt-1">{t('auditDetail.dashboard.noDataHint')}</p>
+    </div>
+  )
+}
+
+function FeaturedBadge() {
+  const { t } = useTranslation()
+  return (
+    <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-400">
+      {t('auditDetail.dashboard.featuredBadge')}
+    </span>
+  )
+}
+
+function PostureSection({ posture, featured }: { posture: Posture; featured?: boolean }) {
+  const { t } = useTranslation()
+  return (
+    <div className={`rounded-xl border bg-card overflow-hidden ${featured ? 'border-blue-500/40 ring-1 ring-blue-500/10' : 'border-border'}`}>
+      <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            {t('auditDetail.posture.title')}
+            {featured && <FeaturedBadge />}
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('auditDetail.posture.subtitle')}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={`inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xl font-bold ${gradeColor(posture.grade)}`}>
+            {posture.grade}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {t('auditDetail.posture.coverage', { covered: posture.covered, total: posture.total })}
+          </span>
+        </div>
+      </div>
+      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {posture.checks.map(check => (
+          <div key={check.key} className="flex items-start gap-2 rounded-lg border border-border/60 px-3 py-2">
+            <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${RESULT_DOT[check.result]}`} />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-foreground">{t(`auditDetail.${check.label_key}.label`)}</p>
+              <p className="text-[11px] text-muted-foreground">{t(`auditDetail.${check.explanation_key}`)}</p>
+              {check.evidence_finding_id != null && (
+                <a href={`#finding-${check.evidence_finding_id}`} className="text-[11px] text-blue-400 hover:underline">
+                  {t('auditDetail.posture.evidenceLink')}
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Cobertura ASVS 5.0 (RF-038, spec 011b) ─────────────────────────────────────
+
+function AsvsSection({ coverage, featured }: { coverage: AsvsCoverage; featured?: boolean }) {
+  const { t } = useTranslation()
+  const byChapter = new Map<string, typeof coverage.rows>()
+  for (const row of coverage.rows) {
+    const key = `${row.chapter} — ${row.chapter_name}`
+    byChapter.set(key, [...(byChapter.get(key) ?? []), row])
+  }
+  return (
+    <div className={`rounded-xl border bg-card overflow-hidden ${featured ? 'border-blue-500/40 ring-1 ring-blue-500/10' : 'border-border'}`}>
+      <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            {t('auditDetail.asvs.title')}
+            {featured && <FeaturedBadge />}
+          </h2>
+          {/* Cabecera fija — nunca "cumple ASVS" (FR-005/SC-004) */}
+          <p className="text-xs text-muted-foreground mt-0.5">{t('auditDetail.asvs.subtitle')}</p>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {t('auditDetail.asvs.coverage', { covered: coverage.covered, total: coverage.total })}
+        </span>
+      </div>
+      <div className="p-4 space-y-4">
+        {[...byChapter.entries()].map(([chapter, rows]) => (
+          <div key={chapter}>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{chapter}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {rows.map(row => (
+                <div key={row.id} className="flex items-start gap-2 rounded-lg border border-border/60 px-3 py-2">
+                  <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${RESULT_DOT[row.result]}`} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground">{row.id}</p>
+                    <p className="text-[11px] text-muted-foreground">{t(`auditDetail.${row.requirement_key}`)}</p>
+                    {row.evidence_finding_id != null && (
+                      <a href={`#finding-${row.evidence_finding_id}`} className="text-[11px] text-blue-400 hover:underline">
+                        {t('auditDetail.posture.evidenceLink')}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -453,6 +574,7 @@ function FindingRow({ finding, auditId }: { finding: Finding & { tool?: ScanTool
   return (
     <>
       <tr
+        id={`finding-${finding.id}`}
         className="cursor-pointer hover:bg-muted/20 transition-colors"
         onClick={() => setOpen(v => !v)}
       >
@@ -535,9 +657,52 @@ function FindingRow({ finding, auditId }: { finding: Finding & { tool?: ScanTool
   )
 }
 
+// ── Exploits disponibles (RF-039, panel destacado en pentesting) ───────────────
+
+function ExploitsAvailablePanel({ audit, featured }: { audit: Audit; featured?: boolean }) {
+  const { t } = useTranslation()
+  const withExploits = sortBySev(
+    audit.scans.flatMap(s => s.findings).filter(f => f.exploit_refs && f.exploit_refs.length > 0)
+  )
+  return (
+    <div className={`rounded-xl border bg-card overflow-hidden ${featured ? 'border-blue-500/40 ring-1 ring-blue-500/10' : 'border-border'}`}>
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          {t('auditDetail.exploitsAvailable.title')}
+          {featured && <FeaturedBadge />}
+        </h2>
+        {withExploits.length > 0 && (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{withExploits.length}</span>
+        )}
+      </div>
+      {withExploits.length === 0 ? (
+        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+          {t('auditDetail.exploitsAvailable.empty')}
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {withExploits.map(f => (
+            <a
+              key={f.id}
+              href={`#finding-${f.id}`}
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors"
+            >
+              <SeverityBadge severity={f.severity} />
+              <span className="text-sm text-foreground flex-1 truncate">{f.title}</span>
+              <span className="text-[11px] font-medium text-fuchsia-300 shrink-0">
+                {t('auditDetail.exploitsAvailable.validated')}
+              </span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Chaining graph (grafo de encadenamiento ejecutado) ───────────────────────
 
-function ChainGraphCard({ audit }: { audit: Audit }) {
+function ChainGraphCard({ audit, featured }: { audit: Audit; featured?: boolean }) {
   const { t } = useTranslation()
   const ev = (audit.events ?? []).find((e: AuditEvent) => e.event_type === 'chain_graph')
   if (!ev) return null
@@ -545,18 +710,27 @@ function ChainGraphCard({ audit }: { audit: Audit }) {
   const rows = Object.entries(p.by_type).filter(([, v]) => v.discovered > 0)
   if (rows.length === 0 && p.tool_failures.length === 0) return null
 
+  const exploitedCount = audit.scans.flatMap(s => s.findings)
+    .filter(f => f.exploit_refs && f.exploit_refs.length > 0).length
+
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className={`rounded-xl border bg-card overflow-hidden ${featured ? 'border-blue-500/40 ring-1 ring-blue-500/10' : 'border-border'}`}>
       <div className="px-4 py-3 border-b border-border">
         <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
           {t('auditDetail.chainTitle')}
+          {featured && <FeaturedBadge />}
           <span className="ml-1 text-xs font-normal text-muted-foreground">
             {p.order.map(lvl => lvl.join(' + ')).join(' → ')}
           </span>
         </h2>
       </div>
       <div className="p-4 space-y-1.5 text-sm">
+        {featured && exploitedCount > 0 && (
+          <p className="text-xs font-medium text-fuchsia-300 pb-1">
+            {t('auditDetail.exploitsAvailable.validated')}: {exploitedCount}
+          </p>
+        )}
         {rows.map(([type, v]) => (
           <div key={type} className="flex items-center gap-2 text-muted-foreground">
             <span className="w-24 shrink-0 text-foreground">{t(`auditNew.graph.type.${type}`)}</span>
@@ -726,6 +900,32 @@ export default function AuditDetail() {
   const isRunning = audit.status === 'running'
   const canRun = !isRunning && !isUnreachable
 
+  // spec 011b (RF-039, ADR-014): qué panel se destaca según el tipo — ningún panel se
+  // oculta para los demás tipos (FR-008), solo cambia posición/énfasis.
+  const dashboardProfile = resolveDashboardProfile(audit.audit_type)
+  const isComplianceFeatured = dashboardProfile.featuredPanel === 'posture'
+  const isPentestFeatured = dashboardProfile.featuredPanel === 'chain_attack'
+
+  const complianceGroup = compliance && (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-foreground">{t('auditDetail.complianceGroupTitle')}</h2>
+        <p className="text-xs text-muted-foreground">{t('auditDetail.complianceGroupSub')}</p>
+      </div>
+      {compliance.posture ? (
+        <PostureSection posture={compliance.posture} featured={isComplianceFeatured} />
+      ) : (
+        <EmptyPanel />
+      )}
+      {compliance.asvs_coverage ? (
+        <AsvsSection coverage={compliance.asvs_coverage} featured={isComplianceFeatured} />
+      ) : (
+        <EmptyPanel />
+      )}
+      <ComplianceMapSection compliance={compliance} />
+    </div>
+  )
+
   return (
     <div className="space-y-6">
 
@@ -875,6 +1075,9 @@ export default function AuditDetail() {
         </div>
       )}
 
+      {/* Cumplimiento destacado — spec 011b, solo cuando el tipo lo destaca (compliance) */}
+      {isComplianceFeatured && complianceGroup}
+
       {/* Body */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -915,7 +1118,8 @@ export default function AuditDetail() {
             )}
           </div>
 
-          <ChainGraphCard audit={audit} />
+          <ChainGraphCard audit={audit} featured={isPentestFeatured} />
+          {isPentestFeatured && <ExploitsAvailablePanel audit={audit} featured />}
 
           {/* Findings table */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -1154,8 +1358,9 @@ export default function AuditDetail() {
         </div>
       </div>
 
-      {/* OWASP Top 10 Compliance Map — only shown after first run */}
-      {compliance && <ComplianceMapSection compliance={compliance} />}
+      {/* Cumplimiento (postura + ASVS + Top 10) — solo se ve tras la primera ejecución;
+          para tipos que no lo destacan, sigue disponible aquí (FR-008, spec 011b) */}
+      {!isComplianceFeatured && complianceGroup}
 
       {/* Add Manual Finding modal */}
       {showAddFinding && id && (

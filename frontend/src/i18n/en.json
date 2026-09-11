@@ -362,6 +362,175 @@
       "red":          "At risk",
       "not_assessed": "Not assessed"
     },
+    "complianceGroupTitle": "Compliance",
+    "complianceGroupSub": "Three complementary views: posture, ASVS coverage, and the OWASP Top 10 map",
+    "dashboard": {
+      "featuredBadge": "Featured for this audit type",
+      "noData": "No data for this panel",
+      "noDataHint": "This audit doesn't have enough information for this panel yet."
+    },
+    "posture": {
+      "title": "Security posture",
+      "subtitle": "Remote configuration hygiene (Mozilla HTTP Observatory model)",
+      "coverage": "{{covered}}/{{total}} checks verified",
+      "noFindings": "No runs yet — no posture grade to show.",
+      "evidenceLink": "View finding",
+      "result": {
+        "pass": "Passed",
+        "fail": "Failed",
+        "not_covered": "Not verified"
+      },
+      "check": {
+        "https_available": {
+          "label": "HTTPS available",
+          "pass": "The target offers an encrypted endpoint (HTTPS).",
+          "fail": "The target doesn't offer any HTTPS endpoint.",
+          "not_covered": "Could not determine whether the target offers HTTPS."
+        },
+        "tls_protocol": {
+          "label": "Modern TLS protocols",
+          "pass": "No obsolete TLS/SSL versions were detected.",
+          "fail": "An obsolete TLS protocol was detected (TLS 1.0/1.1 or SSL).",
+          "not_covered": "No TLS configuration scan was run."
+        },
+        "tls_ciphers": {
+          "label": "Secure ciphers",
+          "pass": "No known weak ciphers were detected.",
+          "fail": "At least one weak cipher was detected (e.g. RC4, 3DES).",
+          "not_covered": "No TLS configuration scan was run."
+        },
+        "tls_certificate": {
+          "label": "Valid certificate",
+          "pass": "The certificate is valid and trusted.",
+          "fail": "The certificate has an issue (expired, self-signed, or incomplete chain).",
+          "not_covered": "No certificate scan was run."
+        },
+        "hsts": {
+          "label": "HSTS",
+          "pass": "The server sends the Strict-Transport-Security header.",
+          "fail": "The HSTS (Strict-Transport-Security) header is missing.",
+          "not_covered": "Could not verify HSTS presence."
+        },
+        "csp": {
+          "label": "Content-Security-Policy",
+          "pass": "The server defines a content security policy.",
+          "fail": "Content-Security-Policy is missing or too permissive.",
+          "not_covered": "Could not verify CSP presence."
+        },
+        "x_content_type_options": {
+          "label": "MIME-sniffing protection",
+          "pass": "The server sends X-Content-Type-Options: nosniff.",
+          "fail": "The X-Content-Type-Options header is missing.",
+          "not_covered": "Could not verify this header."
+        },
+        "clickjacking_protection": {
+          "label": "Anti-clickjacking protection",
+          "pass": "The server protects against clickjacking (X-Frame-Options or CSP frame-ancestors).",
+          "fail": "Clickjacking protection is missing.",
+          "not_covered": "Could not verify this protection."
+        },
+        "referrer_permissions_policy": {
+          "label": "Referrer/Permissions-Policy",
+          "pass": "The server defines Referrer-Policy and/or Permissions-Policy.",
+          "fail": "The Referrer-Policy/Permissions-Policy headers are missing.",
+          "not_covered": "Could not verify this header."
+        },
+        "cookie_security": {
+          "label": "Secure session cookies",
+          "pass": "Detected cookies use secure attributes (HttpOnly/Secure/SameSite).",
+          "fail": "A cookie without HttpOnly, Secure or SameSite was detected.",
+          "not_covered": "Could not verify cookie configuration."
+        },
+        "version_disclosure": {
+          "label": "No version disclosure",
+          "pass": "No software version disclosure was detected.",
+          "fail": "The server discloses its software version (e.g. X-Powered-By).",
+          "not_covered": "Could not verify version disclosure."
+        },
+        "dangerous_methods": {
+          "label": "Dangerous HTTP methods disabled",
+          "pass": "No dangerous HTTP methods were found enabled (TRACE/PUT/DELETE).",
+          "fail": "A dangerous HTTP method was found enabled (TRACE/PUT/DELETE).",
+          "not_covered": "Could not verify enabled HTTP methods."
+        },
+        "directory_listing": {
+          "label": "No directory listing",
+          "pass": "No directory listing was found enabled.",
+          "fail": "Directory listing was found enabled.",
+          "not_covered": "Could not verify directory listing."
+        },
+        "forced_https_redirect": {
+          "label": "Forced HTTPS redirect",
+          "pass": "HTTP traffic redirects to HTTPS.",
+          "fail": "HTTP traffic does not redirect to HTTPS.",
+          "not_covered": "No current tool verifies the HTTP→HTTPS redirect."
+        }
+      }
+    },
+    "asvs": {
+      "title": "ASVS 5.0 coverage",
+      "subtitle": "Partial black-box evaluation — does not certify compliance with the full standard",
+      "coverage": "{{covered}}/{{total}} requirements with a result",
+      "noFindings": "No runs yet — no ASVS coverage to show.",
+      "v12": {
+        "tls01": "Only modern TLS protocols (≥ 1.2).",
+        "tls02": "No known weak ciphers (RC4, 3DES, export).",
+        "tls03": "Forward secrecy available in the TLS negotiation.",
+        "cert01": "The certificate is not expired.",
+        "cert02": "The certificate's chain of trust is complete.",
+        "cert03": "The certificate name (CN/SAN) matches the host.",
+        "https01": "The service is offered over HTTPS.",
+        "https02": "HTTP traffic redirects to HTTPS.",
+        "hsts01": "HSTS present with a reasonable duration."
+      },
+      "v13": {
+        "hdr01": "X-Content-Type-Options: nosniff present.",
+        "hdr02": "Anti-clickjacking protection (X-Frame-Options / frame-ancestors).",
+        "hdr03": "Content-Security-Policy present and not permissive.",
+        "hdr04": "Restrictive Referrer-Policy.",
+        "hdr05": "Permissions-Policy present.",
+        "meth01": "HTTP TRACE method disabled.",
+        "meth02": "PUT/DELETE methods disabled unless needed.",
+        "dir01": "No directory listing.",
+        "info01": "No software version disclosure (Server, X-Powered-By).",
+        "info02": "No exposed configuration or backup files.",
+        "info03": "No exposed diagnostic pages (phpinfo, server-status)."
+      },
+      "v7": {
+        "cookie01": "Session cookies with the Secure attribute.",
+        "cookie02": "Session cookies with the HttpOnly attribute.",
+        "cookie03": "Session cookies with the SameSite attribute.",
+        "url01": "The session identifier does not travel in the URL."
+      },
+      "v6": {
+        "default01": "No known default credentials on panels or services.",
+        "surface01": "Authentication surface inventoried (informational).",
+        "lockout01": "Account lockout after failed attempts."
+      },
+      "v5": {
+        "traversal01": "No exploitable path traversal.",
+        "upload01": "No unrestricted file upload known.",
+        "backup01": "No exposed backup or version files."
+      },
+      "v2": {
+        "injection01": "No SQL injection detected.",
+        "injection02": "No command injection or RCE detected.",
+        "xss01": "No reflected or stored XSS detected.",
+        "xxe01": "No XXE detected.",
+        "ssrf01": "No SSRF detected."
+      },
+      "v16": {
+        "error01": "No verbose error messages (stack traces, server paths).",
+        "error02": "No exposed framework default error pages."
+      }
+    },
+    "exploitsAvailable": {
+      "title": "Available exploits",
+      "subtitle": "Findings with a known public exploit (searchsploit / Exploit-DB)",
+      "validated": "Validated as exploitable",
+      "detectedOnly": "Detected only",
+      "empty": "No finding in this audit has a known public exploit."
+    },
     "statusHints": {
       "open":           "Vulnerability is confirmed and pending remediation",
       "in_progress":    "Remediation is actively in progress",
@@ -572,7 +741,7 @@
       "single":      "Single tool — no chaining.",
       "nmapMissing": "Without Nmap, the web tools run in generic mode.",
       "refeed":      "Web tools re-feed each other discovered paths (1 pass).",
-      "type": { "web_port": "web ports", "technology": "technology", "path": "paths" }
+      "type": { "web_port": "web ports", "technology": "technology", "path": "paths", "service": "services" }
     },
     "tools": {
       "nmap":         { "desc": "Port & service discovery" },

@@ -106,3 +106,14 @@ services:
       - "2222:22"
       - "2121:21"
       - "30000-30009:30000-30009"
+
+  # ── HTTPS con TLS deliberadamente débil (spec 011a — RF-036) ──────────────
+  # Objetivo reproducible de testssl.sh: TLS 1.0/1.1, cifrados RC4/3DES, cert
+  # autofirmado, sin HSTS. Imagen propia nginx. https://localhost:8444
+  weak-tls:
+    build: ./lab/weak-tls
+    image: auditflow-lab/weak-tls:latest
+    restart: unless-stopped
+    ports:
+      - "8444:443"
+      - "8480:80"

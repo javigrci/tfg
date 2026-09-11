@@ -19,6 +19,7 @@ _ROWS = [
     ("tfg-vulhub-joomla-1", "vulhub/joomla:4.2.7", "running"),
     ("tfg-joomla-db-1", "mysql:5.7", "running"),
     ("tfg-weak-creds-1", "auditflow-lab/weak-creds:latest", "exited"),
+    ("tfg-weak-tls-1", "auditflow-lab/weak-tls:latest", "running"),
     ("tfg-db-1", "postgres:16-alpine", "running"),
 ]
 
@@ -29,6 +30,7 @@ _EXPECTED_NAMES = {
     "Apache Tomcat 9.0.30 (CVE-2020-1938 Ghostcat)",
     "Joomla 4.2.7 (CVE-2023-23752)",
     "Servicios con credenciales débiles (SSH/FTP)",
+    "HTTPS con TLS débil",
 }
 
 
@@ -38,9 +40,9 @@ def _meta(key):
 
 # ── C1 / C2 — el conjunto exacto, ninguna jubilada ──────────────────────────
 
-def test_c1_seis_entradas_con_los_nombres_esperados():
+def test_c1_siete_entradas_con_los_nombres_esperados():
     names = {m["suggested_name"] for m in lab._LAB_CONTAINERS}
-    assert len(lab._LAB_CONTAINERS) == 6
+    assert len(lab._LAB_CONTAINERS) == 7   # spec 011a: +weak-tls
     assert names == _EXPECTED_NAMES
 
 
@@ -95,6 +97,7 @@ def test_c7_imagen_ausente_es_not_found():
 def test_c8_modulos_recomendados_por_maquina():
     mods = {m["suggested_name"]: m["recommended_modules"] for m in lab._LAB_CONTAINERS}
     assert mods["Servicios con credenciales débiles (SSH/FTP)"] == ["nmap"]
+    assert "testssl" in mods["HTTPS con TLS débil"]   # spec 011a
     for web in (
         "Juice Shop",
         "OWASP VulnerableApp",

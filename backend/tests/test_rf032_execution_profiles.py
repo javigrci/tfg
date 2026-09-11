@@ -16,7 +16,8 @@ from app.executors.nuclei_executor import NucleiExecutor
 from app.executors.wapiti_executor import WapitiExecutor
 from app.services.execution_profiles import PROFILES, resolve_execution_profile
 
-_ALL = {"nmap", "nikto", "nuclei", "wapiti"}
+# spec 011a — 8 herramientas en el stack (RF-034/035/036).
+_ALL = {"nmap", "whatweb", "nikto", "dirsearch", "nuclei", "wapiti", "testssl", "searchsploit"}
 
 
 # ── P1–P6 · perfil de ejecución ────────────────────────────────────────────
@@ -33,10 +34,15 @@ def test_p2_presets_bien_formados():
         assert isinstance(prof.default_intensity, Intensity)
 
 
-def test_p3_vulnscan_y_pentest_mismo_preset_distinta_intensidad():
+def test_p3_vulnscan_y_pentest_presets_distintos_spec_011a():
+    """spec 011a: pentest ya NO comparte preset con vuln_scan — gana dirsearch +
+    searchsploit (≥ 2 herramientas de diferencia, FR-016/SC-009)."""
     vs = PROFILES[AuditType.VULNERABILITY_SCAN]
     pt = PROFILES[AuditType.PENETRATION_TEST]
-    assert vs.tools == pt.tools
+    assert vs.tools != pt.tools
+    extra = set(pt.tools) - set(vs.tools)
+    assert extra >= {"dirsearch", "searchsploit"}
+    assert len(extra) >= 2
     assert vs.default_intensity == Intensity.ACTIVE
     assert pt.default_intensity == Intensity.AGGRESSIVE
 

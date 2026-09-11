@@ -28,7 +28,7 @@ def test_rf025_csv_contiene_cabecera_y_filas_esperadas(client, admin_headers, ma
     assert header == [
         "id", "title", "severity", "category", "status", "tool",
         "description", "evidence", "recommendation",
-        "cve_ids", "cvss_scores", "cve_enrichment_status", "fingerprint",
+        "cve_ids", "cvss_scores", "cve_enrichment_status", "exploit_ids", "fingerprint",
     ]
     assert data_row[header.index("title")] == "SQLi"
     assert data_row[header.index("severity")] == "critical"

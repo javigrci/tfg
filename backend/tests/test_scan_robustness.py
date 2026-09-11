@@ -28,14 +28,17 @@ from app.services.execution_profiles import PROFILES
 from app.services import scan_budgets
 from app.services.scan_budgets import BUDGETS, budget_for, worst_case_seconds
 
-_TOOLS = ("nmap", "nikto", "nuclei", "wapiti")
+# spec 011a — 8 herramientas × 3 intensidades = 24 entradas de BUDGETS.
+_TOOLS = ("nmap", "nikto", "nuclei", "wapiti",
+          "whatweb", "dirsearch", "testssl", "searchsploit")
 _LEVELS = ("passive", "active", "aggressive")
 
 
 # ── B1–B8 · scan_budgets ─────────────────────────────────────────────────────
 
-def test_b1_doce_entradas():
+def test_b1_una_entrada_por_herramienta_e_intensidad():
     assert set(BUDGETS) == {(t, i) for t in _TOOLS for i in _LEVELS}
+    assert len(BUDGETS) == len(_TOOLS) * len(_LEVELS)  # 24
 
 
 def test_b2_monotonia_por_herramienta():
@@ -87,7 +90,14 @@ def test_b7_las_9_combinaciones_bajo_el_limite_total():
 
 def test_b8_agresiva_cuatro_tools_bajo_el_techo():
     # 240+240+360+300 (topológico) + 60+60 (refeed nuclei+wapiti) = 1260 ≪ 3600
-    assert worst_case_seconds(list(_TOOLS), "aggressive") <= 1300
+    assert worst_case_seconds(["nmap", "nikto", "nuclei", "wapiti"], "aggressive") <= 1300
+
+
+def test_b8b_agresiva_ocho_tools_serial_bajo_el_limite_total():
+    # spec 011a: en SERIE las 8 rondan los 1725 s — inaceptable para demo, por eso el
+    # paralelismo (010b) es prerrequisito; aún así < 3600 (RNF-002 soft).
+    wc = worst_case_seconds(list(_TOOLS), "aggressive")
+    assert 1500 < wc < 3600
 
 
 # ── N1–N13 · is_noise_path ───────────────────────────────────────────────────
@@ -179,8 +189,11 @@ def _cmd(executor, url, *, ctx=None, intensity="active"):
         calls["cmds"].append(cmd)
         return "<x/>", "", False
 
+    import importlib.util as _ilu
     patches = [patch(f"app.executors.{m}_executor.run_scan_subprocess", fake_scan)
-               for m in ("nmap", "nikto", "nuclei", "wapiti")]
+               for m in ("nmap", "nikto", "nuclei", "wapiti", "whatweb",
+                         "dirsearch", "testssl", "searchsploit")
+               if _ilu.find_spec(f"app.executors.{m}_executor") is not None]
     with patch("shutil.which", lambda n: f"/usr/bin/{n}"), \
          patch("app.executors.wapiti_executor.find_wapiti", lambda: "/usr/bin/wapiti"), \
          patch("app.executors.nuclei_executor.find_nuclei", lambda: "/usr/bin/nuclei"):
@@ -247,6 +260,95 @@ def test_t_refeed_usa_presupuesto_reducido():
         WapitiExecutor().execute("http://h:9090/app", intensity="active", refeed=True)
     assert seen["nuclei"] == scan_budgets.REFEED_BUDGET
     assert seen["wapiti"] == scan_budgets.REFEED_BUDGET
+
+
+# ── spec 011a · whatweb → -tags de nuclei + colocación en el grafo ──────────
+
+def test_t_whatweb_technology_llega_a_nuclei_como_tag():
+    """RF-034: la tecnología del fingerprint web (whatweb) alimenta el `-tags` de nuclei
+    igual que la de nmap, y de forma acumulativa."""
+    ctx = ChainContext()
+    ctx.add(ChainFinding(ChainType.WEB_PORT, "http://h:8083"))
+    ctx.add(ChainFinding(ChainType.TECHNOLOGY, "joomla 4.2.7", source_tool="whatweb"))
+    joined = " ".join(_cmd(NucleiExecutor(), "http://h:8083", ctx=ctx))
+    assert "-tags" in joined and "joomla" in joined
+
+
+def test_t_whatweb_y_nmap_misma_tecnologia_no_duplica():
+    ctx = ChainContext()
+    ctx.add(ChainFinding(ChainType.WEB_PORT, "http://h:8082"))
+    ctx.add(ChainFinding(ChainType.TECHNOLOGY, "tomcat 9.0.30", source_tool="nmap"))
+    ctx.add(ChainFinding(ChainType.TECHNOLOGY, "tomcat 9.0.30", source_tool="whatweb"))
+    assert ctx.values(ChainType.TECHNOLOGY).count("tomcat 9.0.30") == 1
+
+
+def test_t_whatweb_va_antes_que_nuclei_en_el_grafo():
+    from app.services.chain_orchestrator import ChainOrchestrator
+    for sel in (["nmap", "whatweb", "nuclei"],
+                ["nmap", "whatweb", "nikto", "nuclei", "wapiti"]):
+        order = ChainOrchestrator().plan(sel).order
+        lvl = {t: i for i, level in enumerate(order) for t in level}
+        assert lvl["whatweb"] < lvl["nuclei"], f"{sel}: {order}"
+
+
+def test_t_grafo_de_los_presets_por_tipo():
+    from app.services.chain_orchestrator import ChainOrchestrator
+    from app.services.execution_profiles import PROFILES
+    from app.domain.enums import AuditType
+    order = ChainOrchestrator().plan(list(PROFILES[AuditType.PENETRATION_TEST].tools)).order
+    assert order == [["nmap"], ["whatweb", "nikto", "dirsearch"], ["wapiti", "nuclei", "searchsploit"]]
+    order_vs = ChainOrchestrator().plan(list(PROFILES[AuditType.VULNERABILITY_SCAN].tools)).order
+    assert order_vs == [["nmap"], ["whatweb", "nikto"], ["wapiti", "nuclei"]]
+    order_c = ChainOrchestrator().plan(list(PROFILES[AuditType.COMPLIANCE].tools)).order
+    assert order_c == [["nmap"], ["whatweb", "nikto", "testssl"], ["nuclei"]]
+
+
+# ── spec 011a · C2 (FR-018): resolución a nivel de executor de las herramientas nuevas ──
+
+def test_t_dirsearch_recibe_los_web_port_del_contexto_con_context_path():
+    from app.executors.dirsearch_executor import DirsearchExecutor
+    ctx = ChainContext()
+    ctx.add(ChainFinding(ChainType.WEB_PORT, "http://h:9090/app"))
+    joined = " ".join(_cmd(DirsearchExecutor(), "http://h:9090/app", ctx=ctx))
+    assert "-u http://h:9090/app" in joined
+    assert "h:9090/app" in joined
+
+
+def test_t_testssl_solo_recibe_targets_https_y_sin_ninguno_no_aplica():
+    from app.executors.testssl_executor import TestsslExecutor
+    ctx = ChainContext()
+    ctx.add(ChainFinding(ChainType.WEB_PORT, "http://h:80"))
+    ctx.add(ChainFinding(ChainType.WEB_PORT, "https://h:8444"))
+    joined = " ".join(_cmd(TestsslExecutor(), "http://h", ctx=ctx))
+    assert "h:8444" in joined and "h:80" not in joined
+
+    only_http = ChainContext()
+    only_http.add(ChainFinding(ChainType.WEB_PORT, "http://h:8081"))
+    out = TestsslExecutor().execute("http://h:8081", chain_context=only_http)
+    assert len(out) == 1 and "sin endpoint TLS" in out[0]["raw_output"]
+
+
+def test_t_searchsploit_recibe_solo_tecnologia_con_version():
+    from app.executors.searchsploit_executor import SearchsploitExecutor
+    ctx = ChainContext()
+    ctx.add(ChainFinding(ChainType.TECHNOLOGY, "apache 2.4.49", source_tool="nmap"))
+    ctx.add(ChainFinding(ChainType.TECHNOLOGY, "joomla", source_tool="whatweb", confidence="low"))
+    cmds = _cmd(SearchsploitExecutor(), "http://h", ctx=ctx)
+    joined = " ".join(cmds)
+    assert "apache 2.4.49" in joined
+    assert "joomla" not in joined      # sin versión / confidence low → no se consulta
+
+
+def test_t_redireccion_a_otro_host_se_descarta_para_dirsearch():
+    """spec 011a Edge Case / CHK030: una ruta que apunta a otro host se descarta."""
+    from app.parsers.dirsearch_parser import DirsearchParser
+    import json as _json
+    raw = {"raw_output": _json.dumps({"results": [
+        {"url": "http://h/ok", "status": 200},
+        {"url": "http://evil.example/leak", "status": 200},
+    ]})}
+    cfs = DirsearchParser().extract_chain_findings(raw, target_base="http://h")
+    assert {c.value for c in cfs} == {"/ok"}
 
 
 # ── SC-011 · no-regresión del refactor + discarded_noise (RF-030) ───────────
@@ -332,7 +434,8 @@ def test_sc011_orden_y_estructura_intactos(db_session, chain_fakes_paths):
         select(Event).where(Event.audit_id == aid, Event.event_type == "chain_graph")
     )
     assert ev.payload["order"] == [["nmap"], ["nikto"], ["nuclei"]]
-    assert set(ev.payload["by_type"]) == {"web_port", "technology", "path"}
+    # spec 011a: `service` es una clave más del payload (retrocompatible).
+    assert set(ev.payload["by_type"]) == {"web_port", "technology", "path", "service"}
     assert "refeed_passes" in ev.payload and "tool_failures" in ev.payload
     # spec 010b — sub-clave execution (retrocompatible, aditiva)
     ex = ev.payload["execution"]

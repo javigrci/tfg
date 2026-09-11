@@ -7,6 +7,7 @@ concurrencia (L6), modo compatibilidad (L7/FR-004), tope de cierre de nivel (L3)
 de la sesión de BD (E1/R5).
 """
 import inspect
+import json
 import threading
 import time
 
@@ -76,19 +77,67 @@ def test_pb3_las_9_combinaciones_bajo_el_limite_y_mejor_que_serial():
         assert p <= s
 
 
-def test_pb8_proyeccion_8_herramientas_spec_011():
-    # grafo previsible de la 011 (a confirmar en esa spec) + presupuestos estimados
-    b = dict(BUDGETS)
-    b.update({
-        ("testssl", "aggressive"): 180, ("whatweb", "aggressive"): 30,
-        ("dirsearch", "aggressive"): 180, ("searchsploit", "aggressive"): 15,
-    })
-    levels_8 = [["nmap"], ["nikto", "testssl", "dirsearch", "whatweb"],
-                ["nuclei", "wapiti", "searchsploit"]]
-    per_level = sum(max(b.get((t, "aggressive"), 240) for t in lvl) for lvl in levels_8)
-    projected = per_level + scan_budgets.REFEED_BUDGET  # nuclei+wapiti encadenables
-    assert projected <= 1500        # ~15 min
-    assert projected < 1665         # < serial de la 010 (1140 + 180 + 30 + 180 + 15)
+_ALL_8 = ["nmap", "whatweb", "nikto", "dirsearch", "testssl",
+          "wapiti", "nuclei", "searchsploit"]
+
+# E/S de cada herramienta para derivar el grafo. Coincide con las declaraciones reales
+# de los executors (spec 011a). Se inyecta en `ChainOrchestrator` para no depender del
+# orden en que se implementen los executors.
+_IO_8: dict[str, tuple[set, set]] = {
+    "nmap":         (set(),                                              {ChainType.WEB_PORT, ChainType.TECHNOLOGY, ChainType.SERVICE}),
+    "whatweb":      ({ChainType.WEB_PORT},                               {ChainType.TECHNOLOGY}),
+    "nikto":        ({ChainType.WEB_PORT},                               {ChainType.PATH}),
+    "dirsearch":    ({ChainType.WEB_PORT},                               {ChainType.PATH}),
+    "testssl":      ({ChainType.WEB_PORT},                               set()),
+    "wapiti":       ({ChainType.WEB_PORT, ChainType.PATH},               {ChainType.PATH}),
+    "nuclei":       ({ChainType.WEB_PORT, ChainType.TECHNOLOGY, ChainType.PATH}, {ChainType.PATH}),
+    "searchsploit": ({ChainType.TECHNOLOGY},                             set()),
+}
+
+
+def _fake_get_executor(name: str):
+    io = _IO_8.get(name)
+    if io is None:
+        raise ValueError(name)
+    return type("Fake", (), {"consumes": frozenset(io[0]), "produces": frozenset(io[1])})()
+
+
+def _plan_8(tools: list[str]):
+    return ChainOrchestrator(get_executor=_fake_get_executor).plan(tools)
+
+
+def test_pb8_grafo_real_de_8_herramientas_spec_011a():
+    """spec 011a: el grafo de 8 es REAL (derivado, no supuesto) y su peor caso paralelo
+    agresivo se mantiene ≤ 900 s — las herramientas nuevas encajan bajo el camino crítico
+    de cada nivel."""
+    levels = _plan_8(_ALL_8).order
+    assert levels == [
+        ["nmap"],
+        ["whatweb", "nikto", "dirsearch", "testssl"],
+        ["wapiti", "nuclei", "searchsploit"],
+    ]
+    wc = parallel_worst_case_seconds(levels, "aggressive")
+    # nmap 240 + máx(whatweb 60, nikto 240, dirsearch 180, testssl 240) 240
+    #   + máx(wapiti 300, nuclei 360, searchsploit 45) 360 + refeed 60
+    assert wc <= 900, f"peor caso agresivo de 8 herramientas = {wc}s > 900 (SC-005)"
+    assert wc == 900          # exacto con la tabla de presupuestos actual
+    assert wc < worst_case_seconds(_ALL_8, "aggressive")   # el paralelo mejora el serial
+
+
+def test_pb8_niveles_del_grafo_de_8_tienen_deadline_bajo_el_soft_limit():
+    lvl1 = level_deadline(["whatweb", "nikto", "dirsearch", "testssl"], "aggressive")
+    lvl2 = level_deadline(["wapiti", "nuclei", "searchsploit"], "aggressive")
+    assert lvl1 == 60 + 240 + 180 + 240 + 60   # 780
+    assert lvl2 == 300 + 360 + 45 + 60         # 765
+    assert lvl1 < 3600 and lvl2 < 3600
+
+
+def test_pb8_las_9_combinaciones_con_8_herramientas_bajo_limite():
+    for atype, prof in PROFILES.items():
+        levels = _plan_8(list(prof.tools)).order
+        for i in ("passive", "active", "aggressive"):
+            p = parallel_worst_case_seconds(levels, i)
+            assert p < 3600, f"{atype.value}/{i}: {p}s"
 
 
 # ── T004 · orden estable de los niveles del grafo ───────────────────────────
@@ -104,7 +153,15 @@ def test_orden_de_niveles_estable(tools):
 
 # ── Fixture: executors falsos deterministas para run_audit ──────────────────
 
+from app.executors.factory import get_executor as _real_get_executor
+
 _REAL = {c.name: c for c in (NmapExecutor, NiktoExecutor, NucleiExecutor, WapitiExecutor)}
+# spec 011a — declaraciones reales de las herramientas nuevas (para derivar el grafo).
+for _n in ("whatweb", "dirsearch", "testssl", "searchsploit"):
+    try:
+        _REAL[_n] = type(_real_get_executor(_n))
+    except ValueError:
+        pass
 
 
 @pytest.fixture()
@@ -113,7 +170,8 @@ def fakes(monkeypatch):
     `cfg["_conc"]` registra la concurrencia máxima observada. La espera de cada fake es un
     `Event.wait(timeout)` que el teardown libera → ningún hilo queda colgado al salir."""
     import app.services.audit_service as m
-    cfg: dict = {t: {"sleep": 0.0, "paths": [], "raise_exc": False} for t in _ALL}
+    cfg: dict = {t: {"sleep": 0.0, "paths": [], "raise_exc": False}
+                 for t in set(_ALL) | set(_ALL_8)}
     cfg["_conc"] = {"now": 0, "max": 0, "lock": threading.Lock()}
     cfg["_release"] = threading.Event()
 
@@ -205,6 +263,39 @@ def test_t006_no_regresion_concurrente_vs_serial(db_session, fakes, monkeypatch)
     s1 = db_session.scalars(select(Scan).where(Scan.audit_id == aid1)).all()
     s2 = db_session.scalars(select(Scan).where(Scan.audit_id == aid2)).all()
     assert sorted(x.tool for x in s1) == sorted(x.tool for x in s2)
+
+
+def test_c1_fr015_resultado_identico_con_herramientas_nuevas_en_el_nivel(
+    db_session, fakes, monkeypatch
+):
+    """spec 011a (FR-015, hallazgo C1 del analyze): un nivel con las herramientas nuevas
+    (whatweb/nikto/dirsearch/testssl juntos) produce el MISMO `chain_graph` y los mismos
+    scans en concurrencia (=4) y en serie (=1). 20 repeticiones → un único chain_graph."""
+    fakes["nikto"]["paths"] = ["/admin", "/icons/"]
+    fakes["dirsearch"]["paths"] = ["/backup.sql", "/.git/"]
+    fakes["nuclei"]["paths"] = ["/api"]
+    fakes["wapiti"]["paths"] = ["/api", "/panel"]
+    # finalización desordenada
+    fakes["whatweb"]["sleep"] = 0.05
+    fakes["dirsearch"]["sleep"] = 0.02
+
+    monkeypatch.setattr("app.services.audit_service.get_settings", _settings_with(concurrency=1))
+    aid_s = _make_audit(db_session, _ALL_8)
+    AuditService(db_session).run_audit(aid_s)
+    serial = _norm_no_exec(_chain_graph(db_session, aid_s))
+    tools_s = sorted(x.tool for x in db_session.scalars(select(Scan).where(Scan.audit_id == aid_s)))
+
+    seen = set()
+    for _ in range(20):
+        monkeypatch.setattr("app.services.audit_service.get_settings", _settings_with(concurrency=4))
+        aid = _make_audit(db_session, _ALL_8)
+        AuditService(db_session).run_audit(aid)
+        cg = _norm_no_exec(_chain_graph(db_session, aid))
+        seen.add(json.dumps(cg, sort_keys=True))
+        assert cg == serial
+        assert sorted(x.tool for x in db_session.scalars(select(Scan).where(Scan.audit_id == aid))) == tools_s
+
+    assert len(seen) == 1
 
 
 def _settings_with(*, concurrency):

@@ -1,6 +1,9 @@
+import logging
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import OperationalError
 from app.api.routes.admin import router as admin_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.audits import router as audits_router, findings_router
@@ -23,8 +26,37 @@ from app.services.bootstrap_service import BootstrapService
 
 settings = get_settings()
 
+_DB_STARTUP_RETRIES = 10
+_DB_STARTUP_DELAY_SECONDS = 2.0
+
+
+def _wait_for_database() -> None:
+    """`docker compose up` completo espera `db: condition: service_healthy` antes de
+    arrancar el backend (ver `docker-compose.yml`), pero `make dev` levanta `db` y el
+    proceso `uvicorn` casi a la vez, sin esa garantía — Postgres puede seguir
+    inicializando cuando `create_all` intenta conectar. Reintenta con espera fija en
+    vez de dejar que la app caiga en el primer arranque en frío."""
+    logger = logging.getLogger(__name__)
+    last_exc: Exception | None = None
+    for attempt in range(1, _DB_STARTUP_RETRIES + 1):
+        try:
+            with engine.connect():
+                return
+        except OperationalError as exc:
+            last_exc = exc
+            logger.warning(
+                "Base de datos no disponible todavía (intento %d/%d): %s",
+                attempt, _DB_STARTUP_RETRIES, exc,
+            )
+            time.sleep(_DB_STARTUP_DELAY_SECONDS)
+    raise RuntimeError(
+        f"No se pudo conectar a la base de datos tras {_DB_STARTUP_RETRIES} intentos"
+    ) from last_exc
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _wait_for_database()
     Base.metadata.create_all(bind=engine)
 
     try:

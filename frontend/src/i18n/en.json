@@ -724,6 +724,10 @@
     "presetsLabel":       "Start from a recommended configuration",
     "noTargets":          { "title": "You need a target first", "body": "An audit always runs against a target (system or URL). Add at least one to be able to create audits.", "cta": "Add a target" },
     "nmapAutoHint":       "Added automatically — the web tools need it to discover the ports.",
+    "hydraOptIn": {
+      "title":   "Enable credential attack (Hydra)",
+      "warning": "Tries real credentials against exposed services (SSH/FTP/Telnet) — can lock out accounts or trigger security alerts. Only enable it if you have explicit authorisation over the target."
+    },
     "creating":           "Creating...",
     "createAudit":        "Create Audit",
     "toolScope": {
@@ -752,6 +756,7 @@
       "wapiti":       { "desc": "Web app SQLi / XSS / LFI" },
       "testssl":      { "desc": "TLS configuration & certificate status" },
       "searchsploit": { "desc": "Known public exploits (Exploit-DB, offline)" },
+      "hydra":        { "desc": "Credential attack against ssh/ftp/telnet services" },
       "manual":       { "desc": "Manual findings" }
     },
     "auditTypes": {

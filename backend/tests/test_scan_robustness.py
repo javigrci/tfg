@@ -28,9 +28,9 @@ from app.services.execution_profiles import PROFILES
 from app.services import scan_budgets
 from app.services.scan_budgets import BUDGETS, budget_for, worst_case_seconds
 
-# spec 011a — 8 herramientas × 3 intensidades = 24 entradas de BUDGETS.
+# spec 011a — 8 herramientas; spec 012 — +hydra = 9 × 3 intensidades = 27 entradas de BUDGETS.
 _TOOLS = ("nmap", "nikto", "nuclei", "wapiti",
-          "whatweb", "dirsearch", "testssl", "searchsploit")
+          "whatweb", "dirsearch", "testssl", "searchsploit", "hydra")
 _LEVELS = ("passive", "active", "aggressive")
 
 
@@ -59,6 +59,11 @@ def test_b5_reparto_por_runs():
     total = BUDGETS[("nikto", "aggressive")]
     assert budget_for("nikto", "aggressive", runs=3) == max(60, total // 3)
     assert budget_for("nikto", "aggressive", runs=100) == 60  # suelo
+
+
+def test_hydra_presupuesto_fijo_en_las_3_intensidades():
+    # RF-005 (spec 012): límites de hydra fijos, no dependen de la intensidad.
+    assert BUDGETS[("hydra", "passive")] == BUDGETS[("hydra", "active")] == BUDGETS[("hydra", "aggressive")] == 90
 
 
 def test_b6_worst_case_es_suma_de_totales():

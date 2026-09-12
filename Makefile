@@ -113,4 +113,5 @@ tools:
 	@command -v searchsploit >/dev/null 2>&1 || echo "  ⚠ falta searchsploit → sudo apt install exploitdb"
 	@command -v testssl >/dev/null 2>&1 || echo "  ⚠ falta testssl  → git clone --depth 1 https://github.com/testssl/testssl.sh /opt/testssl && sudo ln -sf /opt/testssl/testssl.sh /usr/local/bin/testssl"
 	@command -v dirsearch >/dev/null 2>&1 || echo "  ⚠ falta dirsearch → pipx install dirsearch  (o python -m venv + pip)"
+	@command -v hydra >/dev/null 2>&1 || echo "  ⚠ falta hydra    → sudo apt install hydra"
 	@echo "  (una herramienta ausente = su scan sale FAILED y la auditoría continúa)"

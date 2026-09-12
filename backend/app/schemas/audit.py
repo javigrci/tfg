@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from app.domain.enums import (
     AuditStatus,
@@ -214,8 +214,11 @@ class LogRead(BaseModel):
 
 # Herramientas que exigen nmap por delante (encadenamiento). Espejo de
 # `chain_orchestrator._WEB_TOOLS` — mantener sincronizado. spec 011a: +whatweb/dirsearch/
-# testssl (consumen WEB_PORT) y searchsploit (consume TECHNOLOGY de nmap).
-_WEB_TOOLS = {"nikto", "wapiti", "nuclei", "whatweb", "dirsearch", "testssl", "searchsploit"}
+# testssl (consumen WEB_PORT) y searchsploit (consume TECHNOLOGY de nmap). spec 012: +hydra
+# (consume SERVICE) — hoja del grafo igual que testssl/searchsploit, depende enteramente de
+# lo que nmap descubre; sin nmap, degradaría en silencio a "sin servicios que atacar" en vez
+# de avisar al analista (hallazgo F1 de /speckit-analyze, 2026-09-12).
+_WEB_TOOLS = {"nikto", "wapiti", "nuclei", "whatweb", "dirsearch", "testssl", "searchsploit", "hydra"}
 
 
 class AuditCreate(BaseModel):
@@ -223,6 +226,10 @@ class AuditCreate(BaseModel):
     description: Optional[str] = None
     audit_type: AuditType = AuditType.VULNERABILITY_SCAN
     target_id: int
+    # spec 012 — checkbox de opt-in propio para hydra (RF-040, ADR-015). Declarado ANTES que
+    # `modules`: Pydantic valida en orden de declaración y `_hydra_gate` necesita leerlo ya
+    # validado vía `info.data`. Campo de request, no se persiste (research.md §5).
+    hydra_opt_in: bool = False
     modules: list[str] = Field(default=["nmap"], description="Herramientas de escaneo")
     # None → el servicio resuelve la intensidad por defecto del perfil del audit_type (spec 009).
     intensity: Optional[Intensity] = None
@@ -236,9 +243,28 @@ class AuditCreate(BaseModel):
         if "nmap" not in modules or modules.index("nmap") > min(web_idx):
             raise ValueError(
                 "Nmap debe ejecutarse antes que las herramientas de encadenamiento "
-                "(Nikto, Wapiti, Nuclei, WhatWeb, dirsearch, testssl, SearchSploit) "
-                "para que el encadenamiento funcione. Añade Nmap o muévelo al "
+                "(Nikto, Wapiti, Nuclei, WhatWeb, dirsearch, testssl, SearchSploit, "
+                "Hydra) para que el encadenamiento funcione. Añade Nmap o muévelo al "
                 "principio del flujo."
+            )
+        return modules
+
+    @field_validator("modules")
+    @classmethod
+    def _hydra_gate(cls, modules: list[str], info: ValidationInfo) -> list[str]:
+        """spec 012 (ADR-015): hydra es la primera herramienta con restricción dura por
+        tipo + opt-in explícito obligatorio — a diferencia de las demás, el `audit_type`
+        no solo propone, aquí bloquea de verdad."""
+        if "hydra" not in modules:
+            return modules
+        audit_type = info.data.get("audit_type")
+        if audit_type != AuditType.PENETRATION_TEST:
+            raise ValueError(
+                "Hydra solo está disponible en auditorías de tipo pentesting."
+            )
+        if not info.data.get("hydra_opt_in", False):
+            raise ValueError(
+                "Incluir Hydra requiere marcar el aviso de riesgo (hydra_opt_in)."
             )
         return modules
 

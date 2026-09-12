@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # spec 011a — WhatWeb (fingerprint web, Ruby) + Exploit-DB (searchsploit, offline)
     whatweb \
     exploitdb \
+    # spec 012 — hydra (ataque de credenciales, opt-in explícito, RF-040)
+    hydra \
     # testssl.sh necesita bash + openssl (openssl ya viene por la imagen base)
     bash \
     dnsutils \

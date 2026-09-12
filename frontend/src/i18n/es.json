@@ -724,6 +724,10 @@
     "presetsLabel":       "Empieza con una configuración recomendada",
     "noTargets":          { "title": "Necesitas un objetivo primero", "body": "Una auditoría se ejecuta siempre contra un objetivo (sistema o URL). Añade al menos uno para poder crear auditorías.", "cta": "Añadir un objetivo" },
     "nmapAutoHint":       "Añadido automáticamente — las herramientas web lo necesitan para descubrir los puertos.",
+    "hydraOptIn": {
+      "title":   "Habilitar ataque de credenciales (Hydra)",
+      "warning": "Prueba credenciales reales contra servicios expuestos (SSH/FTP/Telnet) — puede bloquear cuentas o activar alertas de seguridad. Márcalo solo si tienes autorización explícita sobre el objetivo."
+    },
     "creating":           "Creando...",
     "createAudit":        "Crear auditoría",
     "toolScope": {
@@ -752,6 +756,7 @@
       "wapiti":       { "desc": "SQLi / XSS / LFI en aplicaciones web" },
       "testssl":      { "desc": "Configuración TLS y estado del certificado" },
       "searchsploit": { "desc": "Exploits públicos conocidos (Exploit-DB, sin conexión)" },
+      "hydra":        { "desc": "Ataque de credenciales en servicios ssh/ftp/telnet" },
       "manual":       { "desc": "Hallazgos manuales" }
     },
     "auditTypes": {

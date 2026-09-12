@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ScanTool } from '@/types'
-import { ensureNmap, orderModules, buildExecutionPlan } from './auditPlan'
+import { ensureNmap, orderModules, buildExecutionPlan, isHydraAllowed } from './auditPlan'
 
 const set = (...tools: ScanTool[]) => new Set<ScanTool>(tools)
 const t = (key: string, params?: Record<string, unknown>) =>
@@ -82,5 +82,42 @@ describe('buildExecutionPlan', () => {
     expect(steps[0].text).toBe('auditNew.plan.stepNmap')
     expect(steps[1].text).toContain('Nikto, Nuclei')
     expect(steps[1].text).toContain('"cap":5')
+  })
+})
+
+// spec 012 (ADR-015) — hydra exige nmap por delante igual que searchsploit.
+describe('ensureNmap con hydra', () => {
+  it('añade nmap si hydra está sola', () => {
+    expect([...ensureNmap(set('hydra'))]).toEqual(['nmap', 'hydra'])
+  })
+})
+
+describe('orderModules con hydra', () => {
+  it('hydra va al final, como searchsploit', () => {
+    expect(orderModules(['hydra', 'nmap', 'nikto'])).toEqual(['nmap', 'nikto', 'hydra'])
+  })
+})
+
+describe('isHydraAllowed', () => {
+  it('true solo con tipo pentesting Y opt-in marcado', () => {
+    expect(isHydraAllowed('penetration_test', true)).toBe(true)
+  })
+
+  it('false sin opt-in, aunque el tipo sea pentesting', () => {
+    expect(isHydraAllowed('penetration_test', false)).toBe(false)
+  })
+
+  it('false con opt-in marcado pero tipo distinto de pentesting', () => {
+    expect(isHydraAllowed('vulnerability_scan', true)).toBe(false)
+    expect(isHydraAllowed('compliance', true)).toBe(false)
+  })
+
+  it('false sin tipo elegido', () => {
+    expect(isHydraAllowed(null, true)).toBe(false)
+  })
+
+  it('cambiar de pentesting a otro tipo deja de permitir hydra (aunque el opt-in siga marcado)', () => {
+    expect(isHydraAllowed('penetration_test', true)).toBe(true)
+    expect(isHydraAllowed('compliance', true)).toBe(false)
   })
 })

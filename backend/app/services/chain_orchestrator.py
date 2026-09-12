@@ -13,12 +13,14 @@ from app.executors.factory import get_executor as _get_executor
 # Empate dentro de un nivel topológico y ruptura del ciclo PATH↔PATH.
 # spec 011a: orden canónico ampliado a 8 herramientas. whatweb antes que nuclei (su
 # `technology` alimenta el `-tags`); searchsploit al final (hoja, consume `technology`).
+# spec 012: hydra al final también — hoja, consume `service`.
 _CANONICAL_ORDER = ["nmap", "whatweb", "nikto", "dirsearch", "testssl",
-                    "wapiti", "nuclei", "searchsploit"]
+                    "wapiti", "nuclei", "searchsploit", "hydra"]
 # Herramientas que necesitan nmap por delante (para el 422 de `/tools/chain-graph` y
 # `POST /audits`). "web" en sentido amplio: whatweb/dirsearch/testssl consumen WEB_PORT;
-# searchsploit consume TECHNOLOGY (que produce nmap).
-_WEB_TOOLS = {"nikto", "wapiti", "nuclei", "whatweb", "dirsearch", "testssl", "searchsploit"}
+# searchsploit consume TECHNOLOGY (que produce nmap); hydra consume SERVICE (spec 012,
+# hallazgo F1 de /speckit-analyze — sin nmap degradaría en silencio, mejor avisar).
+_WEB_TOOLS = {"nikto", "wapiti", "nuclei", "whatweb", "dirsearch", "testssl", "searchsploit", "hydra"}
 
 
 @dataclass

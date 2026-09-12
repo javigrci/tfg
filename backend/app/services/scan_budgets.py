@@ -24,6 +24,9 @@ BUDGETS: dict[tuple[str, str], int] = {
     ("dirsearch",    "passive"):  60, ("dirsearch",    "active"): 120, ("dirsearch",    "aggressive"): 180,
     ("testssl",      "passive"): 180, ("testssl",      "active"): 180, ("testssl",      "aggressive"): 240,
     ("searchsploit", "passive"):  30, ("searchsploit", "active"):  30, ("searchsploit", "aggressive"):  45,
+    # spec 012 — mismo valor en las 3 intensidades (RF-005: límites de hydra fijos, no
+    # dependen del eje de intensidad; activarla o no es una decisión aparte del opt-in).
+    ("hydra",        "passive"):  90, ("hydra",        "active"):  90, ("hydra",        "aggressive"):  90,
 }
 
 # La pasada `-dast` de nuclei agresivo (fuzzing) tiene un tope FIJO pequeño: contra objetivos

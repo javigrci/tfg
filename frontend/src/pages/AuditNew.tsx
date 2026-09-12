@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import {
   FolderSearch,
   Lock,
   Bug,
+  KeyRound,
   ChevronDown,
   Check,
   Info,
@@ -20,7 +21,7 @@ import {
 import api from '@/lib/api'
 import type { Target, AuditType, ScanTool, Intensity } from '@/types'
 import { useTranslation } from 'react-i18next'
-import { ensureNmap, orderModules, isWebTool } from '@/lib/auditPlan'
+import { ensureNmap, orderModules, isWebTool, isHydraAllowed } from '@/lib/auditPlan'
 import { EXECUTION_PROFILES, INTENSITY_LEVELS } from '@/lib/executionProfiles'
 import { ExecutionGraph } from '@/components/ExecutionGraph'
 import type { ChainGraphResponse } from '@/lib/chainGraph'
@@ -43,6 +44,8 @@ const TOOL_META: Record<Exclude<ScanTool, 'manual'>, {
   wapiti:       { label: 'Wapiti',       icon: <Shield       className="h-4 w-4" />, color: '#ef4444', scope: 'WEB' },
   testssl:      { label: 'testssl.sh',   icon: <Lock         className="h-4 w-4" />, color: '#06b6d4', scope: 'WEB' },
   searchsploit: { label: 'SearchSploit', icon: <Bug          className="h-4 w-4" />, color: '#a855f7', scope: 'NET' },
+  // spec 012 — no en SELECTABLE_TOOLS: solo visible con el opt-in de riesgo marcado (T013).
+  hydra:        { label: 'Hydra',        icon: <KeyRound     className="h-4 w-4" />, color: '#dc2626', scope: 'NET' },
 }
 
 const AUDIT_TYPES: AuditType[] = ['vulnerability_scan', 'penetration_test', 'compliance']
@@ -79,6 +82,33 @@ export default function AuditNew() {
   // el tipo no la sobrescribe.
   const [intensity, setIntensity] = useState<Intensity | null>(null)
   const [intensityTouched, setIntensityTouched] = useState(false)
+
+  // spec 012 (ADR-015) — hydra es la primera herramienta con opt-in explícito: un checkbox
+  // propio, separado de la rejilla, con aviso de riesgo. Solo visible en pentesting; sin
+  // marcarlo, hydra no aparece como herramienta seleccionable (FR-003/SC-004).
+  const [hydraOptIn, setHydraOptIn] = useState(false)
+  const hydraAllowed = isHydraAllowed(auditType, hydraOptIn)
+
+  // Si el analista cambia de tipo (deja pentesting) o desmarca el aviso, hydra deja de
+  // estar disponible — no se queda "fantasma" marcada sin ser seleccionable.
+  useEffect(() => {
+    if (!hydraAllowed && selected.has('hydra')) {
+      setSelected(prev => {
+        const next = new Set(prev)
+        next.delete('hydra')
+        return next
+      })
+    }
+  }, [hydraAllowed, selected])
+
+  useEffect(() => {
+    if (auditType !== 'penetration_test' && hydraOptIn) setHydraOptIn(false)
+  }, [auditType, hydraOptIn])
+
+  const visibleTools = useMemo(
+    () => (hydraAllowed ? [...SELECTABLE_TOOLS, 'hydra' as const] : SELECTABLE_TOOLS),
+    [hydraAllowed],
+  )
 
   const hasWebTool = useMemo(() => [...selected].some(isWebTool), [selected])
   const nmapAuto   = selected.has('nmap') && hasWebTool && !nmapExplicit
@@ -165,6 +195,8 @@ export default function AuditNew() {
       intensity,
       target_id:   parseInt(targetId),
       modules:     orderModules([...selected]),
+      // spec 012 — irrelevante si "hydra" no está en `modules`; el backend lo ignora.
+      hydra_opt_in: hydraOptIn,
     })
   }
 
@@ -347,8 +379,25 @@ export default function AuditNew() {
               </button>
             )}
 
+            {/* spec 012 (ADR-015) — opt-in de hydra: propio, separado de la rejilla,
+                solo visible en pentesting. Sin marcarlo, hydra no es seleccionable. */}
+            {auditType === 'penetration_test' && (
+              <label className="flex items-start gap-2.5 rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-left">
+                <input
+                  type="checkbox"
+                  checked={hydraOptIn}
+                  onChange={e => setHydraOptIn(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-red-500"
+                />
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold text-red-400">{t('auditNew.hydraOptIn.title')}</span>
+                  <span className="text-[11px] leading-snug text-muted-foreground">{t('auditNew.hydraOptIn.warning')}</span>
+                </span>
+              </label>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
-              {SELECTABLE_TOOLS.map(tool => {
+              {visibleTools.map(tool => {
                 const meta       = TOOL_META[tool as Exclude<ScanTool, 'manual'>]
                 const isSelected = selected.has(tool)
                 // El tipo DESTACA sus herramientas y atenúa las demás; nunca bloquea

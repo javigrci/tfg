@@ -1,4 +1,4 @@
-import type { ScanTool } from '@/types'
+import type { AuditType, ScanTool } from '@/types'
 
 /**
  * Lógica pura de la pantalla de creación de auditorías (spec 004). Garantiza,
@@ -11,12 +11,13 @@ import type { ScanTool } from '@/types'
 export const WEB_TOOLS: readonly ScanTool[] = ['whatweb', 'nikto', 'dirsearch', 'nuclei', 'wapiti', 'testssl']
 
 // Herramientas que exigen Nmap por delante: las web + searchsploit (consume la
-// tecnología que produce Nmap). Espejo de `chain_orchestrator._WEB_TOOLS` (backend).
-const NEEDS_NMAP: readonly ScanTool[] = [...WEB_TOOLS, 'searchsploit']
+// tecnología que produce Nmap) + hydra (consume el `service` que produce Nmap, spec 012).
+// Espejo de `chain_orchestrator._WEB_TOOLS` (backend).
+const NEEDS_NMAP: readonly ScanTool[] = [...WEB_TOOLS, 'searchsploit', 'hydra']
 
-// Orden canónico de 8 herramientas — espejo de `chain_orchestrator._CANONICAL_ORDER`.
+// Orden canónico — espejo de `chain_orchestrator._CANONICAL_ORDER`. spec 012: +hydra al final.
 const CANONICAL_ORDER: readonly ScanTool[] = [
-  'nmap', 'whatweb', 'nikto', 'dirsearch', 'testssl', 'wapiti', 'nuclei', 'searchsploit',
+  'nmap', 'whatweb', 'nikto', 'dirsearch', 'testssl', 'wapiti', 'nuclei', 'searchsploit', 'hydra',
 ]
 
 export function isWebTool(tool: ScanTool): boolean {
@@ -78,4 +79,18 @@ export function buildExecutionPlan(selected: ScanTool[], t: PlanTranslate, cap: 
     { text: t('auditNew.plan.stepNmap') },
     { text: t('auditNew.plan.stepWeb', { tools: webTools.map(toolLabel).join(', '), cap }) },
   ]
+}
+
+/**
+ * spec 012 (ADR-015) — hydra es la primera herramienta con restricción dura por tipo +
+ * opt-in explícito: solo está disponible en pentesting Y con el checkbox de riesgo
+ * marcado. Elegir el tipo o la intensidad agresiva nunca la activa por sí solo (FR-003).
+ *
+ *   isHydraAllowed('penetration_test', true)   → true
+ *   isHydraAllowed('penetration_test', false)  → false (falta el opt-in)
+ *   isHydraAllowed('vulnerability_scan', true) → false (tipo incorrecto)
+ *   isHydraAllowed(null, true)                 → false (sin tipo elegido)
+ */
+export function isHydraAllowed(auditType: AuditType | null, hydraOptIn: boolean): boolean {
+  return auditType === 'penetration_test' && hydraOptIn
 }

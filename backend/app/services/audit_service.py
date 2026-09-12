@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait
 from dataclasses import asdict as _dc_asdict, dataclass, field as _dc_field
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from app.domain.enums import (
     AuditStatus,
     CveEnrichmentStatus,
@@ -77,15 +77,20 @@ class AuditService:
         self.db = db
 
     def list_audits(self, owner_id: int | None = None) -> list[Audit]:
+        # `scans`/`events`/`logs` son colecciones uno-a-muchos (y `scans.findings` anida otra
+        # más) — combinarlas con `joinedload` en la misma consulta produce un producto
+        # cartesiano por auditoría (fila × scans × findings × events × logs). `selectinload`
+        # las trae en consultas `IN (...)` separadas, sin multiplicar filas. `target`/
+        # `created_by`/`report` siguen en `joinedload` (relaciones "a uno", no multiplican).
         statement = (
             select(Audit)
             .options(
                 joinedload(Audit.target),
                 joinedload(Audit.created_by).joinedload(User.role),
-                joinedload(Audit.scans).joinedload(Scan.findings),
+                selectinload(Audit.scans).selectinload(Scan.findings),
                 joinedload(Audit.report),
-                joinedload(Audit.events),
-                joinedload(Audit.logs),
+                selectinload(Audit.events),
+                selectinload(Audit.logs),
             )
             .order_by(Audit.created_at.desc())
         )
@@ -134,20 +139,23 @@ class AuditService:
         max_run = self.db.scalar(
             select(func.max(Scan.run_number)).where(Scan.audit_id == audit_id)
         ) or 1
+        # Mismo criterio que `list_audits`: las colecciones anidadas 3 niveles
+        # (scans→findings→finding_vulnerabilities) multiplican filas en un solo `joinedload`
+        # — `selectinload` evita el producto cartesiano con consultas `IN (...)` separadas.
         statement = (
             select(Audit)
             .where(Audit.id == audit_id)
             .options(
                 joinedload(Audit.target),
                 joinedload(Audit.created_by).joinedload(User.role),
-                joinedload(Audit.scans.and_(Scan.run_number == max_run)).joinedload(
+                selectinload(Audit.scans.and_(Scan.run_number == max_run)).selectinload(
                     Scan.findings
-                ).joinedload(
+                ).selectinload(
                     Finding.finding_vulnerabilities
                 ).joinedload(FindingVulnerability.vulnerability),
                 joinedload(Audit.report),
-                joinedload(Audit.events),
-                joinedload(Audit.logs),
+                selectinload(Audit.events),
+                selectinload(Audit.logs),
             )
         )
         return self.db.scalars(statement).unique().first()

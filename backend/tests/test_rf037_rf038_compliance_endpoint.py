@@ -5,7 +5,6 @@ from sqlalchemy import event, select
 from app.domain.enums import AuditStatus, AuditType, FindingCategory, ScanStatus, SeverityLevel
 from app.models.entities import Audit, Event as EventModel, Finding, Scan, Target, User
 from app.services.audit_service import AuditService
-from tests.conftest import engine
 
 
 def _seed_rich_audit(db) -> int:
@@ -67,17 +66,24 @@ def test_findings_ricos_devuelve_14_checks_y_37_filas_asvs(db_session):
 def test_get_compliance_no_dispara_consultas_n_mas_1(db_session):
     audit_id = _seed_rich_audit(db_session)
 
+    # `tests/` no es un paquete (sin `__init__.py`): un `from tests.conftest import
+    # engine` a nivel de módulo carga `conftest.py` una SEGUNDA vez bajo un nombre de
+    # módulo distinto, con su propio objeto `engine` — escucharlo captura 0 sentencias
+    # en silencio (bug real detectado revisando este mismo test). El `engine` correcto
+    # es el que respalda esta sesión, vía su conexión activa.
+    real_engine = db_session.connection().engine
+
     statements: list[str] = []
 
     def _counter(conn, cursor, statement, parameters, context, executemany):
         statements.append(statement)
 
-    event.listen(engine, "before_cursor_execute", _counter)
+    event.listen(real_engine, "before_cursor_execute", _counter)
     try:
         AuditService(db_session).get_compliance(audit_id)
     finally:
-        event.remove(engine, "before_cursor_execute", _counter)
+        event.remove(real_engine, "before_cursor_execute", _counter)
 
     # findings (1, con joinedloads) + categorías OWASP (1) + evento chain_graph (1) — un
     # puñado de consultas fijas, no una por finding/comprobación (SC-006).
-    assert len(statements) <= 6, statements
+    assert 0 < len(statements) <= 6, statements

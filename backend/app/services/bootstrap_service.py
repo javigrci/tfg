@@ -6,22 +6,27 @@ from app.domain.enums import UserRole
 from app.models.entities import OwaspCategory, Role, User
 
 
-# ── OWASP Top 10 2025 ─────────────────────────────────────────────────────────
+# ── OWASP Top 10:2025 ─────────────────────────────────────────────────────────
 # Formato: (position, code, name, finding_categories)
 # finding_categories mapea a los valores del enum FindingCategory de la plataforma.
-# Las categorías sin cobertura de herramientas (A04, A08, A10) se dejan vacías.
+# Edición real 2025 (top10.owasp.org/2025), publicada en enero de 2026 — sustituye
+# a la lista 2021 que estaba aquí antes con las etiquetas ":2025" mal puestas.
+# Dos categorías nuevas frente a 2021: A03 (Software Supply Chain Failures, absorbe
+# el antiguo "Vulnerable and Outdated Components") y A10 (Mishandling of Exceptional
+# Conditions). Las categorías sin cobertura de herramientas (A06, A08, A10) se dejan
+# vacías.
 
 _OWASP_2025: list[tuple[int, str, str, list[str]]] = [
-    (1,  "A01:2025", "Broken Access Control",                       ["broken_access"]),
-    (2,  "A02:2025", "Cryptographic Failures",                      ["sensitive_exposure"]),
-    (3,  "A03:2025", "Injection",                                   ["injection", "xss"]),
-    (4,  "A04:2025", "Insecure Design",                             []),
-    (5,  "A05:2025", "Security Misconfiguration",                   ["security_misconfig"]),
-    (6,  "A06:2025", "Vulnerable and Outdated Components",          ["outdated_components"]),
-    (7,  "A07:2025", "Identification and Authentication Failures",  ["broken_auth"]),
-    (8,  "A08:2025", "Software and Data Integrity Failures",        []),
-    (9,  "A09:2025", "Security Logging and Monitoring Failures",    ["logging_monitoring"]),
-    (10, "A10:2025", "Server-Side Request Forgery (SSRF)",          []),
+    (1,  "A01:2025", "Broken Access Control",                 ["broken_access"]),
+    (2,  "A02:2025", "Security Misconfiguration",              ["security_misconfig"]),
+    (3,  "A03:2025", "Software Supply Chain Failures",         ["outdated_components"]),
+    (4,  "A04:2025", "Cryptographic Failures",                 ["sensitive_exposure"]),
+    (5,  "A05:2025", "Injection",                               ["injection", "xss"]),
+    (6,  "A06:2025", "Insecure Design",                        []),
+    (7,  "A07:2025", "Authentication Failures",                ["broken_auth"]),
+    (8,  "A08:2025", "Software or Data Integrity Failures",    []),
+    (9,  "A09:2025", "Security Logging and Alerting Failures", ["logging_monitoring"]),
+    (10, "A10:2025", "Mishandling of Exceptional Conditions",  []),
 ]
 
 

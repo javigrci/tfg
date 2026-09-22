@@ -21,9 +21,9 @@ export default function ProtectedRoute({ requiredRole }: Props) {
     )
   }
 
-  // Rol requerido y no coincide → redirigir a auditorías
+  // Rol requerido y no coincide → redirigir al panel
   if (requiredRole && user.role.name !== requiredRole) {
-    return <Navigate to="/audits" replace />
+    return <Navigate to="/dashboard" replace />
   }
 
   return <Outlet />

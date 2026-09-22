@@ -20,7 +20,7 @@ export default function Login() {
 
   // Si ya hay sesión activa, redirigir directamente
   useEffect(() => {
-    if (token) navigate('/audits', { replace: true })
+    if (token) navigate('/dashboard', { replace: true })
   }, [token, navigate])
 
   async function handleSubmit(e: FormEvent) {
@@ -29,7 +29,7 @@ export default function Login() {
     setLoading(true)
     try {
       await login(username, password)
-      navigate('/audits', { replace: true })
+      navigate('/dashboard', { replace: true })
     } catch {
       setError(t('login.invalidCreds'))
     } finally {

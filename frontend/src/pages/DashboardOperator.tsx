@@ -103,15 +103,15 @@ export default function DashboardOperator() {
               {t('dashboard.operator.noFindings')}
             </div>
           ) : (
-            <div className="flex flex-col items-center">
-              <ResponsiveContainer width="100%" height={160}>
+            <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-center sm:gap-8">
+              <ResponsiveContainer width="100%" height={260} className="sm:max-w-[280px]">
                 <PieChart>
                   <Pie
                     data={sevData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={45}
-                    outerRadius={65}
+                    innerRadius={62}
+                    outerRadius={98}
                     dataKey="value"
                     paddingAngle={2}
                   >
@@ -122,17 +122,17 @@ export default function DashboardOperator() {
                   <Tooltip {...TOOLTIP_STYLE} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="mt-3 space-y-1.5 w-full max-w-xs">
+              <div className="mt-3 sm:mt-0 space-y-2.5 w-full max-w-xs">
                 {sevData.map(({ name, value }) => (
-                  <div key={name} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5">
+                  <div key={name} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
                       <span
-                        className="h-2 w-2 rounded-full"
+                        className="h-2.5 w-2.5 rounded-full"
                         style={{ background: SEV_COLORS[name] ?? '#6b7280' }}
                       />
                       <span className="text-muted-foreground">{t(`domain.severity.${name}`)}</span>
                     </div>
-                    <span className="text-foreground font-medium">{value}</span>
+                    <span className="text-foreground font-semibold">{value}</span>
                   </div>
                 ))}
               </div>
@@ -161,14 +161,14 @@ export default function DashboardOperator() {
                 <button
                   key={audit.id}
                   onClick={() => navigate(`/audits/${audit.id}`)}
-                  className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/10 transition-colors text-left"
+                  className="w-full flex items-center justify-between px-5 py-5 hover:bg-muted/10 transition-colors text-left"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground text-sm truncate">{audit.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{audit.target_address}</p>
+                    <p className="text-xs text-muted-foreground mt-1 truncate">{audit.target_address}</p>
                   </div>
-                  <div className="flex items-center gap-3 ml-3 shrink-0">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${STATUS_STYLES[audit.status] ?? STATUS_STYLES.draft}`}>
+                  <div className="flex items-center gap-4 ml-3 shrink-0">
+                    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${STATUS_STYLES[audit.status] ?? STATUS_STYLES.draft}`}>
                       {t(`domain.auditStatus.${audit.status}`)}
                     </span>
                     {audit.started_at && (

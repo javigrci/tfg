@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import { PageLoader } from '@/components/ui/PageLoader'
 import { PageError } from '@/components/ui/PageError'
 import api from '@/lib/api'
@@ -133,9 +133,12 @@ function AuditCard({
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/10 transition-colors text-left"
+      <div
+        role="button"
+        tabIndex={0}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/10 transition-colors text-left cursor-pointer"
         onClick={() => setOpen(v => !v)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v) } }}
       >
         <div className="flex items-center gap-3 min-w-0">
           {open
@@ -150,23 +153,27 @@ function AuditCard({
         </div>
 
         {/* Severity counts */}
-        <div className="flex items-center gap-3 ml-4 shrink-0">
-          {SEVERITIES.filter(s => group.counts[s] > 0).map(s => (
-            <div key={s} className="flex items-center gap-1">
-              <span className={`text-xs font-medium uppercase tracking-wider ${SEV_TEXT[s]}`}>
-                {s.slice(0, 4)}
-              </span>
-              <span className={`text-xs font-bold ${SEV_TEXT[s]}`}>{group.counts[s]}</span>
-            </div>
-          ))}
+        <div className="flex items-center gap-4 ml-4 shrink-0">
+          <div className="hidden sm:flex items-center gap-3">
+            {SEVERITIES.filter(s => group.counts[s] > 0).map(s => (
+              <div key={s} className="flex items-center gap-1">
+                <span className={`text-xs font-medium uppercase tracking-wider ${SEV_TEXT[s]}`}>
+                  {s.slice(0, 4)}
+                </span>
+                <span className={`text-xs font-bold ${SEV_TEXT[s]}`}>{group.counts[s]}</span>
+              </div>
+            ))}
+          </div>
+          <div className="hidden sm:block h-5 w-px bg-border" />
           <button
             onClick={e => { e.stopPropagation(); onNavigate(group.audit_id) }}
-            className="text-xs text-blue-400 hover:underline ml-2"
+            className="flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 transition-colors"
           >
             {t('findings.operator.viewAudit')}
+            <ExternalLink className="h-3 w-3" />
           </button>
         </div>
-      </button>
+      </div>
 
       {open && (
         <div className="border-t border-border">

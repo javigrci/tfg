@@ -81,9 +81,12 @@ function ReportCard({ report }: { report: ReportEntry }) {
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <button
-        className="w-full text-left px-5 py-4 hover:bg-muted/10 transition-colors"
+      <div
+        role="button"
+        tabIndex={0}
+        className="w-full text-left px-5 py-4 hover:bg-muted/10 transition-colors cursor-pointer"
         onClick={() => setOpen(v => !v)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v) } }}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -95,16 +98,19 @@ function ReportCard({ report }: { report: ReportEntry }) {
               <p className="text-xs text-muted-foreground mt-0.5">{report.target_address}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <RiskBadge level={report.risk_level} />
-            {report.created_at && (
-              <span className="text-xs text-muted-foreground hidden sm:block">
-                {new Date(report.created_at).toLocaleDateString()}
-              </span>
-            )}
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <RiskBadge level={report.risk_level} />
+              {report.created_at && (
+                <span className="text-xs text-muted-foreground hidden sm:block">
+                  {new Date(report.created_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            <div className="hidden sm:block h-5 w-px bg-border" />
             <button
               onClick={e => { e.stopPropagation(); navigate(`/audits/${report.audit_id}`) }}
-              className="flex items-center gap-1 text-xs text-blue-400 hover:underline"
+              className="flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/50 transition-colors"
             >
               {t('reports.operator.viewAudit')}
               <ExternalLink className="h-3 w-3" />
@@ -133,7 +139,7 @@ function ReportCard({ report }: { report: ReportEntry }) {
             </span>
           )}
         </div>
-      </button>
+      </div>
 
       {open && (
         <div className="border-t border-border">

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/lab", tags=["lab"])
 #                  de compose en la red `tfg_default`; `localhost` allí no vale.
 # Conjunto (spec 008): juice-shop · owasp-vulnerableapp · vulhub-httpd (CVE-2021-41773)
 # · vulhub-tomcat (CVE-2020-1938 Ghostcat) · vulhub-joomla (CVE-2023-23752) · weak-creds.
-# Las imágenes construidas llevan `image: auditflow-lab/<x>` fijo en el compose.
+# Las imágenes construidas llevan `image: sonda-lab/<x>` fijo en el compose.
 # El `mysql:5.7` auxiliar de Joomla no está aquí → no se detecta como máquina.
 _LAB_CONTAINERS = [
     {
@@ -48,7 +48,7 @@ _LAB_CONTAINERS = [
     },
     {
         "key":                 "lab-vulhub-httpd",
-        "image":               "auditflow-lab/vulhub-httpd",
+        "image":               "sonda-lab/vulhub-httpd",
         "aliases":             ("lab-vulhub-httpd", "vulhub-httpd"),
         "suggested_name":      "Apache httpd 2.4.49 (CVE-2021-41773)",
         "address":             "http://localhost:8081",
@@ -86,7 +86,7 @@ _LAB_CONTAINERS = [
     },
     {
         "key":                 "lab-weak-creds",
-        "image":               "auditflow-lab/weak-creds",
+        "image":               "sonda-lab/weak-creds",
         "aliases":             ("lab-weak-creds", "weak-creds"),
         "suggested_name":      "Servicios con credenciales débiles (SSH/FTP)",
         # Sin esquema ni puerto: Nmap -sV descubre SSH (:2222) y FTP (:2121) con
@@ -101,7 +101,7 @@ _LAB_CONTAINERS = [
     },
     {
         "key":                 "lab-weak-tls",
-        "image":               "auditflow-lab/weak-tls",
+        "image":               "sonda-lab/weak-tls",
         "aliases":             ("lab-weak-tls", "weak-tls"),
         "suggested_name":      "HTTPS con TLS débil",
         "address":             "https://localhost:8444",

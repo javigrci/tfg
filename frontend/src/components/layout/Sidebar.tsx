@@ -66,7 +66,7 @@ export default function Sidebar() {
           <Shield className="h-4 w-4 text-primary-foreground" />
         </div>
         <span className="text-sm font-semibold tracking-wide text-sidebar-foreground">
-          AuditFlow
+          sonda
         </span>
       </div>
 

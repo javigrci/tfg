@@ -3,7 +3,7 @@
   "report_title_executive": "Security Report",
   "report_kind_technical": "Technical",
   "report_kind_executive": "Executive",
-  "generated_with": "Generated with AuditFlow",
+  "generated_with": "Generated with sonda",
   "generated_auto": "Report generated automatically on {date} from run #{run}.",
   "page": "Page",
   "of": "of",

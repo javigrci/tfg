@@ -6,7 +6,7 @@ from app.core.config import get_settings
 _settings = get_settings()
 
 celery_app = Celery(
-    "auditflow",
+    "sonda",
     broker=_settings.broker_url(),
     backend=_settings.result_backend(),
 )

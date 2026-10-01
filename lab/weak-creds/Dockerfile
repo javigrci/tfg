@@ -1,4 +1,4 @@
-# AuditFlow lab — servicios de red con credenciales débiles (SSH + FTP).
+# sonda lab — servicios de red con credenciales débiles (SSH + FTP).
 #
 # Objetivo de descubrimiento de servicios (Nmap -sV identifica OpenSSH y vsftpd
 # con versión) y de las plantillas default-logins de Nuclei. El ataque de

@@ -77,7 +77,7 @@ def test_rf018_pdf_ejecutivo_se_genera(client, admin_headers, make_target, fake_
 def test_rf017_portada_marca_e_id_orden_severidad_y_gráficas(client, admin_headers, make_target, db_session, fake_tool):
     audit = _completed_audit(client, admin_headers, make_target, fake_tool)
     html = _html(db_session, audit["id"], technical=True)
-    assert "AuditFlow" in html
+    assert "sonda" in html
     assert f"AF-{audit['id']:04d}-T-" in html
     # columna de herramienta (bug: antes salía vacía)
     assert "FAKETOOL" in html

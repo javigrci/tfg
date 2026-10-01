@@ -1,9 +1,9 @@
-AuditFlow — Laboratorio de máquinas vulnerables
+sonda — Laboratorio de máquinas vulnerables
 ================================================
 
 Este directorio y `docker-compose.lab.yml` reúnen máquinas deliberadamente
 vulnerables usadas SOLO como objetivos de escaneo en el entorno de desarrollo
-local de AuditFlow. No forman parte de la aplicación y nunca se despliegan con
+local de sonda. No forman parte de la aplicación y nunca se despliegan con
 ella.
 
 Componentes de terceros y su atribución:
@@ -58,6 +58,6 @@ Servicio `juice-shop` (imagen `bkimminich/juice-shop`). Licencia MIT.
 --------------------------------------------------------------------------------
 weak-creds/
 --------------------------------------------------------------------------------
-Imagen propia de AuditFlow (Alpine + OpenSSH + vsftpd) con credenciales
+Imagen propia de sonda (Alpine + OpenSSH + vsftpd) con credenciales
 triviales a propósito. No redistribuye software de terceros más allá de los
 paquetes de Alpine Linux.

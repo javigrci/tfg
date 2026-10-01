@@ -1,4 +1,4 @@
-# AuditFlow
+# sonda
 
 Plataforma web diseñada para la orquestación de auditorías de seguridad. Permite la creación de auditorías, a través de la ejecución de escaneos con herramientas especializadas, la gestión de hallazgos y su posterior evaluación con CVEs a través de la API de NVD.
 
@@ -110,14 +110,14 @@ NVD y tecnología/versión para el encadenamiento nmap→web.
 > licencia de redistribución clara, y un escáner automático encuentra su superficie de
 > entrada pero no las "resuelve". Para una demo manual más rica: descarga una máquina de
 > dockerlabs.es, `bash auto_deploy.sh <maquina>.tar`, mira su IP (`docker inspect`) y crea
-> un objetivo en AuditFlow apuntándole.
+> un objetivo en sonda apuntándole.
 
 ---
 
 ## Estructura del proyecto
 
 ```
-auditflow/
+sonda/
 ├── backend/
 │   └── app/
 │       ├── api/routes/      # Endpoints HTTP (auth, audits, targets, findings, dashboard)

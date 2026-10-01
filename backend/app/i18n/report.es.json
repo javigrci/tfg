@@ -3,7 +3,7 @@
   "report_title_executive": "Informe de Seguridad",
   "report_kind_technical": "Técnico",
   "report_kind_executive": "Ejecutivo",
-  "generated_with": "Generado con AuditFlow",
+  "generated_with": "Generado con sonda",
   "generated_auto": "Informe generado automáticamente el {date} a partir de la ejecución nº {run}.",
   "page": "Página",
   "of": "de",

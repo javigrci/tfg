@@ -14,13 +14,13 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem('auditflow-theme') as Theme | null
+    const stored = localStorage.getItem('sonda-theme') as Theme | null
     return stored ?? 'dark'
   })
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
-    localStorage.setItem('auditflow-theme', theme)
+    localStorage.setItem('sonda-theme', theme)
   }, [theme])
 
   function toggleTheme() {

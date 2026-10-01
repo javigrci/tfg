@@ -2,7 +2,7 @@
 
 Cubre C1–C9 de `.specify/specs/008-lab-overhaul/contracts/lab-detect.md`:
 6 máquinas nuevas, ninguna jubilada, detección por imagen, multi-contenedor de
-Joomla, imágenes construidas (`auditflow-lab/*`), direccionamiento host vs.
+Joomla, imágenes construidas (`sonda-lab/*`), direccionamiento host vs.
 full-Docker, `stopped`/`not_found`, módulos recomendados, `details == {}`.
 """
 from app.api.routes import lab
@@ -14,12 +14,12 @@ from app.api.routes import lab
 _ROWS = [
     ("tfg-juice-shop-1", "bkimminich/juice-shop:latest", "running"),
     ("tfg-owasp-vulnerableapp-1", "sasanlabs/owasp-vulnerableapp:latest", "running"),
-    ("tfg-vulhub-httpd-1", "auditflow-lab/vulhub-httpd:cve-2021-41773", "running"),
+    ("tfg-vulhub-httpd-1", "sonda-lab/vulhub-httpd:cve-2021-41773", "running"),
     ("tfg-vulhub-tomcat-1", "vulhub/tomcat:9.0.30", "running"),
     ("tfg-vulhub-joomla-1", "vulhub/joomla:4.2.7", "running"),
     ("tfg-joomla-db-1", "mysql:5.7", "running"),
-    ("tfg-weak-creds-1", "auditflow-lab/weak-creds:latest", "exited"),
-    ("tfg-weak-tls-1", "auditflow-lab/weak-tls:latest", "running"),
+    ("tfg-weak-creds-1", "sonda-lab/weak-creds:latest", "exited"),
+    ("tfg-weak-tls-1", "sonda-lab/weak-tls:latest", "running"),
     ("tfg-db-1", "postgres:16-alpine", "running"),
 ]
 
@@ -65,7 +65,7 @@ def test_c3_casa_cada_maquina_por_imagen_con_prefijo_de_proyecto():
         assert lab._resolve(_meta(key), _ROWS) == "running"
 
 
-def test_c5_imagenes_construidas_auditflow_lab_se_casan_por_imagen():
+def test_c5_imagenes_construidas_sonda_lab_se_casan_por_imagen():
     assert lab._resolve(_meta("lab-vulhub-httpd"), _ROWS) == "running"
     # weak-creds está `exited` en _ROWS → stopped, pero SÍ se ha casado
     assert lab._resolve(_meta("lab-weak-creds"), _ROWS) == "stopped"

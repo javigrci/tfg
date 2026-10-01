@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "AuditFlow"
+    app_name: str = "sonda"
     api_prefix: str = "/api/v1"
     database_url: str = Field(
         default="postgresql+psycopg://auditflow:auditflow@localhost:5432/auditflow",

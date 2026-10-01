@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AuditFlow API",
+    title="sonda API",
     description="API para la gestión automatizada de auditorías de seguridad. Permite crear auditorías, ejecutar escaneos y consultar hallazgos y generar informes.",
     version="0.1.0",
     openapi_tags=[

@@ -114,7 +114,7 @@ def test_rf015_raiz_devuelve_info_del_servicio(client):
     resp = client.get("/")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["service"] == "AuditFlow"
+    assert body["service"] == "sonda"
     assert body["docs"] == "/docs"
 
 

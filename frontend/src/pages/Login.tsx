@@ -61,7 +61,7 @@ export default function Login() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500">
               <Shield className="h-5 w-5 text-white" />
             </div>
-            <span className="text-white font-semibold text-xl tracking-tight">AuditFlow</span>
+            <span className="text-white font-semibold text-xl tracking-tight">sonda</span>
           </div>
 
           {/* Headline */}
@@ -176,13 +176,6 @@ export default function Login() {
 
         {/* Footer */}
         <div className="w-full space-y-2 text-center">
-          <div className="flex items-center justify-center gap-3 text-xs text-slate-600">
-            <span>{t('login.privacy')}</span>
-            <span>·</span>
-            <span>{t('login.terms')}</span>
-            <span>·</span>
-            <span>{t('login.security')}</span>
-          </div>
           <p className="text-xs text-slate-700">{t('login.copyright')}</p>
         </div>
       </div>

@@ -14,22 +14,19 @@
     "backToAudits": "Back to audits"
   },
   "login": {
-    "tagline":            "Security Audit Orchestration Platform",
-    "taglineDesc":        "Advanced threat intelligence and compliance monitoring. Curated for performance, built for security professionals.",
-    "feature1":           "Real-time threat detection engine",
-    "feature2":           "Automated security scanning & reporting",
+    "tagline":            "Vulnerability Lifecycle Management",
+    "taglineDesc":        "Internal tool for the security team to run audits, consolidate findings and generate reports.",
+    "feature1":           "Orchestration of real security scanning tools",
+    "feature2":           "Technical and executive reports with real CVEs",
     "welcome":            "Welcome back",
-    "welcomeDesc":        "Sign in to your AuditFlow account to continue",
+    "welcomeDesc":        "Sign in to your sonda account to continue",
     "username":           "Username",
     "password":           "Password",
     "usernamePlaceholder":"Enter your identifier",
     "signIn":             "Sign In",
     "invalidCreds":       "Invalid username or password",
     "contactAdmin":       "Contact your administrator to request access.",
-    "privacy":            "Privacy Policy",
-    "terms":              "Terms of Service",
-    "security":           "Security Disclosure",
-    "copyright":          "© 2026 AuditFlow Intelligence. All rights reserved."
+    "copyright":          "© 2026 sonda"
   },
   "audits": {
     "title":          "Audits",

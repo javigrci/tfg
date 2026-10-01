@@ -14,22 +14,19 @@
     "backToAudits": "Volver a auditorías"
   },
   "login": {
-    "tagline":            "Plataforma de orquestación de auditorías",
-    "taglineDesc":        "Inteligencia avanzada de amenazas y monitorización de cumplimiento. Diseñado para profesionales de seguridad.",
-    "feature1":           "Motor de detección de amenazas en tiempo real",
-    "feature2":           "Escaneo de seguridad automatizado e informes",
+    "tagline":            "Gestión del ciclo de vida de vulnerabilidades",
+    "taglineDesc":        "Herramienta interna del equipo de seguridad para ejecutar auditorías, consolidar hallazgos y generar informes.",
+    "feature1":           "Orquestación de herramientas de escaneo reales",
+    "feature2":           "Informes técnicos y ejecutivos con CVEs reales",
     "welcome":            "Bienvenido de nuevo",
-    "welcomeDesc":        "Inicia sesión en tu cuenta de AuditFlow para continuar",
+    "welcomeDesc":        "Inicia sesión en tu cuenta de sonda para continuar",
     "username":           "Usuario",
     "password":           "Contraseña",
     "usernamePlaceholder":"Introduce tu identificador",
     "signIn":             "Iniciar sesión",
     "invalidCreds":       "Usuario o contraseña incorrectos",
     "contactAdmin":       "Contacta con tu administrador para solicitar acceso.",
-    "privacy":            "Política de privacidad",
-    "terms":              "Términos de servicio",
-    "security":           "Comunicación de seguridad",
-    "copyright":          "© 2026 AuditFlow Intelligence. Todos los derechos reservados."
+    "copyright":          "© 2026 sonda"
   },
   "audits": {
     "title":          "Auditorías",

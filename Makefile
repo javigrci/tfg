@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend worker install tools services stop restart lab lab-down down
+.PHONY: dev backend frontend worker install tools services stop restart lab lab-down down e2e
 
 # El lab vive en otro fichero compose bajo el mismo proyecto → silencia el aviso
 # "Found orphan containers" al levantar solo db+redis.
@@ -105,6 +105,23 @@ install:
 	fi
 	$(MAKE) tools
 	cd frontend && npm install
+
+# Suite E2E (Playwright, spec 014 / ADR-016) contra el stack real en contenedores —
+# NUNCA docker-compose.lab.yml (no hace falta, research.md Decisión 2: nmap/passive
+# contra localhost). Ni backend ni frontend tienen healthcheck propio en el compose
+# (solo db/redis) — se espera a pulso contra la raíz del backend, expuesta en :8000
+# tanto en este compose como en `make dev` (health.py, sin prefijo /api/v1).
+e2e:
+	docker compose up -d --build
+	@echo "esperando a que el backend responda..."
+	@for i in $$(seq 1 40); do \
+		curl -sf http://localhost:8000/ >/dev/null 2>&1 && { echo "arriba"; break; }; \
+		sleep 3; \
+	done
+	cd frontend && E2E_BASE_URL=http://localhost npx playwright test; \
+	status=$$?; \
+	docker compose down -v; \
+	exit $$status
 
 # Herramientas de escaneo de la spec 011a (fuera del Dockerfile — para dev en WSL).
 # whatweb: apt · exploitdb (searchsploit): apt o git · testssl.sh: git · dirsearch: pipx/venv

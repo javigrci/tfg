@@ -13,6 +13,10 @@ node_modules/
 frontend/dist/
 frontend/dist-ssr/
 frontend/*.local
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+frontend/.auth/
 logs/
 *.log
 npm-debug.log*

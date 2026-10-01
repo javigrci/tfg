@@ -249,6 +249,7 @@ export default function AuditNew() {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder={t('auditNew.namePlaceholder')}
+                data-testid="audit-name-input"
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -272,6 +273,7 @@ export default function AuditNew() {
                 <select
                   value={targetId}
                   onChange={e => setTargetId(e.target.value)}
+                  data-testid="target-select"
                   className="w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="">{t('auditNew.selectTarget')}</option>
@@ -298,6 +300,7 @@ export default function AuditNew() {
                     type="button"
                     onClick={() => selectType(type)}
                     aria-pressed={active}
+                    data-testid={`audit-type-${type}`}
                     className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-all ${
                       active
                         ? 'border-primary bg-primary/5 ring-1 ring-primary'
@@ -331,6 +334,7 @@ export default function AuditNew() {
                     type="button"
                     onClick={() => chooseIntensity(level)}
                     aria-pressed={active}
+                    data-testid={`intensity-${level}`}
                     className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-all ${
                       active
                         ? 'border-primary bg-primary/5 ring-1 ring-primary'
@@ -410,6 +414,7 @@ export default function AuditNew() {
                     type="button"
                     onClick={() => toggleTool(tool)}
                     aria-pressed={isSelected}
+                    data-testid={`tool-${tool}`}
                     className={`flex flex-col gap-2 rounded-lg border p-3.5 text-left transition-all hover:shadow-sm ${
                       offProfile ? 'opacity-45 hover:opacity-100' : ''
                     }`}
@@ -473,6 +478,7 @@ export default function AuditNew() {
           <button
             onClick={handleCreate}
             disabled={!canCreate}
+            data-testid="create-audit-submit"
             className="rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {createMutation.isPending ? t('auditNew.creating') : t('auditNew.createAudit')}

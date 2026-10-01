@@ -637,6 +637,7 @@ function FindingRow({ finding, auditId }: { finding: Finding & { tool?: ScanTool
                     value={finding.status}
                     disabled={statusMutation.isPending}
                     onChange={e => statusMutation.mutate(e.target.value as FindingStatus)}
+                    data-testid={`finding-status-${finding.id}`}
                     className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
                   >
                     {(['open', 'in_progress', 'resolved', 'false_positive'] as FindingStatus[]).map(s => (
@@ -941,7 +942,11 @@ export default function AuditDetail() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold text-foreground">{audit.name}</h1>
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[audit.status]}`}>
+              <span
+                data-testid="audit-status-badge"
+                data-status={audit.status}
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[audit.status]}`}
+              >
                 {t(`domain.auditStatus.${audit.status}`)}
               </span>
             </div>
@@ -966,6 +971,7 @@ export default function AuditDetail() {
                       setPdfMenu(m => (m === kind ? null : kind))
                     }}
                     disabled={!!pdfLoading || csvLoading}
+                    data-testid={`pdf-menu-${kind}`}
                     className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       kind === 'technical'
                         ? 'border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
@@ -993,6 +999,7 @@ export default function AuditDetail() {
                             setPdfMenu(null)
                             handleDownloadPdf(kind, lg)
                           }}
+                          data-testid={`pdf-lang-${kind}-${lg}`}
                           className="block w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted/40"
                         >
                           {t(`auditDetail.report.lang.${lg}`)}
@@ -1017,6 +1024,7 @@ export default function AuditDetail() {
           <button
             onClick={() => runMutation.mutate()}
             disabled={!canRun || runMutation.isPending}
+            data-testid="run-audit-button"
             className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {(runMutation.isPending || isRunning)

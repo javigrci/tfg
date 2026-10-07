@@ -154,10 +154,18 @@ def _docker_ps() -> list[tuple[str, str, str]]:
 def _resolve(meta: dict, containers: list[tuple[str, str, str]]) -> str:
     """'running' | 'stopped' | 'not_found' para una máquina del laboratorio.
     Si hay varios contenedores de la misma imagen (p. ej. uno de compose y otro
-    creado a mano), gana 'running'."""
+    creado a mano), gana 'running'.
+    El match por nombre es por subcadena, no igualdad: un contenedor de compose
+    siempre lleva el prefijo del proyecto (`tfg-weak-creds-1`, nunca `weak-creds`
+    a secas), así que una igualdad exacta contra los alias nunca casaría nada.
+    Hace además de red de seguridad cuando `docker ps` devuelve el digest en vez
+    del tag de la imagen (p. ej. con build attestations de Buildx activadas en
+    imágenes construidas localmente — `sonda-lab/*` — el split por ':' del
+    digest da 'sha256' y el match por imagen falla)."""
     matched = [
         state for name, image, state in containers
-        if image.split(":", 1)[0] == meta["image"] or name in meta["aliases"]
+        if image.split(":", 1)[0] == meta["image"]
+        or any(alias in name for alias in meta["aliases"])
     ]
     if not matched:
         return "not_found"

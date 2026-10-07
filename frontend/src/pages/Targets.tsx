@@ -253,6 +253,7 @@ export default function Targets() {
   const runnableToAdd = labContainers.filter(
     c => c.status === 'running' && c.suggested_address && !isAlreadyAdded(c),
   )
+  const runningCount = labContainers.filter(c => c.status === 'running').length
 
   return (
     <div className="space-y-6">
@@ -567,7 +568,9 @@ export default function Targets() {
                 <p className="text-xs text-muted-foreground">
                   {runnableToAdd.length > 0
                     ? t('targets.lab.readyToAdd', { count: runnableToAdd.length })
-                    : t('targets.lab.allAdded')}
+                    : runningCount > 0
+                      ? t('targets.lab.allAdded')
+                      : t('targets.lab.noneDetected')}
                 </p>
                 <button
                   onClick={handleAddAll}

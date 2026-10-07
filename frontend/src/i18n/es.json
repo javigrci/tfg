@@ -661,6 +661,7 @@
       "readyToAdd_one":   "{{count}} contenedor listo para añadir",
       "readyToAdd_other": "{{count}} contenedores listos para añadir",
       "allAdded":      "Todos los contenedores activos ya están añadidos",
+      "noneDetected":  "No se ha detectado ningún contenedor del laboratorio activo",
       "addedAll_one":   "{{count}} objetivo de laboratorio añadido",
       "addedAll_other": "{{count}} objetivos de laboratorio añadidos",
       "addedAllFailed": "Error al añadir algunos objetivos",

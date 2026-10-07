@@ -661,6 +661,7 @@
       "readyToAdd_one":   "{{count}} container ready to add",
       "readyToAdd_other": "{{count}} containers ready to add",
       "allAdded":      "All running containers already added",
+      "noneDetected":  "No lab containers detected as running",
       "addedAll_one":   "Added {{count}} lab target",
       "addedAll_other": "Added {{count}} lab targets",
       "addedAllFailed": "Failed to add some targets",

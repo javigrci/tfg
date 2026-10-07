@@ -14,7 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     # spec 011a — WhatWeb (fingerprint web, Ruby) + Exploit-DB (searchsploit, offline)
     whatweb \
-    exploitdb \
     # spec 012 — hydra (ataque de credenciales, opt-in explícito, RF-040)
     hydra \
     # testssl.sh necesita bash + openssl (openssl ya viene por la imagen base)
@@ -31,6 +30,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     unzip \
     && rm -rf /var/lib/apt/lists/*
+
+    # SearchSploit: instalación desde el repositorio oficial
+RUN git clone --depth 1 \
+      https://gitlab.com/exploit-database/exploitdb.git \
+      /opt/exploitdb \
+    && ln -s /opt/exploitdb/searchsploit \
+      /usr/local/bin/searchsploit
 
 # ── Nikto ─────────────────────────────────────────────────────────────────
 # No está en los repos de Debian — se instala desde el repo oficial
